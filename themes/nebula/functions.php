@@ -144,7 +144,7 @@ function nebula_render_timeline(array $posts, bool $groupByYear = true): string
           <?php foreach ($yearPosts as $index => $post): ?>
             <a class="t-item reveal" href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>"<?= nebula_reveal_delay($index % 8, 0.05) ?>>
               <span class="t-date"><?= h(date('m-d', (int)$post['published_at'])) ?></span>
-              <span class="t-title"><?php if (!empty($post['is_pinned'])): ?><span class="t-pin">置顶</span><?php endif; ?><?= h((string)$post['title']) ?></span>
+              <span class="t-title"><?= h((string)$post['title']) ?></span>
             </a>
           <?php endforeach; ?>
         <?php endforeach; ?>
