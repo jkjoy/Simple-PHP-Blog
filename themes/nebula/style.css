@@ -508,7 +508,7 @@ html.js .reveal {
   transition: opacity 0.7s ease var(--d, 0s), transform 0.7s ease var(--d, 0s);
 }
 
-.reveal.visible {
+html.js .reveal.visible {
   opacity: 1;
   transform: translateY(0);
 }

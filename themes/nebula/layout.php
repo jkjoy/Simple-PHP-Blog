@@ -31,7 +31,7 @@ $viewClass = match (true) {
   <?php if ($keywords !== ''): ?><meta name="keywords" content="<?= h($keywords) ?>"><?php endif; ?>
   <title><?= h($fullTitle) ?></title>
   <link rel="icon" href="<?= h(theme_favicon_url()) ?>">
-  <script>(function(){try{var t=localStorage.getItem("nebula-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();</script>
+  <script>(function(){document.documentElement.classList.add("js");try{var t=localStorage.getItem("nebula-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();</script>
   <?php theme_action('head', $themeContext); ?>
   <?php if ($customHeadCode !== ''): ?>
 <?= $customHeadCode . "\n" ?>

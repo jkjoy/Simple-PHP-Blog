@@ -2,3 +2,4 @@ cache
 data
 .DS_Store
 /uploads
+/.claude

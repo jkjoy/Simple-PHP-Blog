@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.3.8';
+const APP_VERSION = 'v1.3.9';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const UPLOAD_DIR = __DIR__ . '/uploads';
@@ -150,11 +150,11 @@ function ensure_comment_columns(PDO $pdo): void
         if (!isset($columns['ip_address'])) { $pdo->exec("ALTER TABLE comments ADD COLUMN ip_address TEXT NOT NULL DEFAULT ''"); }
         if (!isset($columns['reply_notified_at'])) { $pdo->exec('ALTER TABLE comments ADD COLUMN reply_notified_at INTEGER NOT NULL DEFAULT 0'); }
         if ($ownsTransaction) {
-            $pdo->commit();
+            $pdo->exec('COMMIT');
         }
     } catch (Throwable $exception) {
-        if ($ownsTransaction && $pdo->inTransaction()) {
-            $pdo->rollBack();
+        if ($ownsTransaction) {
+            try { $pdo->exec('ROLLBACK'); } catch (Throwable) {}
         }
         throw $exception;
     }
@@ -2409,11 +2409,9 @@ function increment_content_views(array $post): void
         if ($inserted === 1) {
             q('UPDATE posts SET views = views + 1 WHERE id = ?', [(int)$post['id']]);
         }
-        $database->commit();
+        $database->exec('COMMIT');
     } catch (Throwable $exception) {
-        if ($database->inTransaction()) {
-            $database->rollBack();
-        }
+        try { $database->exec('ROLLBACK'); } catch (Throwable) {}
         throw $exception;
     }
 }
@@ -5765,7 +5763,7 @@ switch ($action) {
             $database->exec('BEGIN IMMEDIATE');
             $duplicateError = duplicate_comment_error($postId, $parentId, $userId, $comment['author_email'], $comment['content']);
             if ($duplicateError !== '') {
-                $database->rollBack();
+                $database->exec('ROLLBACK');
                 set_comment_feedback($postId, $comment, [$duplicateError]);
                 redirect_to($returnUrl);
             }
@@ -5785,7 +5783,7 @@ switch ($action) {
                 )->rowCount();
                 if ($inserted !== 1) {
                     $targetStillAvailable = approved_reply_target($postId, $parentId) !== null;
-                    $database->rollBack();
+                    $database->exec('ROLLBACK');
                     if ($targetStillAvailable) {
                         $failureMessage = '这条评论已经提交过了。';
                     } else {
@@ -5808,13 +5806,13 @@ switch ($action) {
                     array_merge($insertParams, [$postId, $duplicateIdentityValue, $comment['content'], $duplicateCutoff])
                 )->rowCount();
                 if ($inserted !== 1) {
-                    $database->rollBack();
+                    $database->exec('ROLLBACK');
                     set_comment_feedback($postId, $comment, ['这条评论已经提交过了。']);
                     redirect_to($returnUrl);
                 }
                 $commentId = (int)$database->lastInsertId();
             }
-            $database->commit();
+            $database->exec('COMMIT');
             if ($isRead === 0) {
                 try {
                     send_comment_notification($post, $comment, $status);
@@ -5822,9 +5820,7 @@ switch ($action) {
                 }
             }
         } catch (Throwable $exception) {
-            if ($database->inTransaction()) {
-                $database->rollBack();
-            }
+            try { $database->exec('ROLLBACK'); } catch (Throwable) {}
             throw $exception;
         }
         if ($status === 'approved' && $parentId > 0) {

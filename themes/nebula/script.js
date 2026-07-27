@@ -10,6 +10,7 @@
   var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // mark JS as available so CSS can gate the .reveal hidden state on it
+  // (layout.php's inline head script adds this before first paint; kept as fallback)
   document.documentElement.classList.add("js");
 
   /* ------------------------------------------------------------
