@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.3.9';
+const APP_VERSION = 'v1.3.10';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const UPLOAD_DIR = __DIR__ . '/uploads';
@@ -2159,6 +2159,123 @@ function render_inline(string $text): string
     return $html;
 }
 
+function media_host_matches(string $host, string $domain): bool
+{
+    return $host === $domain || str_ends_with($host, '.' . $domain);
+}
+
+function media_url_from_paragraph(string $text): string
+{
+    $text = trim($text);
+    if (preg_match('/^<(?<url>https?:\/\/[^<>\s]+)>$/iu', $text, $matches)
+        || preg_match('/^\[[^\]\r\n]+]\((?<url>https?:\/\/[^\s)]+)\)$/iu', $text, $matches)
+        || preg_match('/^(?<url>https?:\/\/\S+)$/iu', $text, $matches)) {
+        [$url] = split_bare_url_suffix((string)$matches['url']);
+        return $url;
+    }
+
+    return '';
+}
+
+function media_iframe_html(string $provider, string $src, string $kind = 'video', int $height = 0): string
+{
+    $class = $kind === 'audio' ? 'media-embed media-embed--audio' : 'media-embed media-embed--video';
+    $style = $height > 0 ? ' style="--media-height:' . $height . 'px"' : '';
+    $allow = $kind === 'video'
+        ? ' allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen'
+        : '';
+
+    return '<figure class="' . $class . '"' . $style . '><iframe src="' . h($src) . '" title="' . h($provider)
+        . '" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"' . $allow . '></iframe></figure>';
+}
+
+function media_embed_html(string $url): string
+{
+    if (!filter_var($url, FILTER_VALIDATE_URL)) {
+        return '';
+    }
+
+    $parts = parse_url($url);
+    $scheme = str_lower_u((string)($parts['scheme'] ?? ''));
+    $host = str_lower_u((string)($parts['host'] ?? ''));
+    $host = preg_replace('/^www\./', '', $host) ?? $host;
+    $path = (string)($parts['path'] ?? '');
+    if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+        return '';
+    }
+
+    $query = [];
+    parse_str((string)($parts['query'] ?? ''), $query);
+
+    if (media_host_matches($host, 'music.163.com')) {
+        $route = trim($path, '/');
+        $fragment = (string)($parts['fragment'] ?? '');
+        if (str_contains($fragment, '?')) {
+            [$fragmentRoute, $fragmentQuery] = explode('?', $fragment, 2);
+            $route = trim($fragmentRoute, '/');
+            parse_str($fragmentQuery, $query);
+        }
+
+        $types = [
+            'song' => ['type' => 2, 'height' => 86],
+            'playlist' => ['type' => 0, 'height' => 450],
+            'album' => ['type' => 1, 'height' => 450],
+        ];
+        $id = (string)($query['id'] ?? '');
+        if (isset($types[$route]) && ctype_digit($id)) {
+            $config = $types[$route];
+            $src = 'https://music.163.com/outchain/player?type=' . $config['type'] . '&id=' . rawurlencode($id)
+                . '&auto=0&height=' . ($config['height'] - 20);
+            return media_iframe_html('网易云音乐', $src, 'audio', $config['height']);
+        }
+    }
+
+    if (media_host_matches($host, 'bilibili.com')
+        && preg_match('#/(?:video/)?(BV[0-9A-Za-z]+|av(\d+))#i', $path, $matches)) {
+        $parameter = stripos($matches[1], 'BV') === 0
+            ? 'bvid=' . rawurlencode($matches[1])
+            : 'aid=' . rawurlencode($matches[2]);
+        $page = isset($query['p']) && ctype_digit((string)$query['p']) ? '&page=' . (int)$query['p'] : '';
+        return media_iframe_html(
+            '哔哩哔哩视频',
+            'https://player.bilibili.com/player.html?' . $parameter . $page . '&high_quality=1&danmaku=0&as_wide=1'
+        );
+    }
+
+    if (media_host_matches($host, 'youtube.com') || $host === 'youtu.be') {
+        $videoId = '';
+        if ($host === 'youtu.be') {
+            $videoId = trim($path, '/');
+        } elseif (isset($query['v'])) {
+            $videoId = (string)$query['v'];
+        } elseif (preg_match('#/(?:embed|shorts|live)/([^/?]+)#', $path, $matches)) {
+            $videoId = $matches[1];
+        }
+
+        if (preg_match('/^[0-9A-Za-z_-]{6,15}$/', $videoId)) {
+            return media_iframe_html(
+                'YouTube 视频',
+                'https://www.youtube-nocookie.com/embed/' . rawurlencode($videoId)
+            );
+        }
+    }
+
+    if (media_host_matches($host, 'youku.com')
+        && preg_match('#/id_([0-9A-Za-z=_-]+)\.html#i', $path, $matches)) {
+        return media_iframe_html('优酷视频', 'https://player.youku.com/embed/' . rawurlencode($matches[1]));
+    }
+
+    if (media_host_matches($host, 'douban.com') && preg_match('#/subject/(\d+)#', $path)) {
+        return '<aside class="media-link-card media-link-card--douban">'
+            . '<span class="media-link-card__icon" aria-hidden="true">豆</span>'
+            . '<span class="media-link-card__body"><strong>豆瓣媒体资料</strong><small>' . h($host) . '</small></span>'
+            . '<a href="' . h($url) . '" target="_blank" rel="noopener noreferrer">在豆瓣查看<span aria-hidden="true"> →</span></a>'
+            . '</aside>';
+    }
+
+    return '';
+}
+
 function markdown_to_html(string $markdown): string
 {
     $markdown = trim(str_replace(["\r\n", "\r"], "\n", $markdown));
@@ -2184,7 +2301,9 @@ function markdown_to_html(string $markdown): string
 
         $text = trim(implode(' ', array_map('trim', $paragraph)));
         if ($text !== '') {
-            $html[] = '<p>' . render_inline($text) . '</p>';
+            $mediaUrl = media_url_from_paragraph($text);
+            $mediaHtml = $mediaUrl !== '' ? media_embed_html($mediaUrl) : '';
+            $html[] = $mediaHtml !== '' ? $mediaHtml : '<p>' . render_inline($text) . '</p>';
         }
 
         $paragraph = [];
@@ -5588,6 +5707,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
               <div class="field">
                 <div class="field-label-row"><label for="content">正文</label><button class="button button--ghost button--compact" type="button" data-ai-action="polish">AI 润色</button></div>
                 <textarea id="content" class="editor-textarea" name="content" rows="18" required><?= h((string)$values['content']) ?></textarea>
+                <p class="field-hint">支持 Markdown；将网易云音乐、哔哩哔哩、优酷、YouTube 或豆瓣链接单独放在一段可自动解析。</p>
               </div>
 
               <div class="field">
