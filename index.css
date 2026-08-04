@@ -1272,6 +1272,155 @@ textarea:focus {
   line-height: 1.72;
 }
 
+.theme-admin .markdown-editor {
+  overflow: hidden;
+  border: 1px solid var(--admin-border-strong);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+  transition-property: border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+.theme-admin .markdown-editor:focus-within {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px rgba(51, 112, 255, 0.12);
+}
+
+.theme-admin .markdown-toolbar {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 4px 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--admin-border);
+  background: #fafbfc;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
+
+.theme-admin .markdown-toolbar__heading {
+  width: 84px;
+  min-width: 84px;
+  min-height: 40px;
+  padding: 0 24px 0 9px;
+  border-color: transparent;
+  background-color: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.theme-admin .markdown-toolbar__heading:hover,
+.theme-admin .markdown-toolbar__heading:focus {
+  border-color: var(--admin-border);
+  background-color: #fff;
+  box-shadow: none;
+}
+
+.theme-admin .markdown-toolbar__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--admin-muted);
+  cursor: pointer;
+  transition-property: background-color, color, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+.theme-admin .markdown-toolbar__button:hover,
+.theme-admin .markdown-toolbar__button:focus-visible {
+  background: #fff;
+  color: var(--admin-accent);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.1);
+  outline: none;
+}
+
+.theme-admin .markdown-toolbar__button:active {
+  transform: scale(0.96);
+}
+
+.theme-admin .markdown-toolbar__button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-admin .markdown-toolbar__button strong,
+.theme-admin .markdown-toolbar__button em,
+.theme-admin .markdown-toolbar__strike,
+.theme-admin .markdown-toolbar__code {
+  font: 700 16px/1 var(--font-ui);
+}
+
+.theme-admin .markdown-toolbar__button em {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.theme-admin .markdown-toolbar__strike {
+  text-decoration: line-through;
+}
+
+.theme-admin .markdown-toolbar__code {
+  font: 700 11px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.theme-admin .markdown-toolbar__separator {
+  width: 1px;
+  height: 24px;
+  flex: 0 0 auto;
+  margin: 0 5px;
+  background: var(--admin-border);
+}
+
+.theme-admin .markdown-editor .editor-textarea {
+  display: block;
+  width: 100%;
+  min-height: 520px;
+  padding: 18px;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+  font: 500 14px/1.75 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  tab-size: 2;
+}
+
+.theme-admin .markdown-editor .editor-textarea:hover,
+.theme-admin .markdown-editor .editor-textarea:focus {
+  border: 0;
+  box-shadow: none;
+}
+
+.theme-admin .markdown-editor__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  padding: 0 12px;
+  border-top: 1px solid var(--admin-border);
+  background: #fafbfc;
+  color: var(--admin-soft);
+  font: 500 11px/1 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+
 .theme-admin input:hover,
 .theme-admin select:hover,
 .theme-admin textarea:hover {

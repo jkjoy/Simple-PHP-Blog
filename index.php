@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.3.11';
+const APP_VERSION = 'v1.3.12';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const UPLOAD_DIR = __DIR__ . '/uploads';
@@ -2260,11 +2260,6 @@ function media_embed_html(string $url): string
         }
     }
 
-    if (media_host_matches($host, 'youku.com')
-        && preg_match('#/id_([0-9A-Za-z=_-]+)\.html#i', $path, $matches)) {
-        return media_iframe_html('优酷视频', 'https://player.youku.com/embed/' . rawurlencode($matches[1]));
-    }
-
     if (media_host_matches($host, 'douban.com') && preg_match('#/subject/(\d+)#', $path)) {
         return '<aside class="media-link-card media-link-card--douban">'
             . '<span class="media-link-card__icon" aria-hidden="true">豆</span>'
@@ -2274,6 +2269,62 @@ function media_embed_html(string $url): string
     }
 
     return '';
+}
+
+function markdown_table_cells(string $line): array
+{
+    $line = trim($line);
+    $hasLeadingPipe = str_starts_with($line, '|');
+    $hasTrailingPipe = str_ends_with($line, '|');
+    $cells = [];
+    $cell = '';
+    $length = strlen($line);
+
+    for ($index = 0; $index < $length; $index++) {
+        $character = $line[$index];
+        if ($character === '\\' && $index + 1 < $length && $line[$index + 1] === '|') {
+            $cell .= '|';
+            $index++;
+            continue;
+        }
+        if ($character === '|') {
+            $cells[] = trim($cell);
+            $cell = '';
+            continue;
+        }
+        $cell .= $character;
+    }
+    $cells[] = trim($cell);
+
+    if ($hasLeadingPipe && $cells !== [] && $cells[0] === '') {
+        array_shift($cells);
+    }
+    if ($hasTrailingPipe && $cells !== [] && $cells[count($cells) - 1] === '') {
+        array_pop($cells);
+    }
+
+    return $cells;
+}
+
+function markdown_table_alignments(string $line): ?array
+{
+    $cells = markdown_table_cells($line);
+    if ($cells === []) {
+        return null;
+    }
+
+    $alignments = [];
+    foreach ($cells as $cell) {
+        $cell = trim($cell);
+        if (!preg_match('/^:?-{3,}:?$/', $cell)) {
+            return null;
+        }
+        $left = str_starts_with($cell, ':');
+        $right = str_ends_with($cell, ':');
+        $alignments[] = $left && $right ? 'center' : ($right ? 'right' : ($left ? 'left' : ''));
+    }
+
+    return $alignments;
 }
 
 function markdown_to_html(string $markdown): string
@@ -2347,7 +2398,9 @@ function markdown_to_html(string $markdown): string
         $codeLines = [];
     };
 
-    foreach ($lines as $line) {
+    $lineCount = count($lines);
+    for ($lineIndex = 0; $lineIndex < $lineCount; $lineIndex++) {
+        $line = $lines[$lineIndex];
         if (preg_match('/^```([\w-]+)?\s*$/', $line, $matches)) {
             if ($inCode) {
                 $flushCode();
@@ -2365,6 +2418,40 @@ function markdown_to_html(string $markdown): string
         if ($inCode) {
             $codeLines[] = $line;
             continue;
+        }
+
+        if (str_contains($line, '|') && $lineIndex + 1 < $lineCount) {
+            $alignments = markdown_table_alignments($lines[$lineIndex + 1]);
+            $headers = markdown_table_cells($line);
+            if ($alignments !== null && count($headers) === count($alignments)) {
+                $flushParagraph();
+                $flushList();
+                $flushQuote();
+                $headerHtml = [];
+                foreach ($headers as $column => $header) {
+                    $align = $alignments[$column];
+                    $attribute = $align !== '' ? ' style="text-align:' . $align . '"' : '';
+                    $headerHtml[] = '<th' . $attribute . '>' . render_inline($header) . '</th>';
+                }
+
+                $rowsHtml = [];
+                $rowIndex = $lineIndex + 2;
+                while ($rowIndex < $lineCount && trim($lines[$rowIndex]) !== '' && str_contains($lines[$rowIndex], '|')) {
+                    $cells = markdown_table_cells($lines[$rowIndex]);
+                    $cells = array_slice(array_pad($cells, count($headers), ''), 0, count($headers));
+                    $cellHtml = [];
+                    foreach ($cells as $column => $cell) {
+                        $align = $alignments[$column];
+                        $attribute = $align !== '' ? ' style="text-align:' . $align . '"' : '';
+                        $cellHtml[] = '<td' . $attribute . '>' . render_inline($cell) . '</td>';
+                    }
+                    $rowsHtml[] = '<tr>' . implode('', $cellHtml) . '</tr>';
+                    $rowIndex++;
+                }
+                $html[] = '<table><thead><tr>' . implode('', $headerHtml) . '</tr></thead><tbody>' . implode('', $rowsHtml) . '</tbody></table>';
+                $lineIndex = $rowIndex - 1;
+                continue;
+            }
         }
 
         if (preg_match('/^\s*$/', $line)) {
@@ -5706,8 +5793,36 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
 
               <div class="field">
                 <div class="field-label-row"><label for="content">正文</label><button class="button button--ghost button--compact" type="button" data-ai-action="polish">AI 润色</button></div>
-                <textarea id="content" class="editor-textarea" name="content" rows="18" required><?= h((string)$values['content']) ?></textarea>
-                <p class="field-hint">支持 Markdown；将网易云音乐、哔哩哔哩、优酷、YouTube 或豆瓣链接单独放在一段可自动解析。</p>
+                <div class="markdown-editor" data-markdown-editor>
+                  <div class="markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具栏">
+                    <label class="sr-only" for="markdown-heading">标题级别</label>
+                    <select id="markdown-heading" class="markdown-toolbar__heading" data-markdown-heading title="标题级别" aria-label="标题级别">
+                      <option value="">标题</option>
+                      <option value="1">一级标题</option>
+                      <option value="2">二级标题</option>
+                      <option value="3">三级标题</option>
+                    </select>
+                    <span class="markdown-toolbar__separator" aria-hidden="true"></span>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="bold" aria-label="加粗" aria-keyshortcuts="Control+B Meta+B" title="加粗 (Ctrl/Cmd+B)"><strong aria-hidden="true">B</strong></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="italic" aria-label="斜体" aria-keyshortcuts="Control+I Meta+I" title="斜体 (Ctrl/Cmd+I)"><em aria-hidden="true">I</em></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="strike" aria-label="删除线" title="删除线"><span class="markdown-toolbar__strike" aria-hidden="true">S</span></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="inline-code" aria-label="行内代码" title="行内代码"><span class="markdown-toolbar__code" aria-hidden="true">&lt;/&gt;</span></button>
+                    <span class="markdown-toolbar__separator" aria-hidden="true"></span>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="quote" aria-label="引用" title="引用"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21c3 0 7-1 7-8V5c0-1.2-.8-2-2-2H4C2.8 3 2 3.8 2 5v6c0 1.2.8 2 2 2h3c0 3-1 5-4 6v2Zm11 0c3 0 7-1 7-8V5c0-1.2-.8-2-2-2h-4c-1.2 0-2 .8-2 2v6c0 1.2.8 2 2 2h3c0 3-1 5-4 6v2Z"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="unordered-list" aria-label="无序列表" title="无序列表"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="ordered-list" aria-label="有序列表" title="有序列表"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6h11M10 12h11M10 18h11M4 6h1V3L3 4M3 11h2l-2 3h2M3 17h2l-2 2h2"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="task-list" aria-label="任务列表" title="任务列表"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6h10M11 12h10M11 18h10M3 6l1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/></svg></button>
+                    <span class="markdown-toolbar__separator" aria-hidden="true"></span>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="link" aria-label="插入链接" aria-keyshortcuts="Control+K Meta+K" title="链接 (Ctrl/Cmd+K)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="image" aria-label="插入图片" title="图片"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="table" aria-label="插入表格" title="表格"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14M16 5v14"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="code-block" aria-label="代码块" title="代码块"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3m8-6 3 3-3 3m-2-9-4 12"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="horizontal-rule" aria-label="分隔线" title="分隔线"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                  </div>
+                  <textarea id="content" class="editor-textarea" name="content" rows="18" spellcheck="true" required><?= h((string)$values['content']) ?></textarea>
+                  <div class="markdown-editor__status"><span>Markdown</span><span data-markdown-count aria-live="polite">0 字符</span></div>
+                </div>
+                <p class="field-hint">支持 Markdown；将网易云音乐、哔哩哔哩、YouTube 或豆瓣链接单独放在一段可自动解析。</p>
               </div>
 
               <div class="field">

@@ -83,6 +83,7 @@ function initAttachmentUploader() {
     const cursor = before.length + insert.length;
     editor.focus();
     editor.setSelectionRange(cursor, cursor);
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
   };
 
   const createItem = (file) => {
@@ -187,6 +188,127 @@ function initAttachmentUploader() {
   });
 }
 
+function initMarkdownEditor() {
+  const root = document.querySelector("[data-markdown-editor]");
+  if (!root) return;
+
+  const editor = root.querySelector("#content");
+  const heading = root.querySelector("[data-markdown-heading]");
+  const count = root.querySelector("[data-markdown-count]");
+  if (!(editor instanceof HTMLTextAreaElement)) return;
+
+  const updateCount = () => {
+    if (count) count.textContent = `${editor.value.length} 字符`;
+  };
+
+  const replaceSelection = (replacement, selectionOffset = replacement.length, selectionLength = 0) => {
+    const start = editor.selectionStart ?? editor.value.length;
+    const end = editor.selectionEnd ?? editor.value.length;
+    const scrollTop = editor.scrollTop;
+    editor.setRangeText(replacement, start, end, "end");
+    editor.focus({ preventScroll: true });
+    editor.setSelectionRange(start + selectionOffset, start + selectionOffset + selectionLength);
+    editor.scrollTop = scrollTop;
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  const wrapSelection = (before, after, placeholder) => {
+    const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+    const content = selected || placeholder;
+    replaceSelection(`${before}${content}${after}`, before.length, content.length);
+  };
+
+  const prefixLines = (prefixForIndex, removablePattern, toggle = true) => {
+    const value = editor.value;
+    const selectionStart = editor.selectionStart;
+    const selectionEnd = editor.selectionEnd;
+    const lineStart = value.lastIndexOf("\n", Math.max(0, selectionStart - 1)) + 1;
+    const nextBreak = value.indexOf("\n", selectionEnd);
+    const lineEnd = nextBreak === -1 ? value.length : nextBreak;
+    const lines = value.slice(lineStart, lineEnd).split("\n");
+    const shouldRemove = toggle && removablePattern && lines.every((line) => line === "" || removablePattern.test(line));
+    const transformed = lines.map((line, index) => {
+      if (line === "") return line;
+      if (shouldRemove) return line.replace(removablePattern, "");
+      return `${prefixForIndex(index)}${line.replace(removablePattern || /$^/, "")}`;
+    }).join("\n");
+    const scrollTop = editor.scrollTop;
+    editor.setRangeText(transformed, lineStart, lineEnd, "select");
+    editor.focus({ preventScroll: true });
+    editor.scrollTop = scrollTop;
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+
+  const insertBlock = (block, cursorOffset = block.length, selectionLength = 0) => {
+    const start = editor.selectionStart;
+    const before = editor.value.slice(0, start);
+    const after = editor.value.slice(editor.selectionEnd);
+    const leading = before === "" || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+    const trailing = after === "" || after.startsWith("\n\n") ? "" : after.startsWith("\n") ? "\n" : "\n\n";
+    replaceSelection(`${leading}${block}${trailing}`, leading.length + cursorOffset, selectionLength);
+  };
+
+  const applyAction = (action) => {
+    if (action === "bold") wrapSelection("**", "**", "粗体文本");
+    if (action === "italic") wrapSelection("*", "*", "斜体文本");
+    if (action === "strike") wrapSelection("~~", "~~", "删除线文本");
+    if (action === "inline-code") wrapSelection("`", "`", "代码");
+    if (action === "quote") prefixLines(() => "> ", /^>\s?/);
+    if (action === "unordered-list") prefixLines(() => "- ", /^[-*+]\s+/);
+    if (action === "ordered-list") prefixLines((index) => `${index + 1}. `, /^\d+[.)]\s+/);
+    if (action === "task-list") prefixLines(() => "- [ ] ", /^[-*+]\s+\[[ xX]]\s+/);
+    if (action === "link") {
+      const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+      const isUrl = /^https?:\/\/\S+$/i.test(selected);
+      const label = isUrl ? "链接文字" : (selected || "链接文字");
+      const url = isUrl ? selected : "https://";
+      const replacement = `[${label}](${url})`;
+      const selectionOffset = isUrl ? 1 : replacement.indexOf(url);
+      const selectionLength = isUrl ? label.length : url.length;
+      replaceSelection(replacement, selectionOffset, selectionLength);
+    }
+    if (action === "image") {
+      const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd) || "图片描述";
+      const replacement = `![${selected}](https://)`;
+      const urlStart = replacement.indexOf("https://");
+      replaceSelection(replacement, urlStart, "https://".length);
+    }
+    if (action === "table") {
+      const firstHeading = editor.value.slice(editor.selectionStart, editor.selectionEnd) || "列 1";
+      const table = `| ${firstHeading} | 列 2 | 列 3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |`;
+      insertBlock(table, 2, firstHeading.length);
+    }
+    if (action === "code-block") {
+      const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd) || "在这里输入代码";
+      const block = `\`\`\`\n${selected}\n\`\`\``;
+      insertBlock(block, 4);
+    }
+    if (action === "horizontal-rule") insertBlock("---");
+  };
+
+  root.querySelectorAll("[data-markdown-action]").forEach((button) => {
+    button.addEventListener("click", () => applyAction(button.dataset.markdownAction || ""));
+  });
+
+  heading?.addEventListener("change", () => {
+    if (!heading.value) return;
+    const level = Math.min(3, Math.max(1, Number(heading.value) || 2));
+    prefixLines(() => `${"#".repeat(level)} `, /^#{1,6}\s+/, false);
+    heading.value = "";
+  });
+
+  editor.addEventListener("keydown", (event) => {
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLowerCase();
+    const shortcuts = { b: "bold", i: "italic", k: "link" };
+    if (!shortcuts[key]) return;
+    event.preventDefault();
+    applyAction(shortcuts[key]);
+  });
+  editor.addEventListener("input", updateCount);
+  updateCount();
+}
+
 function initAiEditor() {
   const root = document.querySelector("[data-ai-editor]");
   if (!root) return;
@@ -262,6 +384,7 @@ function initAiEditor() {
 
     try {
       content.value = await generate("polish", content.value, instruction.value.trim());
+      content.dispatchEvent(new Event("input", { bubbles: true }));
       modal.hidden = true;
       status.textContent = "";
       content.focus();
@@ -522,6 +645,7 @@ function initTerminal() {
 document.addEventListener("DOMContentLoaded", () => {
   initAccountMenus();
   initSettingsControls();
+  initMarkdownEditor();
   initAttachmentUploader();
   initAiEditor();
   initComments();
