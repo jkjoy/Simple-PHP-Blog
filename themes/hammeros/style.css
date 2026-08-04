@@ -876,9 +876,22 @@ body.theme-public.hammeros-theme {
   list-style: none;
 }
 
+.pagination {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.pagination .page-item {
+  min-width: 0;
+}
+
 .hammer-pager > :last-child,
 .pagination .page-next {
   justify-self: end;
+}
+
+.pagination .page-next {
+  width: 100%;
 }
 
 .hammer-pager a,
@@ -907,6 +920,36 @@ body.theme-public.hammeros-theme {
   color: var(--hammer-red);
   box-shadow: var(--hammer-shadow-hover);
   outline: none;
+}
+
+.hammeros-theme .pagination a[data-post-title] {
+  width: 100%;
+  min-width: 0;
+  min-height: 78px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  text-align: left;
+}
+
+.hammeros-theme .pagination a[data-post-title]::after {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--hammer-ink);
+  content: attr(data-post-title);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.hammeros-theme .pagination .page-next a[data-post-title] {
+  align-items: flex-end;
+  text-align: right;
 }
 
 .hammer-pager__count {
@@ -1156,6 +1199,8 @@ body.theme-public.hammeros-theme {
   font-family: "Songti SC", "STSong", "Noto Serif CJK SC", Georgia, serif;
   font-size: 17px;
   line-height: 1.95;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .post-content > :first-child { margin-top: 0; }
@@ -1202,6 +1247,45 @@ body.theme-public.hammeros-theme {
   margin: 28px auto;
   border-radius: 6px;
   box-shadow: var(--hammer-shadow);
+}
+
+.hammeros-theme .post-content .media-embed--video {
+  --hammer-player-bezel: 6px;
+  --hammer-player-inner-radius: 2px;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 34px 0;
+  padding: var(--hammer-player-bezel);
+  overflow: hidden;
+  border-radius: calc(var(--hammer-player-inner-radius) + var(--hammer-player-bezel));
+  background: var(--hammer-paper);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.1),
+    0 14px 32px rgba(33, 37, 39, 0.12);
+  box-sizing: border-box;
+}
+
+.hammeros-theme .post-content .media-embed--video iframe {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  margin: 0;
+  border: 0;
+  border-radius: var(--hammer-player-inner-radius);
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+:root[data-theme="dark"] .hammeros-theme .post-content .media-embed--video {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 14px 32px rgba(0, 0, 0, 0.32);
 }
 
 .post-content blockquote {
@@ -1856,6 +1940,11 @@ body.theme-public.hammeros-theme {
 
   .post-content { font-size: 16px; line-height: 1.9; }
   .post-content pre { margin-right: -4px; margin-left: -4px; padding: 15px; }
+  .hammeros-theme .post-content .media-embed--video {
+    --hammer-player-bezel: 4px;
+    --hammer-player-inner-radius: 3px;
+    margin: 28px 0;
+  }
 
   .pagination { gap: 8px; }
   .pagination a { padding: 7px 11px; }
