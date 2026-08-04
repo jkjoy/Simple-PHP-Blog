@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.3.12';
+const APP_VERSION = 'v1.4.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const UPLOAD_DIR = __DIR__ . '/uploads';
@@ -4258,12 +4258,12 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
       <ul class="pagination">
         <li class="page-item page-previous">
           <?php if ($neighbors['newer']): ?>
-            <a href="<?= h(url_for('post', ['slug' => (string)$neighbors['newer']['slug']])) ?>">上一篇</a>
+            <a href="<?= h(url_for('post', ['slug' => (string)$neighbors['newer']['slug']])) ?>" data-post-title="<?= h((string)$neighbors['newer']['title']) ?>" aria-label="上一篇：<?= h((string)$neighbors['newer']['title']) ?>">上一篇</a>
           <?php endif; ?>
         </li>
         <li class="page-item page-next">
           <?php if ($neighbors['older']): ?>
-            <a href="<?= h(url_for('post', ['slug' => (string)$neighbors['older']['slug']])) ?>">下一篇</a>
+            <a href="<?= h(url_for('post', ['slug' => (string)$neighbors['older']['slug']])) ?>" data-post-title="<?= h((string)$neighbors['older']['title']) ?>" aria-label="下一篇：<?= h((string)$neighbors['older']['title']) ?>">下一篇</a>
           <?php endif; ?>
         </li>
       </ul>
