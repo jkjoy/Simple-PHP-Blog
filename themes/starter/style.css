@@ -25,4 +25,43 @@
   .md-content {
     border-left-color: var(--amber);
   }
+
+  .media-link-card--douban {
+    border-color: var(--line);
+    background: var(--bg-alt);
+    box-shadow: 0 0 0 1px rgba(103, 213, 196, 0.08), 0 12px 30px rgba(0, 0, 0, 0.28);
+    color: var(--fg);
+  }
+
+  .media-link-card__cover {
+    background: #178f58;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 24px rgba(0, 0, 0, 0.34);
+  }
+
+  .media-link-card__eyebrow,
+  .media-link-card__rating {
+    color: var(--green);
+  }
+
+  .media-link-card__title { color: var(--bright); }
+  .media-link-card__subtitle,
+  .media-link-card__facts,
+  .media-link-card__credits { color: var(--grey); }
+  .media-link-card__credits b { color: var(--amber); opacity: 1; }
+  .media-link-card__rating small { color: var(--grey); }
+
+  .media-link-card__action {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--green);
+    text-decoration: none;
+  }
+
+  .media-link-card__action:hover,
+  .media-link-card__action:focus-visible {
+    border-color: var(--green);
+    background: rgba(103, 213, 196, 0.12);
+    color: var(--bright);
+    text-shadow: 0 0 6px var(--glow);
+  }
 }

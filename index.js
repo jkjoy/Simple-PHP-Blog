@@ -36,6 +36,56 @@ function initAccountMenus() {
   });
 }
 
+function initAdminNavigation() {
+  const body = document.body;
+  const sidebar = document.querySelector("#admin-sidebar");
+  const main = document.querySelector(".admin-main");
+  const toggle = document.querySelector("[data-admin-nav-toggle]");
+  const closeControls = document.querySelectorAll("[data-admin-nav-close]");
+  const mobile = window.matchMedia("(max-width: 760px)");
+  if (!(sidebar instanceof HTMLElement) || !(toggle instanceof HTMLButtonElement)) return;
+
+  const setOpen = (open, restoreFocus = false) => {
+    const mobileOpen = mobile.matches && open;
+    body.classList.toggle("admin-nav-open", mobileOpen);
+    toggle.setAttribute("aria-expanded", mobileOpen ? "true" : "false");
+    toggle.setAttribute("aria-label", mobileOpen ? "关闭后台菜单" : "打开后台菜单");
+    sidebar.toggleAttribute("inert", mobile.matches && !mobileOpen);
+    if (mobile.matches) {
+      sidebar.setAttribute("aria-hidden", mobileOpen ? "false" : "true");
+    } else {
+      sidebar.removeAttribute("aria-hidden");
+    }
+    if (main instanceof HTMLElement) main.toggleAttribute("inert", mobileOpen);
+
+    if (mobileOpen) {
+      const closeButton = sidebar.querySelector("[data-admin-nav-close]");
+      if (closeButton instanceof HTMLElement) {
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => closeButton.focus({ preventScroll: true }));
+        });
+      }
+    } else {
+      sidebar.querySelectorAll("[data-admin-account]").forEach((menu) => { menu.open = false; });
+      if (restoreFocus) toggle.focus();
+    }
+  };
+
+  toggle.addEventListener("click", () => setOpen(!body.classList.contains("admin-nav-open"), true));
+  closeControls.forEach((control) => control.addEventListener("click", () => setOpen(false, true)));
+  sidebar.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => setOpen(false)));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && body.classList.contains("admin-nav-open")) setOpen(false, true);
+  });
+  const handleViewportChange = () => setOpen(false);
+  if (typeof mobile.addEventListener === "function") {
+    mobile.addEventListener("change", handleViewportChange);
+  } else {
+    mobile.addListener(handleViewportChange);
+  }
+  setOpen(false);
+}
+
 function initSettingsControls() {
   const prettyUrl = document.getElementById("pretty_url");
   const rewriteHelp = document.querySelector("[data-rewrite-help]");
@@ -643,6 +693,7 @@ function initTerminal() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  initAdminNavigation();
   initAccountMenus();
   initSettingsControls();
   initMarkdownEditor();

@@ -16,6 +16,7 @@ $postCount = count_published_posts();
 $tagCount = count(tag_index_data());
 $firstPublished = (int)val('SELECT MIN(published_at) FROM posts WHERE kind = ? AND status = ?', ['post', 'published']);
 $runningDays = $firstPublished > 0 ? max(1, (int)floor((time() - $firstPublished) / 86400)) : 0;
+$adminOnline = admin_is_online();
 $viewClass = match (true) {
     $action === 'archives' || $active === 'archives' => 'hammer-view-archives',
     $action === 'tag' => 'hammer-view-tag',
@@ -86,7 +87,7 @@ $greeting = $hour < 6 ? '夜深了' : ($hour < 11 ? '早上好' : ($hour < 14 ? 
     <aside class="hammer-companion" aria-label="系统管家">
       <div class="hammer-companion__top">
         <span class="hammer-companion__label">SYSTEM BUDDY</span>
-        <span class="hammer-online"><i></i> ONLINE</span>
+        <span class="hammer-online <?= $adminOnline ? 'is-online' : 'is-offline' ?>" aria-label="管理员当前<?= $adminOnline ? '在线' : '离线' ?>"><i></i> <?= $adminOnline ? 'ONLINE' : 'OFFLINE' ?></span>
       </div>
       <button class="hammer-buddy" type="button" data-hammer-buddy aria-label="和系统管家打个招呼" title="打个招呼">
         <span class="hammer-buddy__ears" aria-hidden="true"></span>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 const ADMIN_SESSION_IDLE_TIMEOUT = 1800;
 const ADMIN_SESSION_ABSOLUTE_TIMEOUT = 43200;
+const ADMIN_PRESENCE_TIMEOUT = 300;
 
 $sessionSecure = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
     || (string)($_SERVER['SERVER_PORT'] ?? '') === '443';
@@ -23,9 +24,10 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.4.0';
+const APP_VERSION = 'v1.4.1';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
+const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
 const UPLOAD_DIR = __DIR__ . '/uploads';
 const THEMES_DIR = __DIR__ . '/themes';
 const DB_CONFIG_FILE = DATA_DIR . '/config.php';
@@ -1241,6 +1243,65 @@ function handle_attachment_upload(): void
     ], $uploaded !== [] ? 200 : 400);
 }
 
+function update_admin_presence(?int $adminId): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE || session_id() === '') {
+        return;
+    }
+
+    ensure_runtime_dirs();
+    $stream = @fopen(ADMIN_PRESENCE_FILE, 'c+');
+    if ($stream === false || !flock($stream, LOCK_EX)) {
+        if (is_resource($stream)) { fclose($stream); }
+        return;
+    }
+
+    rewind($stream);
+    $stored = json_decode((string)stream_get_contents($stream), true);
+    $sessions = is_array($stored['sessions'] ?? null) ? $stored['sessions'] : [];
+    $now = time();
+    foreach ($sessions as $key => $presence) {
+        if (!is_array($presence) || $now - (int)($presence['last_seen_at'] ?? 0) > ADMIN_PRESENCE_TIMEOUT) {
+            unset($sessions[$key]);
+        }
+    }
+
+    $sessionKey = hash('sha256', session_id());
+    if ($adminId !== null && $adminId > 0) {
+        $sessions[$sessionKey] = ['admin_id' => $adminId, 'last_seen_at' => $now];
+    } else {
+        unset($sessions[$sessionKey]);
+    }
+
+    rewind($stream);
+    ftruncate($stream, 0);
+    fwrite($stream, (string)json_encode(['sessions' => $sessions], JSON_UNESCAPED_SLASHES));
+    fflush($stream);
+    flock($stream, LOCK_UN);
+    fclose($stream);
+}
+
+function admin_is_online(): bool
+{
+    $stream = @fopen(ADMIN_PRESENCE_FILE, 'rb');
+    if ($stream === false || !flock($stream, LOCK_SH)) {
+        if (is_resource($stream)) { fclose($stream); }
+        return false;
+    }
+
+    $stored = json_decode((string)stream_get_contents($stream), true);
+    flock($stream, LOCK_UN);
+    fclose($stream);
+    $sessions = is_array($stored['sessions'] ?? null) ? $stored['sessions'] : [];
+    $now = time();
+    foreach ($sessions as $presence) {
+        if (is_array($presence) && $now - (int)($presence['last_seen_at'] ?? 0) <= ADMIN_PRESENCE_TIMEOUT) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function current_admin(): ?array
 {
     static $loaded = false;
@@ -1278,12 +1339,14 @@ function current_admin(): ?array
     $_SESSION['admin_authenticated_at'] = $authenticatedAt;
     $_SESSION['admin_last_seen_at'] = $now;
     $_SESSION['admin_password_fingerprint'] = $currentFingerprint;
+    update_admin_presence((int)$admin['id']);
     unset($admin['password_hash']);
     return $admin;
 }
 
 function clear_admin_authentication(): void
 {
+    update_admin_presence(null);
     unset(
         $_SESSION['admin_id'],
         $_SESSION['admin_authenticated_at'],
@@ -1297,6 +1360,7 @@ function clear_admin_authentication(): void
 
 function destroy_current_session(): void
 {
+    update_admin_presence(null);
     $_SESSION = [];
     if ((bool)ini_get('session.use_cookies')) {
         $params = session_get_cookie_params();
@@ -2189,6 +2253,298 @@ function media_iframe_html(string $provider, string $src, string $kind = 'video'
         . '" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"' . $allow . '></iframe></figure>';
 }
 
+function media_text_value(mixed $value, int $limit = 180): string
+{
+    if (!is_scalar($value)) {
+        return '';
+    }
+
+    $text = trim((string)preg_replace('/\s+/u', ' ', (string)$value));
+    return $text === '' ? '' : str_sub_u($text, 0, $limit);
+}
+
+function media_name_list(mixed $value, int $limit = 5): array
+{
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $names = [];
+    foreach ($value as $item) {
+        $name = is_array($item) ? media_text_value($item['name'] ?? '') : media_text_value($item);
+        if ($name !== '' && !in_array($name, $names, true)) {
+            $names[] = $name;
+        }
+        if (count($names) >= $limit) {
+            break;
+        }
+    }
+    return $names;
+}
+
+function douban_subject_type(string $host, string $path): string
+{
+    foreach (['movie', 'book', 'music'] as $type) {
+        if (media_host_matches($host, $type . '.douban.com')
+            || preg_match('#/' . $type . '/subject/#i', $path)) {
+            return $type;
+        }
+    }
+    return '';
+}
+
+function douban_normalize_subject(array $subject, string $type): array
+{
+    $title = media_text_value($subject['title'] ?? '', 120);
+    if ($title === '') {
+        return [];
+    }
+
+    $labels = ['movie' => '豆瓣电影', 'book' => '豆瓣读书', 'music' => '豆瓣音乐'];
+    $subtitle = $type === 'movie'
+        ? media_text_value($subject['original_title'] ?? '', 120)
+        : media_text_value($subject['subtitle'] ?? '', 120);
+    if ($subtitle === $title) {
+        $subtitle = '';
+    }
+
+    $pubdates = media_name_list($subject['pubdate'] ?? [], 1);
+    $year = media_text_value($subject['year'] ?? '', 12);
+    if ($year === '' && $pubdates !== [] && preg_match('/(?:19|20)\d{2}/', $pubdates[0], $match)) {
+        $year = $match[0];
+    }
+
+    $genres = media_name_list($subject['genres'] ?? [], 4);
+    $credits = [];
+    if ($type === 'movie') {
+        $directors = media_name_list($subject['directors'] ?? [], 3);
+        $actors = media_name_list($subject['actors'] ?? [], 5);
+        if ($directors !== []) { $credits[] = ['label' => '导演', 'value' => implode(' / ', $directors)]; }
+        if ($actors !== []) { $credits[] = ['label' => '主演', 'value' => implode(' / ', $actors)]; }
+    } elseif ($type === 'book') {
+        $authors = media_name_list($subject['author'] ?? [], 4);
+        $publishers = media_name_list($subject['press'] ?? [], 2);
+        if ($authors !== []) { $credits[] = ['label' => '作者', 'value' => implode(' / ', $authors)]; }
+        if ($publishers !== []) { $credits[] = ['label' => '出版', 'value' => implode(' / ', $publishers)]; }
+    } elseif ($type === 'music') {
+        $artists = media_name_list($subject['singer'] ?? [], 4);
+        $publishers = media_name_list($subject['publisher'] ?? [], 2);
+        if ($artists !== []) { $credits[] = ['label' => '表演者', 'value' => implode(' / ', $artists)]; }
+        if ($publishers !== []) { $credits[] = ['label' => '发行', 'value' => implode(' / ', $publishers)]; }
+    }
+
+    $rating = (float)($subject['rating']['value'] ?? 0);
+    $ratingCount = max(0, (int)($subject['rating']['count'] ?? 0));
+    $cover = media_text_value($subject['cover_url'] ?? '', 500);
+    $coverParts = $cover !== '' ? parse_url($cover) : false;
+    $coverHost = is_array($coverParts) ? str_lower_u((string)($coverParts['host'] ?? '')) : '';
+    if (!is_array($coverParts) || (string)($coverParts['scheme'] ?? '') !== 'https' || !media_host_matches($coverHost, 'doubanio.com')) {
+        $cover = '';
+    }
+
+    return [
+        'type' => $type,
+        'label' => $labels[$type] ?? '豆瓣资料',
+        'title' => $title,
+        'subtitle' => $subtitle,
+        'cover' => $cover,
+        'meta' => array_values(array_filter(array_merge([$year], $genres), static fn(string $item): bool => $item !== '')),
+        'credits' => array_slice($credits, 0, 2),
+        'rating' => $rating > 0 ? number_format($rating, 1, '.', '') : '',
+        'rating_count' => $ratingCount,
+    ];
+}
+
+function douban_subject_data(string $type, string $id): array
+{
+    static $memory = [];
+    $key = $type . ':' . $id;
+    if (isset($memory[$key])) {
+        return $memory[$key];
+    }
+
+    ensure_runtime_dirs();
+    $cacheFile = CACHE_DIR . '/media-douban-' . $type . '-' . $id . '.json';
+    $cached = is_file($cacheFile) ? json_decode((string)file_get_contents($cacheFile), true) : null;
+    $cachedData = is_array($cached['data'] ?? null) ? $cached['data'] : [];
+    $cachedAt = (int)($cached['fetched_at'] ?? 0);
+    $ttl = $cachedData !== [] ? 604800 : 3600;
+    if ($cachedAt > 0 && time() - $cachedAt < $ttl) {
+        return $memory[$key] = $cachedData;
+    }
+
+    $normalized = [];
+    if (function_exists('curl_init')) {
+        $endpoint = 'https://m.douban.com/rexxar/api/v2/' . $type . '/' . $id . '?ck=&for_mobile=1';
+        $curl = curl_init($endpoint);
+        curl_setopt_array($curl, array_replace([
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_TIMEOUT => 5,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_ENCODING => '',
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; SimplePHPBlog/' . APP_VERSION . ')',
+            CURLOPT_HTTPHEADER => [
+                'Accept: application/json',
+                'Accept-Language: zh-CN,zh;q=0.9',
+                'Referer: https://m.douban.com/' . $type . '/subject/' . $id . '/',
+            ],
+        ], curl_trust_options()));
+        $body = curl_exec($curl);
+        $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        curl_close($curl);
+        if ($status === 200 && is_string($body) && strlen($body) <= 1048576) {
+            $subject = json_decode($body, true);
+            if (is_array($subject)) {
+                $normalized = douban_normalize_subject($subject, $type);
+            }
+        }
+    }
+
+    if ($normalized !== []) {
+        @file_put_contents($cacheFile, json_encode([
+            'fetched_at' => time(),
+            'data' => $normalized,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+        return $memory[$key] = $normalized;
+    }
+
+    if ($cachedData === []) {
+        @file_put_contents($cacheFile, json_encode([
+            'fetched_at' => time(),
+            'data' => [],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+    }
+    return $memory[$key] = $cachedData;
+}
+
+function render_douban_cover(): never
+{
+    $type = trim((string)($_GET['type'] ?? ''));
+    $id = trim((string)($_GET['id'] ?? ''));
+    if (!in_array($type, ['movie', 'book', 'music'], true) || !preg_match('/^\d{1,12}$/', $id)) {
+        http_response_code(404);
+        exit;
+    }
+
+    ensure_runtime_dirs();
+    $cacheFile = CACHE_DIR . '/media-douban-cover-' . $type . '-' . $id . '.jpg';
+    $sendFile = static function (string $file): never {
+        header('Content-Type: image/jpeg');
+        header('Content-Length: ' . (string)filesize($file));
+        header('Cache-Control: public, max-age=86400, stale-if-error=604800');
+        header('X-Content-Type-Options: nosniff');
+        header('Cross-Origin-Resource-Policy: same-origin');
+        readfile($file);
+        exit;
+    };
+
+    if (is_file($cacheFile) && time() - (int)filemtime($cacheFile) < 604800) {
+        $sendFile($cacheFile);
+    }
+
+    $subject = douban_subject_data($type, $id);
+    $coverUrl = (string)($subject['cover'] ?? '');
+    $image = '';
+    $contentType = '';
+    if ($coverUrl !== '' && function_exists('curl_init')) {
+        $curl = curl_init($coverUrl);
+        curl_setopt_array($curl, array_replace([
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_TIMEOUT => 5,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; SimplePHPBlog/' . APP_VERSION . ')',
+            CURLOPT_HTTPHEADER => [
+                'Accept: image/jpeg',
+                'Referer: https://m.douban.com/' . $type . '/subject/' . $id . '/',
+            ],
+            CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$image): int {
+                if (strlen($image) + strlen($chunk) > 2097152) {
+                    return 0;
+                }
+                $image .= $chunk;
+                return strlen($chunk);
+            },
+        ], curl_trust_options()));
+        curl_exec($curl);
+        $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+        $contentType = str_lower_u(trim(explode(';', (string)curl_getinfo($curl, CURLINFO_CONTENT_TYPE))[0]));
+        curl_close($curl);
+
+        if ($status !== 200 || $contentType !== 'image/jpeg' || strlen($image) < 128) {
+            $image = '';
+        }
+    }
+
+    if ($image !== '') {
+        @file_put_contents($cacheFile, $image, LOCK_EX);
+        if (is_file($cacheFile)) {
+            $sendFile($cacheFile);
+        }
+        header('Content-Type: image/jpeg');
+        header('Content-Length: ' . (string)strlen($image));
+        header('Cache-Control: public, max-age=86400');
+        header('X-Content-Type-Options: nosniff');
+        echo $image;
+        exit;
+    }
+
+    if (is_file($cacheFile)) {
+        $sendFile($cacheFile);
+    }
+
+    header('Cache-Control: no-store');
+    http_response_code(404);
+    exit;
+}
+
+function douban_media_card_html(string $url, string $host, string $type, string $id): string
+{
+    $subject = $type !== '' ? douban_subject_data($type, $id) : [];
+    $detailed = $subject !== [];
+    $label = $detailed ? (string)$subject['label'] : '豆瓣资料';
+    $title = $detailed ? (string)$subject['title'] : '豆瓣媒体资料';
+    $class = 'media-link-card media-link-card--douban' . ($detailed ? ' media-link-card--detailed media-link-card--' . h($type) : '');
+    $cover = '<span class="media-link-card__cover" aria-hidden="true"><span class="media-link-card__cover-fallback">豆</span>';
+    if ($detailed && (string)$subject['cover'] !== '') {
+        $coverUrl = script_url() . '?a=douban_cover&type=' . rawurlencode($type) . '&id=' . rawurlencode($id);
+        $cover .= '<img src="' . h($coverUrl) . '" alt="" loading="lazy" decoding="async" onerror="this.remove()">';
+    }
+    $cover .= '</span>';
+
+    $subtitle = $detailed && (string)$subject['subtitle'] !== ''
+        ? '<small class="media-link-card__subtitle">' . h((string)$subject['subtitle']) . '</small>'
+        : '';
+    $facts = '';
+    foreach (($detailed ? $subject['meta'] : [$host]) as $fact) {
+        $facts .= '<span>' . h((string)$fact) . '</span>';
+    }
+    $credits = '';
+    foreach (($detailed ? $subject['credits'] : []) as $credit) {
+        $credits .= '<span><b>' . h((string)$credit['label']) . '</b><span>' . h((string)$credit['value']) . '</span></span>';
+    }
+    $rating = '';
+    if ($detailed && (string)$subject['rating'] !== '') {
+        $ratingLabel = '豆瓣评分 ' . (string)$subject['rating'] . ' 分';
+        if ((int)$subject['rating_count'] > 0) {
+            $ratingLabel .= '，' . (int)$subject['rating_count'] . ' 人评价';
+        }
+        $rating = '<span class="media-link-card__rating" aria-label="' . h($ratingLabel) . '"><b>'
+            . h((string)$subject['rating']) . '</b><small>豆瓣评分</small></span>';
+    }
+
+    return '<aside class="' . $class . '">' . $cover
+        . '<span class="media-link-card__body"><small class="media-link-card__eyebrow">' . h($label) . '</small>'
+        . '<strong class="media-link-card__title">' . h($title) . '</strong>' . $subtitle
+        . '<span class="media-link-card__facts">' . $facts . '</span>'
+        . ($credits !== '' ? '<span class="media-link-card__credits">' . $credits . '</span>' : '') . '</span>'
+        . '<span class="media-link-card__side">' . $rating
+        . '<a class="media-link-card__action" href="' . h($url) . '" target="_blank" rel="noopener noreferrer">查看详情<span aria-hidden="true"> →</span></a>'
+        . '</span></aside>';
+}
+
 function media_embed_html(string $url): string
 {
     if (!filter_var($url, FILTER_VALIDATE_URL)) {
@@ -2260,12 +2616,8 @@ function media_embed_html(string $url): string
         }
     }
 
-    if (media_host_matches($host, 'douban.com') && preg_match('#/subject/(\d+)#', $path)) {
-        return '<aside class="media-link-card media-link-card--douban">'
-            . '<span class="media-link-card__icon" aria-hidden="true">豆</span>'
-            . '<span class="media-link-card__body"><strong>豆瓣媒体资料</strong><small>' . h($host) . '</small></span>'
-            . '<a href="' . h($url) . '" target="_blank" rel="noopener noreferrer">在豆瓣查看<span aria-hidden="true"> →</span></a>'
-            . '</aside>';
+    if (media_host_matches($host, 'douban.com') && preg_match('#/subject/(\d+)#', $path, $matches)) {
+        return douban_media_card_html($url, $host, douban_subject_type($host, $path), $matches[1]);
     }
 
     return '';
@@ -2350,11 +2702,13 @@ function markdown_to_html(string $markdown): string
             return;
         }
 
-        $text = trim(implode(' ', array_map('trim', $paragraph)));
+        $paragraphLines = array_map('trim', $paragraph);
+        $text = trim(implode(' ', $paragraphLines));
         if ($text !== '') {
             $mediaUrl = media_url_from_paragraph($text);
             $mediaHtml = $mediaUrl !== '' ? media_embed_html($mediaUrl) : '';
-            $html[] = $mediaHtml !== '' ? $mediaHtml : '<p>' . render_inline($text) . '</p>';
+            $renderedLines = array_map('render_inline', $paragraphLines);
+            $html[] = $mediaHtml !== '' ? $mediaHtml : '<p>' . implode('<br>', $renderedLines) . '</p>';
         }
 
         $paragraph = [];
@@ -3704,6 +4058,8 @@ function admin_icon(string $name): string
         'mail' => '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"></path><path d="m22 6-10 7L2 6"></path>',
         'storage' => '<ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5"></path><path d="M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"></path>',
         'settings' => '<path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>',
+        'menu' => '<path d="M4 6h16M4 12h16M4 18h16"></path>',
+        'close' => '<path d="m6 6 12 12M18 6 6 18"></path>',
         'refresh' => '<path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"></path>',
         'logout' => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path>',
         default => '<circle cx="12" cy="12" r="8"></circle>',
@@ -3805,7 +4161,11 @@ function render_admin_sidebar(string $active, array $summary = []): string
 
     ob_start();
     ?>
-    <aside class="admin-side admin-animate admin-animate--1">
+    <button class="admin-side-backdrop" type="button" data-admin-nav-close tabindex="-1" aria-hidden="true"></button>
+    <aside class="admin-side admin-animate admin-animate--1" id="admin-sidebar" aria-label="后台导航">
+      <button class="admin-icon-btn admin-side__close" type="button" data-admin-nav-close aria-label="关闭后台菜单" title="关闭后台菜单">
+        <?= admin_icon('close') ?>
+      </button>
       <a class="admin-side__brand" href="<?= h(url_for('admin')) ?>" title="<?= h($siteName) ?>" aria-label="<?= h($siteName) ?>">
         <?= admin_icon('home') ?>
         <span class="admin-side__brand-text"><?= h($siteName) ?></span>
@@ -3893,11 +4253,16 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
     ob_start();
     ?>
     <div class="admin-topbar">
-      <div class="admin-crumb">控制台 / <b><?= h($title) ?></b></div>
+      <div class="admin-topbar__leading">
+        <button class="admin-icon-btn admin-nav-toggle" type="button" data-admin-nav-toggle aria-controls="admin-sidebar" aria-expanded="false" aria-label="打开后台菜单" title="打开后台菜单">
+          <?= admin_icon('menu') ?>
+        </button>
+        <div class="admin-crumb"><span>控制台 /</span> <b><?= h($title) ?></b></div>
+      </div>
       <div class="admin-topbar__actions">
         <form class="admin-update-check" method="post" action="<?= h(url_for('check_update')) ?>">
           <?= csrf_field() ?>
-          <button class="button button--secondary button--compact" type="submit">
+          <button class="button button--secondary button--compact" type="submit" aria-label="检测更新" title="检测更新">
             <?= admin_icon('refresh') ?>
             <span>检测更新</span>
           </button>
@@ -5879,6 +6244,10 @@ if (($_GET['__route_not_found'] ?? '') === '1') {
 $action = (string)($_GET['a'] ?? 'home');
 
 switch ($action) {
+    case 'douban_cover':
+        render_douban_cover();
+        break;
+
     case 'home':
         render_home((int)($_GET['p'] ?? 1));
         break;
@@ -6190,6 +6559,7 @@ switch ($action) {
             $_SESSION['admin_authenticated_at'] = $now;
             $_SESSION['admin_last_seen_at'] = $now;
             $_SESSION['admin_password_fingerprint'] = hash('sha256', (string)$user['password_hash']);
+            update_admin_presence((int)$user['id']);
             set_flash('success', '已登录后台。');
             redirect_to(url_for('admin'));
         }
