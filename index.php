@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.4.1';
+const APP_VERSION = 'v1.4.2';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -453,7 +453,7 @@ function default_settings(): array
         'site_keywords' => '',
         'site_footer' => '',
         'custom_head_code' => '',
-        'active_theme' => 'default',
+        'active_theme' => 'nebula',
         'favicon_url' => 'logo.png',
         'footer_beian' => '',
         'posts_per_page' => '6',

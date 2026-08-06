@@ -161,12 +161,31 @@ function nebula_render_timeline(array $posts, bool $groupByYear = true): string
     return (string)ob_get_clean();
 }
 
+function nebula_total_word_count(): int
+{
+    $total = 0;
+    $contents = all_rows(
+        'SELECT content FROM posts WHERE kind = ? AND status = ? AND published_at <= ?',
+        ['post', 'published', time()]
+    );
+
+    foreach ($contents as $row) {
+        $plainText = markdown_to_plain((string)($row['content'] ?? ''));
+        $plainText = preg_replace('/\s+/u', '', $plainText) ?? $plainText;
+        $total += str_len_u($plainText);
+    }
+
+    return $total;
+}
+
 function nebula_render_archives(): string
 {
     $posts = fetch_archive_posts();
     $total = count($posts);
+    $categoryCount = count(fetch_categories());
     $tagCount = count(tag_index_data());
     $linkCount = (int)val('SELECT COUNT(*) FROM links');
+    $wordCount = nebula_total_word_count();
     $firstPublished = (int)val('SELECT MIN(published_at) FROM posts WHERE kind = ? AND status = ?', ['post', 'published']);
     $runningDays = $firstPublished > 0 ? max(1, (int)floor((time() - $firstPublished) / 86400)) : 0;
 
@@ -174,11 +193,11 @@ function nebula_render_archives(): string
     ?>
     <div class="page-head reveal">
       <h1 class="grad-text">归档</h1>
-      <p>时间轴上的 <?= h((string)$total) ?> 篇文章</p>
+      <p>时间轴上的 <?= h((string)$total) ?> 篇文章 · 总共写了 <?= h((string)$wordCount) ?> 字</p>
     </div>
     <?php if ($posts): ?>
       <div class="stats stats--bordered reveal"<?= nebula_reveal_delay(1) ?>>
-        <div class="stat"><div class="num"><?= h((string)$total) ?></div><div class="label">文章</div></div>
+        <div class="stat"><div class="num"><?= h((string)$categoryCount) ?></div><div class="label">分类</div></div>
         <div class="stat"><div class="num"><?= h((string)$tagCount) ?></div><div class="label">标签</div></div>
         <div class="stat"><div class="num"><?= h((string)$linkCount) ?></div><div class="label">友链</div></div>
         <?php if ($runningDays > 0): ?><div class="stat"><div class="num"><?= h((string)$runningDays) ?></div><div class="label">运行天数</div></div><?php endif; ?>
