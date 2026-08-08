@@ -50,6 +50,17 @@
 
 ## 安装
 
+### 单文件自动安装
+
+1. 只上传 `installer.php` 到准备安装博客的空目录。
+2. 在浏览器访问 `installer.php`。
+3. 环境检查通过后，点击“下载并部署”。安装器会从官方 GitHub Release 下载最新稳定版。
+4. 部署完成后继续初始化站点，并从服务器删除 `installer.php`。
+
+安装器要求 PHP 8.0+、`curl`、`zip`、`pdo_sqlite` 和 `fileinfo` 扩展。它不会覆盖目录中的同名文件，写入失败时会回滚本次已创建的程序文件。
+
+### 手动安装
+
 1. 把项目放到 Web 根目录或子目录。
 2. 确保 `data/` 和 `cache/` 可写。
 3. 访问 `install.php`。
@@ -61,6 +72,7 @@
 ```text
 index.php      主入口
 install.php    安装页
+installer.php  单文件自动部署器
 index.css      前后台样式
 index.js       前台交互
 .htaccess      Apache 重写和目录保护

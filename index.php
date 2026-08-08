@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.4.2';
+const APP_VERSION = 'v1.4.3';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -105,6 +105,11 @@ function str_sub_u(string $text, int $start, ?int $length = null): string
 function str_lower_u(string $text): string
 {
     return function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+}
+
+function is_ascii_digits(string $value): bool
+{
+    return $value !== '' && preg_match('/^[0-9]+$/D', $value) === 1;
 }
 
 function set_flash(string $type, string $message): void
@@ -2578,7 +2583,7 @@ function media_embed_html(string $url): string
             'album' => ['type' => 1, 'height' => 450],
         ];
         $id = (string)($query['id'] ?? '');
-        if (isset($types[$route]) && ctype_digit($id)) {
+        if (isset($types[$route]) && is_ascii_digits($id)) {
             $config = $types[$route];
             $src = 'https://music.163.com/outchain/player?type=' . $config['type'] . '&id=' . rawurlencode($id)
                 . '&auto=0&height=' . ($config['height'] - 20);
@@ -2591,7 +2596,7 @@ function media_embed_html(string $url): string
         $parameter = stripos($matches[1], 'BV') === 0
             ? 'bvid=' . rawurlencode($matches[1])
             : 'aid=' . rawurlencode($matches[2]);
-        $page = isset($query['p']) && ctype_digit((string)$query['p']) ? '&page=' . (int)$query['p'] : '';
+        $page = isset($query['p']) && is_ascii_digits((string)$query['p']) ? '&page=' . (int)$query['p'] : '';
         return media_iframe_html(
             '哔哩哔哩视频',
             'https://player.bilibili.com/player.html?' . $parameter . $page . '&high_quality=1&danmaku=0&as_wide=1'
@@ -2923,7 +2928,7 @@ function fetch_content_by_identifier(string $kind, string $slug, bool $allowPrev
         return null;
     }
 
-    if (ctype_digit($slug)) {
+    if (is_ascii_digits($slug)) {
         $row = one('SELECT * FROM posts WHERE id = ? AND kind = ?', [(int)$slug, $kind]);
         if ($row && ($allowPreview || is_live_content($row))) {
             return $row;
@@ -3461,7 +3466,7 @@ function prune_comment_rate_files(): void
     $cutoff = time() - 86400;
     rewind($guard);
     $storedCursor = trim((string)stream_get_contents($guard));
-    $cursor = ctype_digit($storedCursor) ? (int)$storedCursor : 0;
+    $cursor = is_ascii_digits($storedCursor) ? (int)$storedCursor : 0;
     $nextCursor = $cursor;
 
     try {
@@ -3590,7 +3595,7 @@ function validate_comment_input(array $input, bool $requireEmail = true): array
     $rawParentId = $input['parent_id'] ?? '';
     $parentText = is_scalar($rawParentId) ? trim((string)$rawParentId) : '';
     $parentId = 0;
-    if (!is_scalar($rawParentId) || ($parentText !== '' && $parentText !== '0' && (!ctype_digit($parentText) || (int)$parentText < 1))) {
+    if (!is_scalar($rawParentId) || ($parentText !== '' && $parentText !== '0' && (!is_ascii_digits($parentText) || (int)$parentText < 1))) {
         $errors[] = '回复目标不存在或当前不可用。';
     } elseif ($parentText !== '' && $parentText !== '0') {
         $parentId = (int)$parentText;
