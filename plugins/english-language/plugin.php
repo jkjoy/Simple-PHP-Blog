@@ -1,0 +1,492 @@
+<?php
+
+declare(strict_types=1);
+
+if (!defined('PLUGINS_DIR')) {
+    http_response_code(403);
+    exit;
+}
+
+function sblog_english_language_map(): array
+{
+    return [
+        '博客尚未安装或数据库配置无效。' => 'The blog is not installed or its database configuration is invalid.',
+        '如果账号存在，重置链接已经生成。请检查管理员邮箱；若服务器未配置发信，请查看 cache 目录中的 password-reset 文件。' => 'If the account exists, a reset link has been generated. Check the administrator email, or the password-reset file in the cache directory when email is not configured.',
+        '启用 S3 时，请填写有效的 Endpoint、Region、Bucket 和访问密钥，并确认服务器已启用 cURL。' => 'To enable S3, enter a valid endpoint, region, bucket, and credentials, and make sure cURL is enabled.',
+        'API 地址必须使用 HTTPS 并解析到公网地址，同时请填写模型名称和提示词。' => 'The API URL must use HTTPS and resolve to a public address. Also enter the model name and prompts.',
+        '所选标签已移除，文章内容保持不变。' => 'The selected tags were removed. Post content was not changed.',
+        '该分类下仍有文章，请先将文章移动到其他分类。' => 'This category still contains posts. Move them to another category first.',
+        '用户已删除，其文章已转移给当前管理员。' => 'The user was deleted and their posts were assigned to the current administrator.',
+        '重置链接无效或已过期，请重新申请。' => 'The reset link is invalid or expired. Request a new one.',
+        '评论表单已失效，请刷新文章后重试。' => 'The comment form has expired. Refresh the post and try again.',
+        '评论已提交，审核通过后会显示。' => 'Your comment was submitted and will appear after approval.',
+        '站点数据、上传文件和其他自定义主题不受影响。' => 'Site data, uploads, and other custom themes are not affected.',
+        '更新会自动备份并覆盖程序与内置主题文件，' => 'The update will back up and replace application and bundled theme files. ',
+        '开启后文章链接会变成 `/archive/slug`，需要服务器 rewrite 支持。' => 'When enabled, post URLs use `/archive/slug` and require server rewrite support.',
+        '使用英文逗号分隔，页面将输出为 SEO keywords 元信息。' => 'Separate values with commas. They are emitted as the SEO keywords meta tag.',
+        'RSS 会优先使用这里的绝对地址，子目录部署时请带上完整路径。' => 'RSS prefers this absolute URL. Include the complete path for a subdirectory installation.',
+        '默认使用项目根目录的 logo.png，也可以填写完整图片 URL 或站内绝对路径。' => 'Defaults to logo.png in the project root. A full image URL or site-absolute path is also supported.',
+        '访客首次留言需审核后展示（按邮箱判断）' => 'Hold a visitor\'s first comment for approval (matched by email)',
+        '原样插入前台页面的 &lt;/head&gt; 前，可用于统计脚本、meta 或 style；请仅使用可信代码。' => 'Inserted unchanged before &lt;/head&gt; on public pages. Use only trusted analytics, meta, or style code.',
+        '当前程序版本完整，但发布包中的内置主题尚未同步。' => 'The application is current, but bundled themes from the release still need to be synchronized.',
+        '启用后，新上传的附件将由 S3 接管；密钥不会写入配置缓存。' => 'When enabled, new attachments are handled by S3. Secrets are not written to the settings cache.',
+        '启用 SMTP 后优先通过 SMTP 发送；关闭时回退到服务器 PHP mail。' => 'When enabled, messages are sent through SMTP. When disabled, the server falls back to PHP mail.',
+        '预览已安装主题，并为博客前台启用新的外观。' => 'Preview installed themes and choose the public appearance of your blog.',
+        '博客前台主题管理' => 'Public theme management',
+        '填写服务地址，不要包含 Bucket、查询参数或具体对象路径；生产环境建议使用 HTTPS。' => 'Enter the service URL without a bucket, query string, or object path. HTTPS is recommended in production.',
+        '填写包含 http:// 或 https:// 的完整 CDN 地址；附件 URL 将使用此地址拼接对象键。留空时使用 S3 Endpoint。' => 'Enter a complete CDN URL including http:// or https://. Leave blank to use the S3 endpoint.',
+        '实际对象键会追加年份和随机文件名；可留空。' => 'The year and a random filename are appended to the object key. This can be blank.',
+        '用于发送站点通知邮件，配置不会写入缓存文件。' => 'Used for site notification email. This configuration is not written to the settings cache.',
+        '留空时可使用管理员账号邮箱作为通知收件人。' => 'Leave blank to use the administrator account email as the recipient.',
+        '启用可信插件，为博客增加功能或语言支持。' => 'Enable trusted plugins to add features or language support.',
+        'AI 助手' => 'AI Assistant',
+        '为文章提供 Slug 生成、摘要生成和正文润色功能。' => 'Adds AI slug generation, summaries, and content polishing.',
+        '通过 SMTP 或 PHP mail 发送密码重置和评论通知邮件。' => 'Sends password reset and comment notification emails through SMTP or PHP mail.',
+        '将编辑器新上传的附件保存到 Amazon S3 或兼容的对象存储。' => 'Uploads new editor attachments to Amazon S3 or compatible object storage.',
+        '英文语言包' => 'English Language',
+        '将博客前台、登录页面和后台管理界面翻译为英文。' => 'Translates the public site, sign-in screens, and administration interface into English.',
+        '没有发现有效插件。请将插件放入 ' => 'No valid plugins were found. Place plugins in ',
+        '主题只影响前台页面。' => 'Themes affect public pages only.',
+        '将自定义主题放入 ' => 'Place custom themes in ',
+        '，刷新页面后即可选择。' => ', then refresh this page to select one. ',
+        '发布时间晚于当前时间会按定时发布处理。' => 'A future publication time schedules the content.',
+        '独立页面可以不填标签。' => 'Tags are optional for standalone pages.',
+        '每个附件最大 30M。' => 'Maximum attachment size: 30 MB.',
+        '仅对独立页面生效。' => 'Applies only to standalone pages.',
+        '名称、地址、首页展示与伪静态配置。' => 'Name, URL, homepage display, and pretty URL settings.',
+        '管理文章、独立页面、分类、状态和浏览量。' => 'Manage posts, standalone pages, categories, status, and views.',
+        '插件不存在或操作无效。' => 'The plugin does not exist or the operation is invalid.',
+        '所选主题不存在或 theme.json 无效。' => 'The selected theme does not exist or has an invalid theme.json.',
+        '重置请求过于频繁，请 15 分钟后再试。' => 'Too many reset requests. Try again in 15 minutes.',
+        '登录尝试过多，请 15 分钟后再试。' => 'Too many sign-in attempts. Try again in 15 minutes.',
+        '用户名或密码不正确。' => 'The username or password is incorrect.',
+        '密码已更新，请使用新密码登录。' => 'The password was updated. Sign in with the new password.',
+        '两次输入的密码不一致。' => 'The passwords do not match.',
+        '新密码至少需要 8 个字符。' => 'The new password must contain at least 8 characters.',
+        '密码至少需要 8 个字符。' => 'The password must contain at least 8 characters.',
+        '请求已失效' => 'Request expired',
+        '请刷新页面后重试。' => 'Refresh the page and try again.',
+        '你访问的地址没有匹配到任何页面。' => 'The requested address does not match any page.',
+        '可能还未发布，或者链接已经失效。' => 'It may not be published yet, or the link may have expired.',
+        '这篇文章当前无法接收评论。' => 'This post cannot accept comments right now.',
+        '评论功能当前已关闭。' => 'Comments are currently disabled.',
+        '提交过于频繁，请稍后再试。' => 'You are submitting too frequently. Try again later.',
+        '提交过快，请稍后再试。' => 'The form was submitted too quickly. Try again later.',
+        '回复目标不存在或当前不可用。' => 'The comment you are replying to is unavailable.',
+        '回复目标已不可用，请重新选择。' => 'The reply target is no longer available. Choose another comment.',
+        '这条评论已经提交过了。' => 'This comment has already been submitted.',
+        '请填写有效的邮箱地址。' => 'Enter a valid email address.',
+        '网站地址必须是有效的 HTTP 或 HTTPS 链接。' => 'The website must be a valid HTTP or HTTPS URL.',
+        '评论内容不能超过 3000 个字符。' => 'Comments cannot exceed 3,000 characters.',
+        '请填写评论内容。' => 'Enter a comment.',
+        '请填写昵称。' => 'Enter a display name.',
+        '昵称不能超过 50 个字符。' => 'The display name cannot exceed 50 characters.',
+        '站点设置已更新。' => 'Site settings updated.',
+        '主题已启用。' => 'Theme enabled.',
+        '插件已启用。' => 'Plugin enabled.',
+        '插件已停用。' => 'Plugin disabled.',
+        'AI 设置已保存。' => 'AI settings saved.',
+        '邮件通知设置已保存。' => 'Email notification settings saved.',
+        'S3 上传设置已保存。' => 'S3 upload settings saved.',
+        '分类已保存。' => 'Category saved.',
+        '分类已创建。' => 'Category created.',
+        '分类已删除。' => 'Category deleted.',
+        '链接已更新。' => 'Link updated.',
+        '链接已添加。' => 'Link added.',
+        '链接已删除。' => 'Link deleted.',
+        '标签名称和 Slug 已更新。' => 'Tag name and slug updated.',
+        '用户已更新。' => 'User updated.',
+        '用户已添加。' => 'User added.',
+        '文章已创建。' => 'Post created.',
+        '文章已保存。' => 'Post saved.',
+        '文章已发布。' => 'Post published.',
+        '文章已转为草稿。' => 'Post moved to drafts.',
+        '文章已删除。' => 'Post deleted.',
+        '评论已发布。' => 'Comment published.',
+        '已登录后台。' => 'Signed in to the admin panel.',
+        '所有评论通知已标为已读。' => 'All comment notifications were marked as read.',
+        '当前没有未读评论。' => 'There are no unread comments.',
+        '请先选择评论。' => 'Select at least one comment.',
+        '未知的评论操作。' => 'Unknown comment action.',
+        '分类名称不能为空。' => 'The category name is required.',
+        '标题不能为空。' => 'The title is required.',
+        '正文不能为空。' => 'The content is required.',
+        '文章必须选择一个分类。' => 'Select a category for the post.',
+        '发布时间格式不正确。' => 'The publication time is invalid.',
+        '用户名不能为空。' => 'The username is required.',
+        '昵称不能为空。' => 'The display name is required.',
+        '用户名已存在。' => 'The username already exists.',
+        '不能删除当前登录账号。' => 'You cannot delete the account currently signed in.',
+        '系统必须保留至少一个管理员。' => 'At least one administrator account is required.',
+        '请填写网站名称。' => 'Enter a site name.',
+        '请填写有效的 HTTP 或 HTTPS 地址。' => 'Enter a valid HTTP or HTTPS URL.',
+        '网站图标地址格式不正确。' => 'The site icon URL is invalid.',
+        '原标签和新标签不能为空。' => 'The current and new tag names are required.',
+        '新标签不能包含逗号。' => 'The new tag cannot contain commas.',
+        'Slug 格式不正确。' => 'The slug format is invalid.',
+        'Slug 已被其他标签使用。' => 'The slug is already used by another tag.',
+        '请先选择需要删除的标签。' => 'Select tags to remove.',
+        '找不到需要编辑的文章。' => 'The post to edit was not found.',
+        '找不到需要变更状态的文章。' => 'The post was not found.',
+        '请先登录后台。' => 'Sign in to the admin panel first.',
+        '博客概览' => 'Overview',
+        '后台概览' => 'Dashboard',
+        '撰写文章' => 'Write',
+        '写新文章' => 'New Post',
+        '编辑文章' => 'Edit Post',
+        '编辑内容' => 'Edit Content',
+        '文章管理' => 'Posts',
+        '评论管理' => 'Comments',
+        '分类管理' => 'Categories',
+        '标签管理' => 'Tags',
+        '友情链接' => 'Links',
+        '用户管理' => 'Users',
+        'AI 设置' => 'AI Settings',
+        '邮件通知' => 'Email Notifications',
+        'S3 存储' => 'S3 Storage',
+        '主题管理' => 'Themes',
+        '站点设置' => 'Site Settings',
+        '插件管理' => 'Plugins',
+        '管理导航' => 'Administration',
+        '浏览与统计' => 'Browse and statistics',
+        '发布文章或页面' => 'Publish posts or pages',
+        '列表与发布' => 'List and publishing',
+        '审核与通知' => 'Moderation and alerts',
+        '分类与排序' => 'Categories and ordering',
+        '重命名与清理' => 'Rename and clean up',
+        '添加、排序与维护' => 'Add, order, and maintain',
+        '模型与接口' => 'Model and API',
+        'SMTP 设置' => 'SMTP settings',
+        '附件上传设置' => 'Attachment upload settings',
+        '预览与切换' => 'Preview and switch',
+        '扩展与语言包' => 'Extensions and languages',
+        '基础配置' => 'Basic configuration',
+        '控制台 /' => 'Dashboard /',
+        '打开后台菜单' => 'Open admin menu',
+        '关闭后台菜单' => 'Close admin menu',
+        '切换到深色模式' => 'Switch to dark mode',
+        '切换到浅色模式' => 'Switch to light mode',
+        '用户设置' => 'User settings',
+        '退出登录' => 'Sign out',
+        '退出' => 'Sign out',
+        '后台导航' => 'Admin navigation',
+        '检测更新' => 'Check for updates',
+        '评论通知' => 'Comment notifications',
+        '暂无未读评论' => 'No unread comments',
+        '网站首页' => 'View site',
+        '文章' => 'Post',
+        '页面' => 'Page',
+        '标题' => 'Title',
+        '正文' => 'Content',
+        '摘要' => 'Excerpt',
+        '分类' => 'Category',
+        '标签' => 'Tags',
+        '状态' => 'Status',
+        '操作' => 'Actions',
+        '类型' => 'Type',
+        '更新时间' => 'Updated',
+        '发布时间' => 'Publish at',
+        '创建时间' => 'Created',
+        '浏览量' => 'Views',
+        '草稿' => 'Draft',
+        '已发布' => 'Published',
+        '定时' => 'Scheduled',
+        '待审核' => 'Pending',
+        '已通过' => 'Approved',
+        '垃圾评论' => 'Spam',
+        '垃圾' => 'Spam',
+        '未读' => 'Unread',
+        '全部' => 'All',
+        '发布' => 'Publish',
+        '转草稿' => 'Move to drafts',
+        '查看' => 'View',
+        '编辑' => 'Edit',
+        '修改' => 'Edit',
+        '删除' => 'Delete',
+        '保存修改' => 'Save changes',
+        '创建文章' => 'Create post',
+        '保存设置' => 'Save settings',
+        '设置' => 'Settings',
+        '启用' => 'Enable',
+        '停用' => 'Disable',
+        '已启用' => 'Enabled',
+        '未启用' => 'Disabled',
+        '等待加载' => 'Waiting to load',
+        '加载失败' => 'Load failed',
+        '插件' => 'Plugin',
+        '版本' => 'Version',
+        '作者' => 'Author',
+        '说明' => 'Information',
+        '登录' => 'Sign in',
+        '登录后台' => 'Sign in',
+        '管理后台' => 'Admin panel',
+        '博客后台登录' => 'Blog admin sign-in',
+        '博客插件管理' => 'Blog plugin management',
+        '用户名' => 'Username',
+        '密码' => 'Password',
+        '找回密码' => 'Forgot password',
+        '忘记密码？' => 'Forgot password?',
+        '显示密码' => 'Show password',
+        '隐藏密码' => 'Hide password',
+        '设置新密码' => 'Set new password',
+        '确认新密码' => 'Confirm new password',
+        '返回登录' => 'Back to sign in',
+        '邮箱' => 'Email',
+        '昵称' => 'Display name',
+        '网站地址' => 'Website',
+        '评论内容' => 'Comment',
+        '发表评论' => 'Post comment',
+        '回复' => 'Reply',
+        '取消回复' => 'Cancel reply',
+        '评论' => 'Comments',
+        '归档' => 'Archives',
+        '链接' => 'Links',
+        '首页' => 'Home',
+        '关于' => 'About',
+        '上一页' => 'Previous',
+        '下一页' => 'Next',
+        '暂无内容。' => 'No content yet.',
+        '还没有文章。' => 'No posts yet.',
+        '还没有评论。' => 'No comments yet.',
+        '还没有标签。' => 'No tags yet.',
+        '还没有添加友情链接。' => 'No links have been added yet.',
+        '文章不存在' => 'Post not found',
+        '页面不存在' => 'Page not found',
+        '标签不存在' => 'Tag not found',
+        '分类不存在' => 'Category not found',
+        '标签索引' => 'Tag index',
+        '分类文章' => 'Category posts',
+        '已发布文章归档' => 'Published post archive',
+        '搜索评论' => 'Search comments',
+        '筛选' => 'Filter',
+        '应用' => 'Apply',
+        '批量操作' => 'Bulk action',
+        '标为已读' => 'Mark as read',
+        '通过' => 'Approve',
+        '标为垃圾' => 'Mark as spam',
+        '批量删除' => 'Delete selected',
+        '新建分类' => 'New category',
+        '编辑分类' => 'Edit category',
+        '创建分类' => 'Create category',
+        '保存分类' => 'Save category',
+        '分类名称' => 'Category name',
+        '排序' => 'Order',
+        '描述' => 'Description',
+        '添加链接' => 'Add link',
+        '编辑链接' => 'Edit link',
+        '网站名称' => 'Site name',
+        '网址' => 'URL',
+        '网站图标' => 'Site icon',
+        '添加用户' => 'Add user',
+        '编辑用户' => 'Edit user',
+        '站点名称' => 'Site name',
+        '首页副标题' => 'Homepage tagline',
+        '站点描述' => 'Site description',
+        '站点关键字' => 'Site keywords',
+        '站点地址' => 'Site URL',
+        '前台主题' => 'Frontend theme',
+        '当前主题' => 'Current theme',
+        '打开预览' => 'Open preview',
+        '作者未注明' => 'Author not specified',
+        '该主题没有提供说明。' => 'No description was provided for this theme.',
+        'Favicon 地址' => 'Favicon URL',
+        '备案号' => 'Registration number',
+        '首页每页文章数' => 'Posts per page',
+        '评论设置' => 'Comment settings',
+        '允许访客提交评论' => 'Allow visitor comments',
+        '新评论显示后台提醒' => 'Show admin alerts for new comments',
+        '伪静态 URL' => 'Pretty URLs',
+        '关闭' => 'Off',
+        '开启' => 'On',
+        '页脚文案' => 'Footer text',
+        '支持 {year} 占位符' => 'Supports the {year} placeholder',
+        'Head 自定义代码' => 'Custom head code',
+        '内容类型' => 'Content type',
+        '文章分类' => 'Post category',
+        '置顶文章' => 'Pin post',
+        '显示评论' => 'Show comments',
+        '上传附件' => 'Upload attachment',
+        '选择文件或拖到这里' => 'Choose a file or drop it here',
+        'AI 生成' => 'Generate with AI',
+        'AI 摘要' => 'AI excerpt',
+        'AI 润色' => 'Polish with AI',
+        'AI 润色正文' => 'Polish content with AI',
+        '润色或生成要求' => 'Editing or generation instructions',
+        '取消' => 'Cancel',
+        '确定并填入正文' => 'Apply to content',
+        '标题级别' => 'Heading level',
+        '一级标题' => 'Heading 1',
+        '二级标题' => 'Heading 2',
+        '三级标题' => 'Heading 3',
+        '加粗' => 'Bold',
+        '斜体' => 'Italic',
+        '删除线' => 'Strikethrough',
+        '行内代码' => 'Inline code',
+        '引用' => 'Quote',
+        '无序列表' => 'Bulleted list',
+        '有序列表' => 'Numbered list',
+        '任务列表' => 'Task list',
+        '插入链接' => 'Insert link',
+        '插入图片' => 'Insert image',
+        '插入表格' => 'Insert table',
+        '代码块' => 'Code block',
+        '分隔线' => 'Horizontal rule',
+        '字符' => 'characters',
+        'AI 模型设置' => 'AI model settings',
+        '接口地址' => 'API URL',
+        '模型名称' => 'Model name',
+        'Slug 提示词' => 'Slug prompt',
+        '摘要提示词' => 'Excerpt prompt',
+        '润色提示词' => 'Editing prompt',
+        '保存 AI 设置' => 'Save AI settings',
+        '启用 SMTP 邮件通知' => 'Enable SMTP email notifications',
+        'SMTP 主机' => 'SMTP host',
+        '端口' => 'Port',
+        '加密方式' => 'Encryption',
+        '无' => 'None',
+        'SMTP 账号' => 'SMTP username',
+        'SMTP 密码' => 'SMTP password',
+        '发件邮箱' => 'Sender email',
+        '发件名称' => 'Sender name',
+        '通知收件邮箱' => 'Notification recipient',
+        '保存邮件设置' => 'Save email settings',
+        'S3 上传设置' => 'S3 upload settings',
+        '启用 S3 上传' => 'Enable S3 uploads',
+        '在本地保留上传备份' => 'Keep a local upload backup',
+        '使用 Path-style 地址（MinIO 等兼容服务常用）' => 'Use path-style URLs (common for MinIO and compatible services)',
+        '对象路径前缀' => 'Object path prefix',
+        'CDN 域名' => 'CDN URL',
+        '保存 S3 设置' => 'Save S3 settings',
+        '内置终端主题' => 'Built-in terminal theme',
+        '程序自带的终端风格前台主题。' => 'The built-in terminal-style frontend theme.',
+        '默认分类' => 'Default category',
+        '未分类' => 'Uncategorized',
+        '系统默认文章分类。' => 'Default post category.',
+        '（当前）' => ' (current)',
+        '（留空则不修改）' => ' (leave blank to keep unchanged)',
+        '已保存，留空则不修改' => 'Saved; leave blank to keep unchanged',
+        '授权码或密码' => 'App password or password',
+        '主导航' => 'Main navigation',
+        '切换深浅模式' => 'Toggle color theme',
+        '打开菜单' => 'Open menu',
+        '系统管家' => 'System companion',
+        '管理员当前离线' => 'Administrator offline',
+        '管理员当前在线' => 'Administrator online',
+        '和系统管家打个招呼' => 'Say hello to the system companion',
+        '打个招呼' => 'Say hello',
+        '下午好，我是这里的系统管家。' => 'Good afternoon. I am your system companion.',
+        '上午好，我是这里的系统管家。' => 'Good morning. I am your system companion.',
+        '晚上好，我是这里的系统管家。' => 'Good evening. I am your system companion.',
+        '内容已经替你整理好了。' => 'Your reading list is ready.',
+        '站点数据' => 'Site statistics',
+        '天' => 'days',
+        '今天，也有一些值得读的事' => 'Something worth reading today',
+        '继续阅读' => 'Continue reading',
+        '回到顶部' => 'Back to top',
+        '朋友' => 'Friends',
+    ];
+}
+
+function sblog_english_translate_phrase(string $phrase): string
+{
+    $translations = sblog_english_language_map();
+    if (isset($translations[$phrase])) {
+        return (string)$translations[$phrase];
+    }
+
+    if (preg_match('/^(.+) · (.+)$/u', $phrase, $titleParts) && isset($translations[$titleParts[1]])) {
+        return (string)$translations[$titleParts[1]] . ' · ' . $titleParts[2];
+    }
+    if (preg_match('/^(.+)，(\d+) 条未读评论$/u', $phrase, $labelParts)) {
+        $label = (string)($translations[$labelParts[1]] ?? $labelParts[1]);
+        return $label . ', ' . $labelParts[2] . ' unread comments';
+    }
+
+    $patterns = [
+        '/^(\d+)\s*条未读评论$/u' => '$1 unread comments',
+        '/^(\d+)\s*条评论$/u' => '$1 comments',
+        '/^(\d+)\s*个主题$/u' => '$1 themes',
+        '/^作者：(.+)$/u' => 'By $1',
+        '/^第\s*(\d+)\s*页$/u' => 'Page $1',
+        '/^(\d{4})年(\d{1,2})月(\d{1,2})日$/u' => '$1-$2-$3',
+        '/^(\d{4})年(\d{1,2})月$/u' => '$1-$2',
+        '/^阅读《(.+)》$/u' => 'Read "$1"',
+        '/^继续阅读《(.+)》$/u' => 'Continue reading "$1"',
+        '/^打开用户菜单：(.+)$/u' => 'Open user menu: $1',
+        '/^登录 · (.+)$/u' => 'Sign in · $1',
+        '/^找回密码 · (.+)$/u' => 'Forgot password · $1',
+        '/^设置新密码 · (.+)$/u' => 'Set new password · $1',
+        '/^选择 (.+)$/u' => 'Select $1',
+        '/^已删除 (\d+) 条评论。$/u' => 'Deleted $1 comments.',
+        '/^已将 (\d+) 条评论标为已读。$/u' => 'Marked $1 comments as read.',
+        '/^已通过 (\d+) 条评论。$/u' => 'Approved $1 comments.',
+        '/^已将 (\d+) 条评论标记为垃圾。$/u' => 'Marked $1 comments as spam.',
+        '/^已将 (\d+) 条评论转为待审核。$/u' => 'Moved $1 comments to pending.',
+    ];
+    foreach ($patterns as $pattern => $replacement) {
+        if (preg_match($pattern, $phrase)) {
+            return (string)preg_replace($pattern, $replacement, $phrase);
+        }
+    }
+    return $phrase;
+}
+
+function sblog_english_translate_text_node(string $text): string
+{
+    if (!preg_match('/[\x{4e00}-\x{9fff}]/u', $text)) {
+        return $text;
+    }
+    if (!preg_match('/^(\s*)(.*?)(\s*)$/su', $text, $parts)) {
+        return $text;
+    }
+    return $parts[1] . sblog_english_translate_phrase($parts[2]) . $parts[3];
+}
+
+function sblog_english_translate_tag(string $tag): string
+{
+    if (!preg_match('/[\x{4e00}-\x{9fff}]/u', $tag)) {
+        return $tag;
+    }
+    return preg_replace_callback(
+        '/\b(aria-label|title|placeholder|data-confirm|content)=("|\')(.*?)\2/su',
+        static function (array $matches): string {
+            $value = html_entity_decode((string)$matches[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $translated = sblog_english_translate_phrase($value);
+            if ($translated === $value) {
+                return (string)$matches[0];
+            }
+            return $matches[1] . '=' . $matches[2] . htmlspecialchars($translated, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . $matches[2];
+        },
+        $tag
+    ) ?? $tag;
+}
+
+add_plugin_filter('output_html', static function (string $html, array $context): string {
+    if (stripos($html, '<html') === false) {
+        return $html;
+    }
+
+    $html = str_replace(['lang="zh-CN"', "lang='zh-CN'"], ['lang="en"', "lang='en'"], $html);
+    $tokens = preg_split('/(<[^>]+>)/s', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
+    if (is_array($tokens)) {
+        $rawElement = '';
+        foreach ($tokens as $index => $token) {
+            if (str_starts_with($token, '<')) {
+                if (preg_match('/^<(script|style|textarea)\b/i', $token, $matches)) {
+                    $rawElement = strtolower((string)$matches[1]);
+                } elseif ($rawElement !== '' && preg_match('#^</' . preg_quote($rawElement, '#') . '\s*>#i', $token)) {
+                    $rawElement = '';
+                }
+                $tokens[$index] = sblog_english_translate_tag($token);
+            } elseif ($rawElement === '') {
+                $tokens[$index] = sblog_english_translate_text_node($token);
+            }
+        }
+        $html = implode('', $tokens);
+    }
+
+    if (!headers_sent()) {
+        header('Content-Language: en');
+    }
+    return $html;
+}, 10);

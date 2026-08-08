@@ -1,0 +1,7 @@
+{
+  "name": "AI 助手",
+  "version": "1.0.0",
+  "author": "Simple PHP Blog",
+  "description": "为文章提供 Slug 生成、摘要生成和正文润色功能。",
+  "settings_action": "admin_ai"
+}

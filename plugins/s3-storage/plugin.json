@@ -1,0 +1,7 @@
+{
+  "name": "S3 存储",
+  "version": "1.0.0",
+  "author": "Simple PHP Blog",
+  "description": "将编辑器新上传的附件保存到 Amazon S3 或兼容的对象存储。",
+  "settings_action": "admin_s3"
+}

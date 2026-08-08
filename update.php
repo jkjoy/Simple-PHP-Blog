@@ -75,6 +75,7 @@ function update_default_settings(): array
         'site_footer' => '',
         'custom_head_code' => '',
         'active_theme' => 'nebula',
+        'active_plugins' => '["ai-assistant","email-notifications","s3-storage"]',
         'favicon_url' => 'logo.png',
         'footer_beian' => '',
         'posts_per_page' => '6',
@@ -292,6 +293,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if (!$s3SettingsExist) {
                 $changes[] = '新增 S3 上传设置表';
+            }
+
+            $migrationStatement = $db->prepare('SELECT value FROM settings WHERE name = ?');
+            $migrationStatement->execute(['core_feature_plugins_migrated']);
+            if ($migrationStatement->fetchColumn() === false) {
+                $activeStatement = $db->prepare('SELECT value FROM settings WHERE name = ?');
+                $activeStatement->execute(['active_plugins']);
+                $activePlugins = json_decode((string)($activeStatement->fetchColumn() ?: '[]'), true);
+                $activePlugins = is_array($activePlugins) ? array_map('strval', $activePlugins) : [];
+                foreach (['ai-assistant', 'email-notifications', 's3-storage'] as $pluginSlug) {
+                    if (!in_array($pluginSlug, $activePlugins, true)) {
+                        $activePlugins[] = $pluginSlug;
+                    }
+                }
+                $saveSetting = $db->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)');
+                $saveSetting->execute(['active_plugins', json_encode($activePlugins, JSON_UNESCAPED_SLASHES)]);
+                $saveSetting->execute(['core_feature_plugins_migrated', '1']);
+                $changes[] = '启用 AI、邮件通知和 S3 内置插件';
             }
 
             $socialFieldsChanged = false;

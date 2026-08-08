@@ -13,6 +13,154 @@ function i_h(string|int|float|bool|null $value): string
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
+function i_locale(): string
+{
+    static $locale;
+    if (is_string($locale)) {
+        return $locale;
+    }
+
+    $requested = trim((string)($_POST['lang'] ?? $_GET['lang'] ?? ''));
+    if (in_array($requested, ['zh-CN', 'en'], true)) {
+        return $locale = $requested;
+    }
+
+    $accepted = strtolower((string)($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''));
+    return $locale = str_starts_with($accepted, 'en') ? 'en' : 'zh-CN';
+}
+
+function i_t(string $key, array $replace = []): string
+{
+    static $translations = [
+        'zh-CN' => [
+            'page_title' => '安装博客',
+            'language' => '安装语言',
+            'install_eyebrow' => 'Install',
+            'install_title' => '安装博客',
+            'install_lead' => '一次性初始化 SQLite、管理员账号和默认内容。',
+            'environment_title' => '安装环境检测',
+            'environment_ready' => '当前环境满足安装要求。',
+            'environment_not_ready' => '请修复未通过项目后再安装。',
+            'check_passed' => '通过',
+            'check_failed' => '未通过',
+            'details_title' => '安装信息',
+            'site_name' => '站点名称',
+            'site_tagline' => '首页副标题',
+            'admin_username' => '管理员用户名',
+            'admin_nickname' => '管理员昵称',
+            'admin_email' => '管理员邮箱',
+            'pretty_url' => '伪静态 URL',
+            'disabled' => '关闭',
+            'enabled' => '开启',
+            'admin_password' => '管理员密码',
+            'confirm_password' => '确认密码',
+            'start_install' => '开始安装',
+            'creates_title' => '将会创建',
+            'creates_database' => '随机文件名 SQLite 数据库',
+            'creates_tables' => '站点设置、用户、内容、分类与评论数据表',
+            'creates_content' => '默认分类、Hello World 文章与默认关于页',
+            'creates_lock' => '`data/install.lock` 安装锁',
+            'creates_cache' => '`cache/settings.php` 站点配置缓存',
+            'locked_title' => '安装已锁定',
+            'locked_lead' => '如果你要重新安装，请先删除 `data/install.lock`。',
+            'home' => '进入首页',
+            'installed_eyebrow' => 'Installed',
+            'installed_title' => '安装完成',
+            'installed_lead' => '博客已经可以直接使用了。',
+            'result_title' => '安装结果',
+            'result_site' => '站点名称',
+            'result_admin' => '管理员',
+            'result_database' => '数据库',
+            'login_admin' => '登录后台',
+            'env_php' => 'PHP 8.0 或更高版本',
+            'env_pdo' => 'PDO 扩展',
+            'env_sqlite' => 'PDO SQLite 驱动',
+            'env_curl' => 'cURL 扩展（AI 与 S3 接口）',
+            'env_json' => 'JSON 扩展',
+            'env_fileinfo' => 'Fileinfo 扩展（安全识别上传文件）',
+            'env_random' => '安全随机数支持',
+            'env_data' => 'data 目录可写',
+            'env_cache' => 'cache 目录可写',
+            'env_uploads' => 'uploads 目录可写',
+            'error_environment' => '当前服务器环境未满足安装要求。',
+            'error_site_name' => '站点名称不能为空。',
+            'error_site_tagline' => '首页副标题不能为空。',
+            'error_admin_username' => '管理员用户名不能为空。',
+            'error_author_name' => '作者显示名不能为空。',
+            'error_admin_email' => '请填写有效的管理员邮箱地址。',
+            'error_password' => '管理员密码不能为空。',
+            'error_password_match' => '两次输入的密码不一致。',
+        ],
+        'en' => [
+            'page_title' => 'Install Blog',
+            'language' => 'Installer language',
+            'install_eyebrow' => 'Install',
+            'install_title' => 'Install your blog',
+            'install_lead' => 'Set up SQLite, your administrator account, and the default content in one step.',
+            'environment_title' => 'Environment checks',
+            'environment_ready' => 'This server meets the installation requirements.',
+            'environment_not_ready' => 'Resolve the failed checks before installing.',
+            'check_passed' => 'Passed',
+            'check_failed' => 'Failed',
+            'details_title' => 'Installation details',
+            'site_name' => 'Site name',
+            'site_tagline' => 'Homepage tagline',
+            'admin_username' => 'Administrator username',
+            'admin_nickname' => 'Administrator display name',
+            'admin_email' => 'Administrator email',
+            'pretty_url' => 'Pretty URLs',
+            'disabled' => 'Off',
+            'enabled' => 'On',
+            'admin_password' => 'Administrator password',
+            'confirm_password' => 'Confirm password',
+            'start_install' => 'Install now',
+            'creates_title' => 'The installer will create',
+            'creates_database' => 'A SQLite database with a randomized filename',
+            'creates_tables' => 'Tables for settings, users, content, categories, and comments',
+            'creates_content' => 'A default category, Hello World post, and About page',
+            'creates_lock' => 'The `data/install.lock` installation lock',
+            'creates_cache' => 'The `cache/settings.php` settings cache',
+            'locked_title' => 'Installation locked',
+            'locked_lead' => 'To reinstall, delete `data/install.lock` first.',
+            'home' => 'Open homepage',
+            'installed_eyebrow' => 'Installed',
+            'installed_title' => 'Installation complete',
+            'installed_lead' => 'Your blog is ready to use.',
+            'result_title' => 'Installation result',
+            'result_site' => 'Site name',
+            'result_admin' => 'Administrator',
+            'result_database' => 'Database',
+            'login_admin' => 'Sign in to admin',
+            'env_php' => 'PHP 8.0 or newer',
+            'env_pdo' => 'PDO extension',
+            'env_sqlite' => 'PDO SQLite driver',
+            'env_curl' => 'cURL extension (AI and S3 integrations)',
+            'env_json' => 'JSON extension',
+            'env_fileinfo' => 'Fileinfo extension (secure upload detection)',
+            'env_random' => 'Secure random number support',
+            'env_data' => 'Writable data directory',
+            'env_cache' => 'Writable cache directory',
+            'env_uploads' => 'Writable uploads directory',
+            'error_environment' => 'The server does not meet the installation requirements.',
+            'error_site_name' => 'Site name is required.',
+            'error_site_tagline' => 'Homepage tagline is required.',
+            'error_admin_username' => 'Administrator username is required.',
+            'error_author_name' => 'Administrator display name is required.',
+            'error_admin_email' => 'Enter a valid administrator email address.',
+            'error_password' => 'Administrator password is required.',
+            'error_password_match' => 'The passwords do not match.',
+        ],
+    ];
+
+    $text = $translations[i_locale()][$key] ?? $translations['zh-CN'][$key] ?? $key;
+    return $replace ? strtr($text, $replace) : $text;
+}
+
+function i_locale_url(string $locale): string
+{
+    return i_asset_url('install.php') . '?lang=' . rawurlencode($locale);
+}
+
 function i_default_settings(): array
 {
     return [
@@ -24,6 +172,8 @@ function i_default_settings(): array
         'site_footer' => '',
         'custom_head_code' => '',
         'active_theme' => 'nebula',
+        'active_plugins' => '["ai-assistant","email-notifications","s3-storage"]',
+        'core_feature_plugins_migrated' => '1',
         'favicon_url' => 'logo.png',
         'footer_beian' => '',
         'comments_enabled' => '1',
@@ -122,16 +272,16 @@ function i_environment_checks(): array
 {
     i_ensure_dirs();
     return [
-        ['label' => 'PHP 8.0 或更高版本', 'ok' => version_compare(PHP_VERSION, '8.0.0', '>=')],
-        ['label' => 'PDO 扩展', 'ok' => extension_loaded('pdo')],
-        ['label' => 'PDO SQLite 驱动', 'ok' => extension_loaded('pdo_sqlite') && in_array('sqlite', PDO::getAvailableDrivers(), true)],
-        ['label' => 'cURL 扩展（AI 与 S3 接口）', 'ok' => extension_loaded('curl')],
-        ['label' => 'JSON 扩展', 'ok' => extension_loaded('json')],
-        ['label' => 'Fileinfo 扩展（安全识别上传文件）', 'ok' => extension_loaded('fileinfo')],
-        ['label' => '安全随机数支持', 'ok' => function_exists('random_bytes')],
-        ['label' => 'data 目录可写', 'ok' => is_dir(INSTALL_DATA_DIR) && is_writable(INSTALL_DATA_DIR)],
-        ['label' => 'cache 目录可写', 'ok' => is_dir(INSTALL_CACHE_DIR) && is_writable(INSTALL_CACHE_DIR)],
-        ['label' => 'uploads 目录可写', 'ok' => is_dir(__DIR__ . '/uploads') && is_writable(__DIR__ . '/uploads')],
+        ['label' => i_t('env_php'), 'ok' => version_compare(PHP_VERSION, '8.0.0', '>=')],
+        ['label' => i_t('env_pdo'), 'ok' => extension_loaded('pdo')],
+        ['label' => i_t('env_sqlite'), 'ok' => extension_loaded('pdo_sqlite') && in_array('sqlite', PDO::getAvailableDrivers(), true)],
+        ['label' => i_t('env_curl'), 'ok' => extension_loaded('curl')],
+        ['label' => i_t('env_json'), 'ok' => extension_loaded('json')],
+        ['label' => i_t('env_fileinfo'), 'ok' => extension_loaded('fileinfo')],
+        ['label' => i_t('env_random'), 'ok' => function_exists('random_bytes')],
+        ['label' => i_t('env_data'), 'ok' => is_dir(INSTALL_DATA_DIR) && is_writable(INSTALL_DATA_DIR)],
+        ['label' => i_t('env_cache'), 'ok' => is_dir(INSTALL_CACHE_DIR) && is_writable(INSTALL_CACHE_DIR)],
+        ['label' => i_t('env_uploads'), 'ok' => is_dir(__DIR__ . '/uploads') && is_writable(__DIR__ . '/uploads')],
     ];
 }
 
@@ -180,14 +330,6 @@ function i_db(): PDO
     return $db;
 }
 
-function i_slugify(string $text): string
-{
-    $text = function_exists('mb_strtolower') ? mb_strtolower(trim($text), 'UTF-8') : strtolower(trim($text));
-    $text = preg_replace('/[^\p{L}\p{N}]+/u', '-', $text) ?? '';
-    $text = trim($text, '-');
-    return $text !== '' ? $text : 'welcome';
-}
-
 function i_plain_excerpt(string $content, int $length = 140): string
 {
     $text = preg_replace('/\s+/u', ' ', strip_tags($content)) ?? $content;
@@ -214,29 +356,25 @@ function i_write_settings_cache(PDO $db): void
     file_put_contents(INSTALL_SETTINGS_CACHE_FILE, "<?php\nreturn " . var_export($settings, true) . ";\n", LOCK_EX);
 }
 
-function i_sample_body(string $siteName): string
+function i_hello_world_body(): string
 {
     return <<<MD
-# 欢迎来到 {$siteName}
+# Hello World
 
-这是一个按照单入口 PHP 思路搭出来的轻量博客。
-
-## 你可以先做这几件事
-
-- 进入后台，修改站点名称和首页引言
-- 写第一篇正式文章
-- 试试草稿、定时发布和归档页
-
-> 这套程序保持很小，方便继续按你的需求改。
-
-```php
-echo "Happy writing!";
-```
+Welcome to your new blog. This is your first post. Edit it from the admin dashboard, or delete it and start writing.
 MD;
 }
 
 function i_about_body(string $siteName): string
 {
+    if (i_locale() === 'en') {
+        return <<<MD
+# About {$siteName}
+
+This page was created during installation. Use it to introduce yourself, describe the blog, or share contact details.
+MD;
+    }
+
     return <<<MD
 # 关于 {$siteName}
 
@@ -268,16 +406,23 @@ function i_render_page(string $title, string $body): void
 {
     ?>
 <!doctype html>
-<html lang="zh-CN">
+<html lang="<?= i_h(i_locale()) ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= i_h($title) ?></title>
-  <link rel="stylesheet" href="<?= i_h(i_asset_url('index.css')) ?>?v=v1.1.2">
+  <link rel="stylesheet" href="<?= i_h(i_asset_url('index.css')) ?>?v=v1.5.0">
 </head>
 <body>
   <div class="site-frame">
     <main class="main-wrap main-wrap--wide">
+      <div class="install-toolbar">
+        <strong>SBlog Setup</strong>
+        <nav class="install-language-switch" aria-label="<?= i_h(i_t('language')) ?>">
+          <a href="<?= i_h(i_locale_url('zh-CN')) ?>" hreflang="zh-CN"<?= i_locale() === 'zh-CN' ? ' class="is-active" aria-current="page"' : '' ?>>中文</a>
+          <a href="<?= i_h(i_locale_url('en')) ?>" hreflang="en"<?= i_locale() === 'en' ? ' class="is-active" aria-current="page"' : '' ?>>English</a>
+        </nav>
+      </div>
       <?= $body ?>
     </main>
   </div>
@@ -294,17 +439,17 @@ function i_render_form(array $form, array $errors = []): void
     ob_start();
     ?>
     <section class="hero hero--compact">
-      <p class="hero__eyebrow">Install</p>
-      <h1 class="hero__title">安装博客</h1>
-      <p class="hero__lead">一次性初始化 SQLite、管理员账号和第一篇文章。</p>
+      <p class="hero__eyebrow"><?= i_h(i_t('install_eyebrow')) ?></p>
+      <h1 class="hero__title"><?= i_h(i_t('install_title')) ?></h1>
+      <p class="hero__lead"><?= i_h(i_t('install_lead')) ?></p>
     </section>
 
     <section class="panel install-environment">
-      <div class="panel__header"><h2>安装环境检测</h2><p class="panel__meta"><?= $environmentReady ? '当前环境满足安装要求。' : '请修复未通过项目后再安装。' ?></p></div>
+      <div class="panel__header"><h2><?= i_h(i_t('environment_title')) ?></h2><p class="panel__meta"><?= i_h(i_t($environmentReady ? 'environment_ready' : 'environment_not_ready')) ?></p></div>
       <div class="panel__body">
         <div class="environment-checks">
           <?php foreach ($environmentChecks as $check): ?>
-            <div class="environment-check<?= $check['ok'] ? ' is-ok' : ' is-error' ?>"><strong><?= $check['ok'] ? '通过' : '未通过' ?></strong><span><?= i_h((string)$check['label']) ?></span></div>
+            <div class="environment-check<?= $check['ok'] ? ' is-ok' : ' is-error' ?>"><strong><?= i_h(i_t($check['ok'] ? 'check_passed' : 'check_failed')) ?></strong><span><?= i_h((string)$check['label']) ?></span></div>
           <?php endforeach; ?>
         </div>
       </div>
@@ -313,7 +458,7 @@ function i_render_form(array $form, array $errors = []): void
     <div class="admin-grid">
       <section class="panel">
         <div class="panel__header">
-          <h2>安装信息</h2>
+          <h2><?= i_h(i_t('details_title')) ?></h2>
         </div>
         <div class="panel__body">
           <?php if ($errors): ?>
@@ -321,64 +466,55 @@ function i_render_form(array $form, array $errors = []): void
           <?php endif; ?>
 
           <form class="form-stack" method="post">
+            <input type="hidden" name="lang" value="<?= i_h(i_locale()) ?>">
             <div class="field-grid">
               <div class="field">
-                <label for="site_name">站点名称</label>
+                <label for="site_name"><?= i_h(i_t('site_name')) ?></label>
                 <input id="site_name" name="site_name" type="text" value="<?= i_h((string)$form['site_name']) ?>" required>
               </div>
               <div class="field">
-                <label for="site_tagline">首页副标题</label>
+                <label for="site_tagline"><?= i_h(i_t('site_tagline')) ?></label>
                 <input id="site_tagline" name="site_tagline" type="text" value="<?= i_h((string)$form['site_tagline']) ?>" required>
               </div>
             </div>
 
             <div class="field-grid">
               <div class="field">
-                <label for="admin_username">管理员用户名</label>
+                <label for="admin_username"><?= i_h(i_t('admin_username')) ?></label>
                 <input id="admin_username" name="admin_username" type="text" value="<?= i_h((string)$form['admin_username']) ?>" required>
               </div>
               <div class="field">
-                <label for="author_name">管理员昵称</label>
+                <label for="author_name"><?= i_h(i_t('admin_nickname')) ?></label>
                 <input id="author_name" name="author_name" type="text" value="<?= i_h((string)$form['author_name']) ?>" required>
               </div>
             </div>
 
             <div class="field">
-              <label for="admin_email">管理员邮箱</label>
+              <label for="admin_email"><?= i_h(i_t('admin_email')) ?></label>
               <input id="admin_email" name="admin_email" type="email" value="<?= i_h((string)$form['admin_email']) ?>" maxlength="160" autocomplete="email" required>
             </div>
 
             <div class="field">
-              <label for="pretty_url">伪静态 URL</label>
+              <label for="pretty_url"><?= i_h(i_t('pretty_url')) ?></label>
               <select id="pretty_url" name="pretty_url">
-                <option value="0"<?= (string)($form['pretty_url'] ?? '0') === '0' ? ' selected' : '' ?>>关闭</option>
-                <option value="1"<?= (string)($form['pretty_url'] ?? '0') === '1' ? ' selected' : '' ?>>开启</option>
+                <option value="0"<?= (string)($form['pretty_url'] ?? '0') === '0' ? ' selected' : '' ?>><?= i_h(i_t('disabled')) ?></option>
+                <option value="1"<?= (string)($form['pretty_url'] ?? '0') === '1' ? ' selected' : '' ?>><?= i_h(i_t('enabled')) ?></option>
               </select>
             </div>
 
             <div class="field-grid">
               <div class="field">
-                <label for="admin_password">管理员密码</label>
-                <input id="admin_password" name="admin_password" type="password" required>
+                <label for="admin_password"><?= i_h(i_t('admin_password')) ?></label>
+                <input id="admin_password" name="admin_password" type="password" autocomplete="new-password" required>
               </div>
               <div class="field">
-                <label for="admin_password2">确认密码</label>
-                <input id="admin_password2" name="admin_password2" type="password" required>
+                <label for="admin_password2"><?= i_h(i_t('confirm_password')) ?></label>
+                <input id="admin_password2" name="admin_password2" type="password" autocomplete="new-password" required>
               </div>
-            </div>
-
-            <div class="field">
-              <label for="welcome_title">第一篇文章标题</label>
-              <input id="welcome_title" name="welcome_title" type="text" value="<?= i_h((string)$form['welcome_title']) ?>" required>
-            </div>
-
-            <div class="field">
-              <label for="welcome_body">第一篇文章内容</label>
-              <textarea id="welcome_body" class="editor-textarea" name="welcome_body" rows="14" required><?= i_h((string)$form['welcome_body']) ?></textarea>
             </div>
 
             <div class="action-row">
-              <button class="button" type="submit"<?= $environmentReady ? '' : ' disabled' ?>>开始安装</button>
+              <button class="button" type="submit"<?= $environmentReady ? '' : ' disabled' ?>><?= i_h(i_t('start_install')) ?></button>
             </div>
           </form>
         </div>
@@ -386,21 +522,21 @@ function i_render_form(array $form, array $errors = []): void
 
       <section class="panel">
         <div class="panel__header">
-          <h2>将会创建</h2>
+          <h2><?= i_h(i_t('creates_title')) ?></h2>
         </div>
         <div class="panel__body">
           <ul class="archive-items archive-items--plain">
-            <li class="archive-item"><span>随机文件名 SQLite 数据库</span></li>
-            <li class="archive-item"><span>站点设置、用户、内容、分类与评论数据表</span></li>
-            <li class="archive-item"><span>默认分类、归属该分类的欢迎文章与默认关于页</span></li>
-            <li class="archive-item"><span>`data/install.lock` 安装锁</span></li>
-            <li class="archive-item"><span>`cache/settings.php` 站点配置缓存</span></li>
+            <li class="archive-item"><span><?= i_h(i_t('creates_database')) ?></span></li>
+            <li class="archive-item"><span><?= i_h(i_t('creates_tables')) ?></span></li>
+            <li class="archive-item"><span><?= i_h(i_t('creates_content')) ?></span></li>
+            <li class="archive-item"><span><?= i_h(i_t('creates_lock')) ?></span></li>
+            <li class="archive-item"><span><?= i_h(i_t('creates_cache')) ?></span></li>
           </ul>
         </div>
       </section>
     </div>
     <?php
-    i_render_page('安装博客', (string)ob_get_clean());
+    i_render_page(i_t('page_title'), (string)ob_get_clean());
 }
 
 function i_render_locked(): void
@@ -408,15 +544,15 @@ function i_render_locked(): void
     ob_start();
     ?>
     <section class="hero hero--compact">
-      <p class="hero__eyebrow">Install</p>
-      <h1 class="hero__title">安装已锁定</h1>
-      <p class="hero__lead">如果你要重新安装，请先删除 `data/install.lock`。</p>
+      <p class="hero__eyebrow"><?= i_h(i_t('install_eyebrow')) ?></p>
+      <h1 class="hero__title"><?= i_h(i_t('locked_title')) ?></h1>
+      <p class="hero__lead"><?= i_h(i_t('locked_lead')) ?></p>
     </section>
     <div class="empty-state">
-      <a class="button" href="index.php">进入首页</a>
+      <a class="button" href="index.php"><?= i_h(i_t('home')) ?></a>
     </div>
     <?php
-    i_render_page('安装已锁定', (string)ob_get_clean());
+    i_render_page(i_t('locked_title'), (string)ob_get_clean());
 }
 
 function i_render_success(string $siteName, string $adminUsername, string $dbName): void
@@ -424,40 +560,40 @@ function i_render_success(string $siteName, string $adminUsername, string $dbNam
     ob_start();
     ?>
     <section class="hero hero--compact">
-      <p class="hero__eyebrow">Installed</p>
-      <h1 class="hero__title">安装完成</h1>
-      <p class="hero__lead">博客已经可以直接使用了。</p>
+      <p class="hero__eyebrow"><?= i_h(i_t('installed_eyebrow')) ?></p>
+      <h1 class="hero__title"><?= i_h(i_t('installed_title')) ?></h1>
+      <p class="hero__lead"><?= i_h(i_t('installed_lead')) ?></p>
     </section>
 
     <div class="admin-grid">
       <section class="panel">
         <div class="panel__header">
-          <h2>安装结果</h2>
+          <h2><?= i_h(i_t('result_title')) ?></h2>
         </div>
         <div class="panel__body">
           <div class="metric-grid">
             <div class="metric-card">
-              <span class="metric-card__label">站点名称</span>
+              <span class="metric-card__label"><?= i_h(i_t('result_site')) ?></span>
               <strong class="metric-card__value metric-card__value--small"><?= i_h($siteName) ?></strong>
             </div>
             <div class="metric-card">
-              <span class="metric-card__label">管理员</span>
+              <span class="metric-card__label"><?= i_h(i_t('result_admin')) ?></span>
               <strong class="metric-card__value metric-card__value--small"><?= i_h($adminUsername) ?></strong>
             </div>
             <div class="metric-card">
-              <span class="metric-card__label">数据库</span>
+              <span class="metric-card__label"><?= i_h(i_t('result_database')) ?></span>
               <strong class="metric-card__value metric-card__value--small"><?= i_h($dbName) ?></strong>
             </div>
           </div>
           <div class="action-row action-row--start">
-            <a class="button" href="index.php">进入首页</a>
-            <a class="button button--secondary" href="index.php?a=login">登录后台</a>
+            <a class="button" href="index.php"><?= i_h(i_t('home')) ?></a>
+            <a class="button button--secondary" href="index.php?a=login"><?= i_h(i_t('login_admin')) ?></a>
           </div>
         </div>
       </section>
     </div>
     <?php
-    i_render_page('安装完成', (string)ob_get_clean());
+    i_render_page(i_t('installed_title'), (string)ob_get_clean());
 }
 
 if (i_is_installed()) {
@@ -470,8 +606,6 @@ $form = [
     'admin_username' => 'admin',
     'author_name' => 'Admin',
     'admin_email' => '',
-    'welcome_title' => '欢迎来到你的新博客',
-    'welcome_body' => i_sample_body('Simple PHP Blog'),
     'pretty_url' => '0',
 ];
 
@@ -485,8 +619,6 @@ $form = [
     'admin_username' => trim((string)($_POST['admin_username'] ?? 'admin')),
     'author_name' => trim((string)($_POST['author_name'] ?? 'Admin')),
     'admin_email' => strtolower(trim((string)($_POST['admin_email'] ?? ''))),
-    'welcome_title' => trim((string)($_POST['welcome_title'] ?? '欢迎来到你的新博客')),
-    'welcome_body' => trim((string)($_POST['welcome_body'] ?? '')),
     'pretty_url' => (string)($_POST['pretty_url'] ?? '0') === '1' ? '1' : '0',
 ];
 
@@ -495,39 +627,35 @@ $password2 = (string)($_POST['admin_password2'] ?? '');
 $errors = [];
 $environmentChecks = i_environment_checks();
 if (!i_environment_ready($environmentChecks)) {
-    $errors[] = '当前服务器环境未满足安装要求。';
+    $errors[] = i_t('error_environment');
 }
 
 if ($form['site_name'] === '') {
-    $errors[] = '站点名称不能为空。';
+    $errors[] = i_t('error_site_name');
 }
 
 if ($form['site_tagline'] === '') {
-    $errors[] = '首页副标题不能为空。';
+    $errors[] = i_t('error_site_tagline');
 }
 
 if ($form['admin_username'] === '') {
-    $errors[] = '管理员用户名不能为空。';
+    $errors[] = i_t('error_admin_username');
 }
 
 if ($form['author_name'] === '') {
-    $errors[] = '作者显示名不能为空。';
+    $errors[] = i_t('error_author_name');
 }
 
 if ($form['admin_email'] === '' || strlen($form['admin_email']) > 160 || !filter_var($form['admin_email'], FILTER_VALIDATE_EMAIL)) {
-    $errors[] = '请填写有效的管理员邮箱地址。';
+    $errors[] = i_t('error_admin_email');
 }
 
 if ($password === '') {
-    $errors[] = '管理员密码不能为空。';
+    $errors[] = i_t('error_password');
 }
 
 if ($password !== $password2) {
-    $errors[] = '两次输入的密码不一致。';
-}
-
-if ($form['welcome_title'] === '' || $form['welcome_body'] === '') {
-    $errors[] = '第一篇文章的标题和正文都不能为空。';
+    $errors[] = i_t('error_password_match');
 }
 
 if ($errors) {
@@ -688,8 +816,12 @@ $db->prepare('INSERT INTO users(username, password_hash, nickname, email, avatar
 $defaultAuthorId = (int)$db->lastInsertId();
 
 $db->prepare('INSERT INTO categories(name, slug, description, sort_order, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?)')
-    ->execute(['默认分类', 'default', '安装时自动创建的默认文章分类。', 0, $now, $now]);
+    ->execute(i_locale() === 'en'
+        ? ['General', 'default', 'The default post category created during installation.', 0, $now, $now]
+        : ['默认分类', 'default', '安装时自动创建的默认文章分类。', 0, $now, $now]);
 $defaultCategoryId = (int)$db->lastInsertId();
+
+$helloWorldBody = i_hello_world_body();
 
 $db->prepare(
     'INSERT INTO posts(author_id, kind, category_id, slug, title, tags, excerpt, content, status, published_at, created_at, updated_at)
@@ -698,11 +830,11 @@ $db->prepare(
     $defaultAuthorId,
     'post',
     $defaultCategoryId,
-    i_slugify($form['welcome_title']),
-    $form['welcome_title'],
-    json_encode(['欢迎'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-    i_plain_excerpt($form['welcome_body']),
-    $form['welcome_body'],
+    'hello-world',
+    'Hello World',
+    '[]',
+    i_plain_excerpt($helloWorldBody),
+    $helloWorldBody,
     'published',
     $now,
     $now,
@@ -717,9 +849,9 @@ $db->prepare(
     'page',
     null,
     'about',
-    '关于',
+    i_locale() === 'en' ? 'About' : '关于',
     '[]',
-    '关于页面',
+    i_locale() === 'en' ? 'About page' : '关于页面',
     i_about_body($form['site_name']),
     'published',
     $now,

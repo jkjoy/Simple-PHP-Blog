@@ -13,6 +13,27 @@ function sbi_h(string|int $value): string
     return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function sbi_locale(): string
+{
+    static $locale;
+    if (is_string($locale)) {
+        return $locale;
+    }
+
+    $requested = trim((string)($_POST['lang'] ?? $_GET['lang'] ?? ''));
+    if (in_array($requested, ['zh-CN', 'en'], true)) {
+        return $locale = $requested;
+    }
+
+    $accepted = strtolower((string)($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''));
+    return $locale = str_starts_with($accepted, 'en') ? 'en' : 'zh-CN';
+}
+
+function sbi_t(string $chinese, string $english): string
+{
+    return sbi_locale() === 'en' ? $english : $chinese;
+}
+
 function sbi_base_path(): string
 {
     $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/installer.php'));
@@ -29,6 +50,11 @@ function sbi_self_url(): string
 {
     $script = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/installer.php'));
     return sbi_url(basename($script));
+}
+
+function sbi_localized_url(string $file, array $query = []): string
+{
+    return sbi_url($file) . '?' . http_build_query(['lang' => sbi_locale()] + $query);
 }
 
 function sbi_csrf_token(): string
@@ -52,13 +78,15 @@ function sbi_app_state(): string
 
 function sbi_environment_checks(): array
 {
+    $enabled = sbi_t('已启用', 'Enabled');
+    $disabled = sbi_t('未启用', 'Disabled');
     return [
-        ['label' => 'PHP 8.0 或更高版本', 'detail' => PHP_VERSION, 'ok' => version_compare(PHP_VERSION, '8.0.0', '>=')],
-        ['label' => '当前目录可写', 'detail' => basename(__DIR__), 'ok' => is_writable(__DIR__)],
-        ['label' => 'cURL 网络扩展', 'detail' => function_exists('curl_init') ? '已启用' : '未启用', 'ok' => function_exists('curl_init')],
-        ['label' => 'ZipArchive 解压扩展', 'detail' => class_exists('ZipArchive') ? '已启用' : '未启用', 'ok' => class_exists('ZipArchive')],
-        ['label' => 'PDO SQLite 数据库扩展', 'detail' => extension_loaded('pdo_sqlite') ? '已启用' : '未启用', 'ok' => extension_loaded('pdo_sqlite')],
-        ['label' => 'Fileinfo 文件扩展', 'detail' => extension_loaded('fileinfo') ? '已启用' : '未启用', 'ok' => extension_loaded('fileinfo')],
+        ['label' => sbi_t('PHP 8.0 或更高版本', 'PHP 8.0 or newer'), 'detail' => PHP_VERSION, 'ok' => version_compare(PHP_VERSION, '8.0.0', '>=')],
+        ['label' => sbi_t('当前目录可写', 'Current directory is writable'), 'detail' => basename(__DIR__), 'ok' => is_writable(__DIR__)],
+        ['label' => sbi_t('cURL 网络扩展', 'cURL network extension'), 'detail' => function_exists('curl_init') ? $enabled : $disabled, 'ok' => function_exists('curl_init')],
+        ['label' => sbi_t('ZipArchive 解压扩展', 'ZipArchive extraction extension'), 'detail' => class_exists('ZipArchive') ? $enabled : $disabled, 'ok' => class_exists('ZipArchive')],
+        ['label' => sbi_t('PDO SQLite 数据库扩展', 'PDO SQLite database extension'), 'detail' => extension_loaded('pdo_sqlite') ? $enabled : $disabled, 'ok' => extension_loaded('pdo_sqlite')],
+        ['label' => sbi_t('Fileinfo 文件扩展', 'Fileinfo extension'), 'detail' => extension_loaded('fileinfo') ? $enabled : $disabled, 'ok' => extension_loaded('fileinfo')],
     ];
 }
 
@@ -99,7 +127,7 @@ function sbi_latest_release(bool $refresh = false): array
         return $cached;
     }
     if (!function_exists('curl_init')) {
-        throw new RuntimeException('服务器未启用 cURL，无法连接 GitHub。');
+        throw new RuntimeException(sbi_t('服务器未启用 cURL，无法连接 GitHub。', 'cURL is not enabled, so the installer cannot connect to GitHub.'));
     }
 
     $curl = curl_init(SBI_RELEASE_API);
@@ -118,13 +146,13 @@ function sbi_latest_release(bool $refresh = false): array
 
     $data = is_string($body) ? json_decode($body, true) : null;
     if ($status !== 200 || !is_array($data)) {
-        throw new RuntimeException('无法获取最新版本：' . ($error !== '' ? $error : 'GitHub 返回 HTTP ' . $status));
+        throw new RuntimeException(sbi_t('无法获取最新版本：', 'Unable to fetch the latest release: ') . ($error !== '' ? $error : 'GitHub HTTP ' . $status));
     }
     $version = trim((string)($data['tag_name'] ?? ''));
     $downloadUrl = trim((string)($data['zipball_url'] ?? ''));
     $host = strtolower((string)parse_url($downloadUrl, PHP_URL_HOST));
     if ($version === '' || !filter_var($downloadUrl, FILTER_VALIDATE_URL) || $host !== 'api.github.com') {
-        throw new RuntimeException('GitHub Release 信息不完整或下载地址无效。');
+        throw new RuntimeException(sbi_t('GitHub Release 信息不完整或下载地址无效。', 'The GitHub Release metadata is incomplete or its download URL is invalid.'));
     }
 
     $release = [
@@ -158,24 +186,24 @@ function sbi_validate_zip(ZipArchive $zip): void
     for ($index = 0; $index < $zip->numFiles; $index++) {
         $name = str_replace('\\', '/', (string)$zip->getNameIndex($index));
         if ($name === '' || str_contains($name, "\0") || str_starts_with($name, '/') || preg_match('/^[A-Za-z]:\//', $name)) {
-            throw new RuntimeException('安装包包含不安全的文件路径。');
+            throw new RuntimeException(sbi_t('安装包包含不安全的文件路径。', 'The package contains an unsafe file path.'));
         }
         foreach (explode('/', trim($name, '/')) as $segment) {
             if ($segment === '..') {
-                throw new RuntimeException('安装包包含目录穿越路径。');
+                throw new RuntimeException(sbi_t('安装包包含目录穿越路径。', 'The package contains a directory traversal path.'));
             }
         }
         $attributes = 0;
         if ($zip->getExternalAttributesIndex($index, $system, $attributes)) {
             $type = ($attributes >> 16) & 0xF000;
             if ($type === 0xA000) {
-                throw new RuntimeException('安装包不能包含符号链接。');
+                throw new RuntimeException(sbi_t('安装包不能包含符号链接。', 'The package must not contain symbolic links.'));
             }
         }
         $stat = $zip->statIndex($index);
         $extractedBytes += is_array($stat) ? max(0, (int)($stat['size'] ?? 0)) : 0;
         if ($extractedBytes > SBI_MAX_EXTRACTED_BYTES) {
-            throw new RuntimeException('安装包解压后超过 256 MB 安全限制。');
+            throw new RuntimeException(sbi_t('安装包解压后超过 256 MB 安全限制。', 'The extracted package exceeds the 256 MB safety limit.'));
         }
     }
 }
@@ -186,7 +214,7 @@ function sbi_create_directory(string $directory, array &$createdDirectories): vo
         return;
     }
     if (file_exists($directory)) {
-        throw new RuntimeException('目标路径不是目录：' . basename($directory));
+        throw new RuntimeException(sbi_t('目标路径不是目录：', 'The target path is not a directory: ') . basename($directory));
     }
     $missing = [];
     $cursor = $directory;
@@ -205,14 +233,14 @@ function sbi_create_directory(string $directory, array &$createdDirectories): vo
         }
     }
     if (!$createdSuccessfully && !is_dir($directory)) {
-        throw new RuntimeException('无法创建目录：' . basename($directory));
+        throw new RuntimeException(sbi_t('无法创建目录：', 'Unable to create directory: ') . basename($directory));
     }
 }
 
 function sbi_deploy_release(array $release): int
 {
     if (sbi_app_state() !== 'empty') {
-        throw new RuntimeException('当前目录已经存在 SBlog 程序文件，安装器不会覆盖它们。');
+        throw new RuntimeException(sbi_t('当前目录已经存在 SBlog 程序文件，安装器不会覆盖它们。', 'SBlog files already exist in this directory. The installer will not overwrite them.'));
     }
     $workDirectory = __DIR__ . '/.sblog-install-' . bin2hex(random_bytes(6));
     $zipFile = $workDirectory . '/release.zip';
@@ -221,13 +249,13 @@ function sbi_deploy_release(array $release): int
     $createdDirectories = [];
 
     if (!mkdir($workDirectory, 0700, true)) {
-        throw new RuntimeException('无法创建安装临时目录。');
+        throw new RuntimeException(sbi_t('无法创建安装临时目录。', 'Unable to create the temporary installation directory.'));
     }
 
     try {
         $handle = fopen($zipFile, 'wb');
         if ($handle === false) {
-            throw new RuntimeException('无法创建安装包文件。');
+            throw new RuntimeException(sbi_t('无法创建安装包文件。', 'Unable to create the package file.'));
         }
         $downloaded = 0;
         $tooLarge = false;
@@ -255,42 +283,42 @@ function sbi_deploy_release(array $release): int
         curl_close($curl);
         fclose($handle);
         if ($tooLarge) {
-            throw new RuntimeException('安装包超过 64 MB 安全限制。');
+            throw new RuntimeException(sbi_t('安装包超过 64 MB 安全限制。', 'The package exceeds the 64 MB safety limit.'));
         }
         if (!$ok || $status !== 200 || $downloaded === 0) {
-            throw new RuntimeException('安装包下载失败：' . ($error !== '' ? $error : 'HTTP ' . $status));
+            throw new RuntimeException(sbi_t('安装包下载失败：', 'Package download failed: ') . ($error !== '' ? $error : 'HTTP ' . $status));
         }
 
         $zip = new ZipArchive();
         $opened = $zip->open($zipFile);
         if ($opened !== true) {
-            throw new RuntimeException('下载内容不是有效的 ZIP 安装包。');
+            throw new RuntimeException(sbi_t('下载内容不是有效的 ZIP 安装包。', 'The downloaded file is not a valid ZIP package.'));
         }
         sbi_validate_zip($zip);
         if (!mkdir($extractDirectory, 0700, true) || !$zip->extractTo($extractDirectory)) {
             $zip->close();
-            throw new RuntimeException('安装包解压失败。');
+            throw new RuntimeException(sbi_t('安装包解压失败。', 'Unable to extract the package.'));
         }
         $zip->close();
 
         $roots = glob($extractDirectory . '/*', GLOB_ONLYDIR) ?: [];
         if (count($roots) !== 1) {
-            throw new RuntimeException('安装包目录结构无效。');
+            throw new RuntimeException(sbi_t('安装包目录结构无效。', 'The package directory structure is invalid.'));
         }
         $source = $roots[0];
         foreach (['index.php', 'install.php', 'index.css', 'index.js'] as $required) {
             if (!is_file($source . '/' . $required)) {
-                throw new RuntimeException('安装包缺少必要文件：' . $required);
+                throw new RuntimeException(sbi_t('安装包缺少必要文件：', 'The package is missing a required file: ') . $required);
             }
         }
         $indexCode = (string)file_get_contents($source . '/index.php');
         if (!preg_match("/const APP_VERSION = '([^']+)'/", $indexCode, $match)) {
-            throw new RuntimeException('无法识别安装包版本。');
+            throw new RuntimeException(sbi_t('无法识别安装包版本。', 'Unable to identify the package version.'));
         }
         $packageVersion = ltrim((string)$match[1], 'vV');
         $releaseVersion = ltrim((string)$release['version'], 'vV');
         if ($packageVersion !== $releaseVersion) {
-            throw new RuntimeException('安装包版本与 Release 信息不一致。');
+            throw new RuntimeException(sbi_t('安装包版本与 Release 信息不一致。', 'The package version does not match the Release metadata.'));
         }
 
         $files = [];
@@ -308,7 +336,7 @@ function sbi_deploy_release(array $release): int
         foreach ($files as $relative => $_sourceFile) {
             $target = __DIR__ . '/' . $relative;
             if (file_exists($target)) {
-                throw new RuntimeException('目标目录存在同名文件，已停止以避免覆盖：' . $relative);
+                throw new RuntimeException(sbi_t('目标目录存在同名文件，已停止以避免覆盖：', 'A file with the same name already exists. Deployment stopped to avoid overwriting it: ') . $relative);
             }
         }
 
@@ -317,7 +345,7 @@ function sbi_deploy_release(array $release): int
             sbi_create_directory(dirname($target), $createdDirectories);
             $createdFiles[] = $target;
             if (!copy($sourceFile, $target)) {
-                throw new RuntimeException('写入文件失败：' . $relative);
+                throw new RuntimeException(sbi_t('写入文件失败：', 'Unable to write file: ') . $relative);
             }
         }
         foreach (['data', 'cache', 'uploads'] as $runtimeDirectory) {
@@ -347,15 +375,15 @@ $completed = isset($_GET['done']) && is_array($_SESSION['sbi_completed'] ?? null
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (!hash_equals(sbi_csrf_token(), (string)($_POST['csrf_token'] ?? ''))) {
-            throw new RuntimeException('请求已失效，请刷新页面后重试。');
+            throw new RuntimeException(sbi_t('请求已失效，请刷新页面后重试。', 'This request has expired. Refresh the page and try again.'));
         }
         if (!$environmentReady) {
-            throw new RuntimeException('服务器环境尚未满足安装要求。');
+            throw new RuntimeException(sbi_t('服务器环境尚未满足安装要求。', 'The server does not meet the installation requirements yet.'));
         }
         $release = sbi_latest_release();
         $fileCount = sbi_deploy_release($release);
         $_SESSION['sbi_completed'] = ['version' => $release['version'], 'files' => $fileCount];
-        header('Location: ' . sbi_self_url() . '?done=1');
+        header('Location: ' . sbi_localized_url(basename(sbi_self_url()), ['done' => '1']), true, 303);
         exit;
     } catch (Throwable $exception) {
         $error = $exception->getMessage();
@@ -373,32 +401,32 @@ if ($appState === 'empty' && $environmentReady && !$completed && $release === nu
 
 $completedData = is_array($_SESSION['sbi_completed'] ?? null) ? $_SESSION['sbi_completed'] : [];
 $readyToDownload = $appState === 'empty' && $environmentReady && is_array($release) && $error === '';
-$statusTitle = '准备部署';
-$statusText = '检查通过后，安装器会下载最新稳定版并写入当前目录。';
+$statusTitle = sbi_t('准备部署', 'Ready to deploy');
+$statusText = sbi_t('检查通过后，安装器会下载最新稳定版并写入当前目录。', 'After the checks pass, the installer will download the latest stable release into this directory.');
 if ($completed) {
-    $statusTitle = '程序文件已部署';
-    $statusText = '下一步将初始化站点、管理员账号和 SQLite 数据库。';
+    $statusTitle = sbi_t('程序文件已部署', 'Application files deployed');
+    $statusText = sbi_t('下一步将初始化站点、管理员账号和 SQLite 数据库。', 'Next, set up the site, administrator account, and SQLite database.');
 } elseif ($appState === 'installed') {
-    $statusTitle = '站点已经安装';
-    $statusText = '检测到安装锁和有效程序入口，无需重复部署。';
+    $statusTitle = sbi_t('站点已经安装', 'Site already installed');
+    $statusText = sbi_t('检测到安装锁和有效程序入口，无需重复部署。', 'An installation lock and valid application entry point were found. No redeployment is needed.');
 } elseif ($appState === 'deployed') {
-    $statusTitle = '程序文件已就绪';
-    $statusText = '当前目录已经有 SBlog，请继续完成站点初始化。';
+    $statusTitle = sbi_t('程序文件已就绪', 'Application files ready');
+    $statusText = sbi_t('当前目录已经有 SBlog，请继续完成站点初始化。', 'SBlog is already deployed in this directory. Continue with site setup.');
 } elseif (!$environmentReady) {
-    $statusTitle = '环境需要调整';
-    $statusText = '修复下方未通过项目并刷新页面后即可继续。';
+    $statusTitle = sbi_t('环境需要调整', 'Environment needs attention');
+    $statusText = sbi_t('修复下方未通过项目并刷新页面后即可继续。', 'Resolve the failed checks below, then refresh the page to continue.');
 } elseif ($error !== '') {
-    $statusTitle = '暂时无法部署';
-    $statusText = '没有写入站点文件，可以修复问题后安全重试。';
+    $statusTitle = sbi_t('暂时无法部署', 'Unable to deploy');
+    $statusText = sbi_t('没有写入站点文件，可以修复问题后安全重试。', 'No application files were written. Resolve the issue and try again safely.');
 }
 ?>
 <!doctype html>
-<html lang="zh-CN">
+<html lang="<?= sbi_h(sbi_locale()) ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
-  <title>SBlog 安装器</title>
+  <title><?= sbi_h(sbi_t('SBlog 安装器', 'SBlog Installer')) ?></title>
   <style>
     :root {
       --bg: #f4f5f3;
@@ -446,12 +474,19 @@ if ($completed) {
     .brand-copy { display: grid; line-height: 1.25; }
     .brand-copy strong { font-size: 15px; }
     .brand-copy span { margin-top: 3px; color: var(--muted); font-size: 12px; }
+    .masthead-actions { display: flex; align-items: center; gap: 16px; }
     .secure-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; white-space: nowrap; }
     .secure-label::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .language-switch { display: inline-grid; grid-template-columns: repeat(2, minmax(64px, 1fr)); padding: 3px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .language-switch a { display: grid; min-height: 40px; place-items: center; padding: 0 10px; border-radius: 5px; color: var(--muted); font-size: 12px; font-weight: 700; text-decoration: none; transition: background-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease; }
+    .language-switch a:hover { color: var(--text); }
+    .language-switch a:active { transform: scale(.96); }
+    .language-switch a:focus-visible { outline: 3px solid rgba(23, 107, 77, .24); outline-offset: 1px; }
+    .language-switch a.is-active { background: var(--surface-soft); color: var(--text); box-shadow: 0 1px 3px rgba(26, 39, 33, .1); }
     .installer-shell { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
     .intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: end; padding: 38px 40px 32px; border-bottom: 1px solid var(--line); }
     .eyebrow { margin: 0 0 11px; color: var(--accent); font-size: 12px; font-weight: 750; text-transform: uppercase; }
-    h1 { margin: 0; font-size: 40px; line-height: 1.15; font-weight: 720; letter-spacing: 0; }
+    h1 { margin: 0; font-size: 40px; line-height: 1.15; font-weight: 720; letter-spacing: 0; text-wrap: balance; }
     .lead { max-width: 610px; margin: 14px 0 0; color: var(--muted); font-size: 16px; }
     .version-box { min-width: 126px; padding-left: 22px; border-left: 1px solid var(--line); }
     .version-box span { display: block; color: var(--muted); font-size: 12px; }
@@ -459,7 +494,7 @@ if ($completed) {
     .content { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr); }
     .checks { padding: 30px 40px 34px; border-right: 1px solid var(--line); }
     .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 17px; }
-    h2 { margin: 0; font-size: 16px; line-height: 1.35; }
+    h2 { margin: 0; font-size: 16px; line-height: 1.35; text-wrap: balance; }
     .section-heading span { color: var(--muted); font-size: 12px; }
     .check-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
     .check-item { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 11px; align-items: center; min-height: 50px; border-bottom: 1px solid var(--line); }
@@ -490,7 +525,7 @@ if ($completed) {
       transition: background .16s ease, border-color .16s ease, transform .16s ease;
     }
     .button:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
-    .button:active { transform: translateY(1px); }
+    .button:active { transform: scale(.96); }
     .button:focus-visible { outline: 3px solid rgba(23, 107, 77, .24); outline-offset: 2px; }
     .button:disabled { border-color: var(--line-strong); background: #d5dad7; color: #77817c; cursor: not-allowed; }
     .button.is-loading { cursor: wait; }
@@ -517,6 +552,8 @@ if ($completed) {
       .footer span { display: block; margin-top: 4px; }
     }
     @media (max-width: 420px) {
+      .masthead { align-items: flex-start; flex-direction: column; }
+      .masthead-actions, .language-switch { width: 100%; }
       .check-item { grid-template-columns: 22px minmax(0, 1fr); padding: 10px 0; }
       .check-detail { grid-column: 2; max-width: 100%; white-space: normal; }
     }
@@ -527,9 +564,15 @@ if ($completed) {
     <header class="masthead">
       <div class="brand">
         <span class="brand-mark" aria-hidden="true">S</span>
-        <span class="brand-copy"><strong>Simple PHP Blog</strong><span>单文件部署工具</span></span>
+        <span class="brand-copy"><strong>Simple PHP Blog</strong><span><?= sbi_h(sbi_t('单文件部署工具', 'Single-file deployment tool')) ?></span></span>
       </div>
-      <span class="secure-label">仅从官方 GitHub Release 获取</span>
+      <div class="masthead-actions">
+        <span class="secure-label"><?= sbi_h(sbi_t('仅从官方 GitHub Release 获取', 'Official GitHub Releases only')) ?></span>
+        <nav class="language-switch" aria-label="<?= sbi_h(sbi_t('安装语言', 'Installer language')) ?>">
+          <a href="<?= sbi_h(sbi_url(basename(sbi_self_url())) . '?' . http_build_query(array_filter(['lang' => 'zh-CN', 'done' => $completed ? '1' : null]))) ?>" hreflang="zh-CN"<?= sbi_locale() === 'zh-CN' ? ' class="is-active" aria-current="page"' : '' ?>>中文</a>
+          <a href="<?= sbi_h(sbi_url(basename(sbi_self_url())) . '?' . http_build_query(array_filter(['lang' => 'en', 'done' => $completed ? '1' : null]))) ?>" hreflang="en"<?= sbi_locale() === 'en' ? ' class="is-active" aria-current="page"' : '' ?>>English</a>
+        </nav>
+      </div>
     </header>
 
     <section class="installer-shell" aria-labelledby="installer-title">
@@ -540,16 +583,16 @@ if ($completed) {
           <p class="lead"><?= sbi_h($statusText) ?></p>
         </div>
         <div class="version-box">
-          <span><?= $completed || $appState !== 'empty' ? '部署状态' : '最新稳定版' ?></span>
-          <strong><?= sbi_h((string)($completedData['version'] ?? $release['version'] ?? ($appState === 'empty' ? '待获取' : '已就绪'))) ?></strong>
+          <span><?= sbi_h($completed || $appState !== 'empty' ? sbi_t('部署状态', 'Deployment status') : sbi_t('最新稳定版', 'Latest stable release')) ?></span>
+          <strong><?= sbi_h((string)($completedData['version'] ?? $release['version'] ?? ($appState === 'empty' ? sbi_t('待获取', 'Pending') : sbi_t('已就绪', 'Ready')))) ?></strong>
         </div>
       </div>
 
       <div class="content">
         <section class="checks" aria-labelledby="checks-title">
           <div class="section-heading">
-            <h2 id="checks-title">服务器检查</h2>
-            <span><?= $environmentReady ? '全部通过' : '存在未通过项目' ?></span>
+            <h2 id="checks-title"><?= sbi_h(sbi_t('服务器检查', 'Server checks')) ?></h2>
+            <span><?= sbi_h($environmentReady ? sbi_t('全部通过', 'All checks passed') : sbi_t('存在未通过项目', 'Some checks failed')) ?></span>
           </div>
           <ul class="check-list">
             <?php foreach ($checks as $check): ?>
@@ -572,23 +615,24 @@ if ($completed) {
 
           <div>
             <?php if ($completed || $appState === 'deployed'): ?>
-              <a class="button" href="<?= sbi_h(sbi_url('install.php')) ?>">继续初始化站点</a>
-              <p class="action-note">部署器完成使命后请从服务器删除</p>
+              <a class="button" href="<?= sbi_h(sbi_localized_url('install.php')) ?>"><?= sbi_h(sbi_t('继续初始化站点', 'Continue site setup')) ?></a>
+              <p class="action-note"><?= sbi_h(sbi_t('部署器完成使命后请从服务器删除', 'Delete this deployer from the server after setup')) ?></p>
             <?php elseif ($appState === 'installed'): ?>
-              <a class="button" href="<?= sbi_h(sbi_url('index.php')) ?>">进入博客</a>
-              <p class="action-note">当前站点数据不会被修改</p>
+              <a class="button" href="<?= sbi_h(sbi_url('index.php')) ?>"><?= sbi_h(sbi_t('进入博客', 'Open blog')) ?></a>
+              <p class="action-note"><?= sbi_h(sbi_t('当前站点数据不会被修改', 'Existing site data will not be changed')) ?></p>
             <?php elseif ($error !== '' && $environmentReady): ?>
-              <a class="button" href="<?= sbi_h(sbi_self_url()) ?>">重新检测</a>
-              <p class="action-note">修复提示的问题后可以安全重试</p>
+              <a class="button" href="<?= sbi_h(sbi_localized_url(basename(sbi_self_url()))) ?>"><?= sbi_h(sbi_t('重新检测', 'Check again')) ?></a>
+              <p class="action-note"><?= sbi_h(sbi_t('修复提示的问题后可以安全重试', 'Resolve the issue, then retry safely')) ?></p>
             <?php else: ?>
               <form id="install-form" method="post">
                 <input type="hidden" name="csrf_token" value="<?= sbi_h(sbi_csrf_token()) ?>">
+                <input type="hidden" name="lang" value="<?= sbi_h(sbi_locale()) ?>">
                 <button id="install-button" class="button" type="submit"<?= $readyToDownload ? '' : ' disabled' ?>>
                   <span class="spinner" aria-hidden="true"></span>
-                  <span class="button-label"><?= $environmentReady ? '下载并部署' : '环境未通过' ?></span>
+                  <span class="button-label"><?= sbi_h($environmentReady ? sbi_t('下载并部署', 'Download and deploy') : sbi_t('环境未通过', 'Checks failed')) ?></span>
                 </button>
               </form>
-              <p class="action-note">不会覆盖同名文件，失败将自动回滚</p>
+              <p class="action-note"><?= sbi_h(sbi_t('不会覆盖同名文件，失败将自动回滚', 'Existing files are never overwritten; failed deployments roll back')) ?></p>
             <?php endif; ?>
           </div>
         </aside>
@@ -596,8 +640,8 @@ if ($completed) {
     </section>
 
     <footer class="footer">
-      <span>目标目录 <code><?= sbi_h(__DIR__) ?></code></span>
-      <span>发布源 <?= sbi_h(SBI_REPOSITORY) ?></span>
+      <span><?= sbi_h(sbi_t('目标目录', 'Target directory')) ?> <code><?= sbi_h(__DIR__) ?></code></span>
+      <span><?= sbi_h(sbi_t('发布源', 'Release source')) ?> <?= sbi_h(SBI_REPOSITORY) ?></span>
     </footer>
   </main>
   <script>
@@ -608,7 +652,7 @@ if ($completed) {
       form.addEventListener('submit', () => {
         button.disabled = true;
         button.classList.add('is-loading');
-        button.querySelector('.button-label').textContent = '正在下载并部署…';
+        button.querySelector('.button-label').textContent = <?= json_encode(sbi_t('正在下载并部署…', 'Downloading and deploying…'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
       });
     })();
   </script>

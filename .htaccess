@@ -2,6 +2,7 @@ RewriteEngine On
 
 RewriteRule ^(?:data|cache)/ - [F,L]
 RewriteRule ^themes/.*\.(?:php|json)$ - [F,L,NC]
+RewriteRule ^plugins/.*\.(?:php|json|md)$ - [F,L,NC]
 
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d

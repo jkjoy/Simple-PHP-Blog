@@ -24,12 +24,13 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.4.4';
+const APP_VERSION = 'v1.5.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
 const UPLOAD_DIR = __DIR__ . '/uploads';
 const THEMES_DIR = __DIR__ . '/themes';
+const PLUGINS_DIR = __DIR__ . '/plugins';
 const DB_CONFIG_FILE = DATA_DIR . '/config.php';
 const INSTALL_LOCK_FILE = DATA_DIR . '/install.lock';
 const SETTINGS_CACHE_FILE = CACHE_DIR . '/settings.php';
@@ -72,9 +73,9 @@ function ensure_runtime_dirs(): void
     }
 }
 
-function redirect_to(string $url): void
+function redirect_to(string $url, int $status = 302): void
 {
-    header('Location: ' . $url);
+    header('Location: ' . $url, true, $status);
     exit;
 }
 
@@ -387,6 +388,23 @@ function ensure_schema(PDO $pdo): void
     }
     $statement = $pdo->prepare("UPDATE posts SET category_id = ? WHERE kind = 'post' AND (category_id IS NULL OR category_id NOT IN (SELECT id FROM categories))");
     $statement->execute([$defaultCategoryId]);
+
+    $pluginMigration = $pdo->prepare('SELECT value FROM settings WHERE name = ?');
+    $pluginMigration->execute(['core_feature_plugins_migrated']);
+    if ($pluginMigration->fetchColumn() === false) {
+        $activeStatement = $pdo->prepare('SELECT value FROM settings WHERE name = ?');
+        $activeStatement->execute(['active_plugins']);
+        $configured = json_decode((string)($activeStatement->fetchColumn() ?: '[]'), true);
+        $configured = is_array($configured) ? array_map('strval', $configured) : [];
+        foreach (['ai-assistant', 'email-notifications', 's3-storage'] as $pluginSlug) {
+            if (!in_array($pluginSlug, $configured, true)) {
+                $configured[] = $pluginSlug;
+            }
+        }
+        $savePluginSetting = $pdo->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)');
+        $savePluginSetting->execute(['active_plugins', json_encode($configured, JSON_UNESCAPED_SLASHES)]);
+        $savePluginSetting->execute(['core_feature_plugins_migrated', '1']);
+    }
     $done = true;
 }
 
@@ -459,6 +477,7 @@ function default_settings(): array
         'site_footer' => '',
         'custom_head_code' => '',
         'active_theme' => 'nebula',
+        'active_plugins' => '["ai-assistant","email-notifications","s3-storage"]',
         'favicon_url' => 'logo.png',
         'footer_beian' => '',
         'posts_per_page' => '6',
@@ -466,49 +485,6 @@ function default_settings(): array
         'comments_enabled' => '1',
         'comments_require_approval' => '1',
         'comments_notify' => '1',
-    ];
-}
-
-function default_ai_settings(): array
-{
-    return [
-        'ai_api_url' => 'https://api.deepseek.com',
-        'ai_api_key' => '',
-        'ai_model' => 'deepseek-v4-flash',
-        'ai_slug_prompt' => 'Translate the title into a concise English URL slug. Output lowercase ASCII words separated only by hyphens. Output the slug only, without quotes or explanation.',
-        'ai_summary_prompt' => '根据文章内容生成不超过100个汉字的中文摘要。只输出摘要正文，不要标题、引号、解释或 Markdown 标记。',
-        'ai_polish_prompt' => '你是专业中文编辑。严格执行用户要求，保留有效 Markdown 结构。只输出处理后的完整正文，不要解释处理过程。',
-    ];
-}
-
-function default_mail_settings(): array
-{
-    return [
-        'smtp_enabled' => '0',
-        'smtp_host' => '',
-        'smtp_port' => '465',
-        'smtp_encryption' => 'ssl',
-        'smtp_username' => '',
-        'smtp_password' => '',
-        'smtp_from_email' => '',
-        'smtp_from_name' => '',
-        'smtp_notify_email' => '',
-    ];
-}
-
-function default_s3_settings(): array
-{
-    return [
-        's3_enabled' => '0',
-        's3_keep_local' => '1',
-        's3_endpoint' => 'https://s3.amazonaws.com',
-        's3_region' => 'us-east-1',
-        's3_bucket' => '',
-        's3_access_key' => '',
-        's3_secret_key' => '',
-        's3_path_prefix' => 'uploads',
-        's3_public_url' => '',
-        's3_path_style' => '0',
     ];
 }
 
@@ -548,95 +524,6 @@ function setting(string $key, string $default = ''): string
     return (string)($settings[$key] ?? $default);
 }
 
-function ai_settings(): array
-{
-    $settings = default_ai_settings();
-
-    try {
-        $rows = all_rows('SELECT name, value FROM ai_settings');
-        if (!$rows) {
-            $legacy = all_rows("SELECT name, value FROM settings WHERE name LIKE 'ai\\_%' ESCAPE '\\'");
-            if ($legacy) {
-                $statement = db()->prepare('INSERT OR REPLACE INTO ai_settings(name, value) VALUES(?, ?)');
-                foreach ($legacy as $row) {
-                    $statement->execute([(string)$row['name'], (string)$row['value']]);
-                }
-                q("DELETE FROM settings WHERE name LIKE 'ai\\_%' ESCAPE '\\'");
-                settings_cache(true);
-                $rows = $legacy;
-            }
-        }
-
-        foreach ($rows as $row) {
-            $settings[(string)$row['name']] = (string)$row['value'];
-        }
-    } catch (Throwable) {
-    }
-
-    return $settings;
-}
-
-function ai_setting(string $key, string $default = ''): string
-{
-    $settings = ai_settings();
-    return (string)($settings[$key] ?? $default);
-}
-
-function save_ai_settings(array $values): void
-{
-    $statement = db()->prepare('INSERT OR REPLACE INTO ai_settings(name, value) VALUES(?, ?)');
-
-    foreach ($values as $name => $value) {
-        $statement->execute([(string)$name, (string)$value]);
-    }
-}
-
-function mail_settings(): array
-{
-    $settings = default_mail_settings();
-
-    try {
-        foreach (all_rows('SELECT name, value FROM mail_settings') as $row) {
-            $settings[(string)$row['name']] = (string)$row['value'];
-        }
-    } catch (Throwable) {
-    }
-
-    return $settings;
-}
-
-function save_mail_settings(array $values): void
-{
-    $statement = db()->prepare('INSERT OR REPLACE INTO mail_settings(name, value) VALUES(?, ?)');
-
-    foreach ($values as $name => $value) {
-        $statement->execute([(string)$name, (string)$value]);
-    }
-}
-
-function s3_settings(): array
-{
-    $settings = default_s3_settings();
-
-    try {
-        foreach (all_rows('SELECT name, value FROM s3_settings') as $row) {
-            $settings[(string)$row['name']] = (string)$row['value'];
-        }
-    } catch (Throwable) {
-    }
-
-    return $settings;
-}
-
-function save_s3_settings(array $values): void
-{
-    $statement = db()->prepare('INSERT OR REPLACE INTO s3_settings(name, value) VALUES(?, ?)');
-
-    foreach ($values as $name => $value) {
-        $statement->execute([(string)$name, (string)$value]);
-    }
-}
-
 function save_settings(array $values): void
 {
     $statement = db()->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)');
@@ -646,6 +533,218 @@ function save_settings(array $values): void
     }
 
     settings_cache(true);
+}
+
+function plugin_manifest(string $slug): ?array
+{
+    if (!preg_match('/^[a-z0-9][a-z0-9_-]*$/', $slug)) {
+        return null;
+    }
+
+    $pluginsRoot = realpath(PLUGINS_DIR);
+    $pluginDir = realpath(PLUGINS_DIR . '/' . $slug);
+    if ($pluginsRoot === false || $pluginDir === false || !is_dir($pluginDir)) {
+        return null;
+    }
+
+    $rootPrefix = rtrim($pluginsRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if (strncasecmp($pluginDir . DIRECTORY_SEPARATOR, $rootPrefix, strlen($rootPrefix)) !== 0) {
+        return null;
+    }
+
+    $manifestFile = $pluginDir . '/plugin.json';
+    $entryFile = $pluginDir . '/plugin.php';
+    if (!is_file($manifestFile) || !is_file($entryFile) || filesize($manifestFile) > 65536) {
+        return null;
+    }
+
+    $manifest = json_decode((string)file_get_contents($manifestFile), true);
+    $name = is_array($manifest) ? trim((string)($manifest['name'] ?? '')) : '';
+    if ($name === '') {
+        return null;
+    }
+    $settingsAction = trim((string)($manifest['settings_action'] ?? ''));
+    if ($settingsAction !== '' && !preg_match('/^[a-z][a-z0-9_-]{0,79}$/', $settingsAction)) {
+        $settingsAction = '';
+    }
+
+    return [
+        'slug' => $slug,
+        'name' => str_sub_u($name, 0, 100),
+        'version' => str_sub_u(trim((string)($manifest['version'] ?? '')), 0, 40),
+        'author' => str_sub_u(trim((string)($manifest['author'] ?? '')), 0, 100),
+        'description' => str_sub_u(trim((string)($manifest['description'] ?? '')), 0, 300),
+        'settings_action' => $settingsAction,
+        'entry' => $entryFile,
+    ];
+}
+
+function available_plugins(): array
+{
+    $plugins = [];
+    if (!is_dir(PLUGINS_DIR)) {
+        return $plugins;
+    }
+
+    foreach (scandir(PLUGINS_DIR) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+        $manifest = plugin_manifest($entry);
+        if ($manifest !== null) {
+            $plugins[$entry] = $manifest;
+        }
+    }
+
+    uasort($plugins, static fn(array $left, array $right): int => strcasecmp((string)$left['name'], (string)$right['name']));
+    return $plugins;
+}
+
+function active_plugin_slugs(bool $fresh = false): array
+{
+    $configuredValue = setting('active_plugins', '[]');
+    if ($fresh) {
+        try {
+            $stored = val('SELECT value FROM settings WHERE name = ?', ['active_plugins']);
+            if (is_string($stored)) {
+                $configuredValue = $stored;
+            }
+        } catch (Throwable) {
+        }
+    }
+    $configured = json_decode($configuredValue, true);
+    if (!is_array($configured)) {
+        return [];
+    }
+
+    $available = available_plugins();
+    $active = [];
+    foreach ($configured as $slug) {
+        $slug = trim((string)$slug);
+        if (isset($available[$slug]) && !in_array($slug, $active, true)) {
+            $active[] = $slug;
+        }
+    }
+    return $active;
+}
+
+function save_active_plugins(array $slugs): void
+{
+    $available = available_plugins();
+    $valid = [];
+    foreach ($slugs as $slug) {
+        $slug = trim((string)$slug);
+        if (isset($available[$slug]) && !in_array($slug, $valid, true)) {
+            $valid[] = $slug;
+        }
+    }
+    save_settings(['active_plugins' => json_encode($valid, JSON_UNESCAPED_SLASHES)]);
+}
+
+function add_plugin_action(string $hook, callable $callback, int $priority = 10): void
+{
+    if (!preg_match('/^[a-z][a-z0-9_.-]*$/', $hook)) {
+        throw new InvalidArgumentException('无效的插件钩子名称：' . $hook);
+    }
+    $GLOBALS['sblog_plugin_actions'][$hook][$priority][] = $callback;
+}
+
+function add_plugin_filter(string $hook, callable $callback, int $priority = 10): void
+{
+    if (!preg_match('/^[a-z][a-z0-9_.-]*$/', $hook)) {
+        throw new InvalidArgumentException('无效的插件过滤器名称：' . $hook);
+    }
+    $GLOBALS['sblog_plugin_filters'][$hook][$priority][] = $callback;
+}
+
+function plugin_callbacks(string $type, string $hook): array
+{
+    $groups = $GLOBALS[$type][$hook] ?? [];
+    if (!is_array($groups) || $groups === []) {
+        return [];
+    }
+    ksort($groups, SORT_NUMERIC);
+    return array_merge(...array_values($groups));
+}
+
+function plugin_action(string $hook, array $context = []): void
+{
+    foreach (plugin_callbacks('sblog_plugin_actions', $hook) as $callback) {
+        try {
+            $callback($context);
+        } catch (Throwable $exception) {
+            error_log('Plugin action ' . $hook . ' failed: ' . $exception->getMessage());
+        }
+    }
+}
+
+function plugin_filter(string $hook, mixed $value, array $context = []): mixed
+{
+    foreach (plugin_callbacks('sblog_plugin_filters', $hook) as $callback) {
+        try {
+            $value = $callback($value, $context);
+        } catch (Throwable $exception) {
+            error_log('Plugin filter ' . $hook . ' failed: ' . $exception->getMessage());
+        }
+    }
+    return $value;
+}
+
+function plugin_asset_url(string $slug, string $path): string
+{
+    if (plugin_manifest($slug) === null) {
+        return '';
+    }
+    $path = trim(str_replace('\\', '/', $path), '/');
+    $segments = $path === '' ? [] : explode('/', $path);
+    if (!$segments || array_filter($segments, static fn(string $segment): bool => $segment === '' || $segment === '.' || $segment === '..')) {
+        return '';
+    }
+    if (preg_match('/\.(?:php|json|md)$/i', (string)end($segments))) {
+        return '';
+    }
+    return asset_url('plugins/' . rawurlencode($slug) . '/' . implode('/', array_map('rawurlencode', $segments)));
+}
+
+function load_active_plugins(): void
+{
+    static $loaded = false;
+    if ($loaded) {
+        return;
+    }
+    $loaded = true;
+    $GLOBALS['sblog_loaded_plugins'] = [];
+    $GLOBALS['sblog_plugin_errors'] = [];
+
+    foreach (active_plugin_slugs(true) as $slug) {
+        $manifest = plugin_manifest($slug);
+        if ($manifest === null) {
+            continue;
+        }
+        $actionsBefore = $GLOBALS['sblog_plugin_actions'] ?? [];
+        $filtersBefore = $GLOBALS['sblog_plugin_filters'] ?? [];
+        try {
+            require (string)$manifest['entry'];
+            $GLOBALS['sblog_loaded_plugins'][] = $slug;
+        } catch (Throwable $exception) {
+            $GLOBALS['sblog_plugin_actions'] = $actionsBefore;
+            $GLOBALS['sblog_plugin_filters'] = $filtersBefore;
+            $GLOBALS['sblog_plugin_errors'][$slug] = $exception->getMessage();
+            error_log('Plugin ' . $slug . ' failed: ' . $exception->getMessage());
+        }
+    }
+}
+
+function plugin_output_buffer(string $output): string
+{
+    if ($output === '') {
+        return $output;
+    }
+    $filtered = plugin_filter('output_html', $output, [
+        'action' => (string)($GLOBALS['sblog_current_action'] ?? ''),
+        'content_type' => implode('; ', headers_list()),
+    ]);
+    return is_string($filtered) ? $filtered : $output;
 }
 
 function csrf_token(): string
@@ -775,14 +874,17 @@ function github_update_info(bool $refresh = false): array
 
 function install_release_files(string $source, string $targetRoot, string $backup): void
 {
-    $files = ['index.php', 'index.css', 'index.js', 'install.php', 'update.php', 'README.md', 'logo.png', '.htaccess'];
-    $themeRoot = $source . '/themes';
-    if (is_dir($themeRoot)) {
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($themeRoot, FilesystemIterator::SKIP_DOTS));
+    $files = ['index.php', 'index.css', 'index.js', 'install.php', 'update.php', 'README.md', 'README-EN.md', 'logo.png', '.htaccess'];
+    foreach (['themes', 'plugins'] as $extensionDirectory) {
+        $extensionRoot = $source . '/' . $extensionDirectory;
+        if (!is_dir($extensionRoot)) {
+            continue;
+        }
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($extensionRoot, FilesystemIterator::SKIP_DOTS));
         foreach ($iterator as $item) {
             if ($item->isFile()) {
-                $relative = substr($item->getPathname(), strlen($themeRoot) + 1);
-                $files[] = 'themes/' . str_replace('\\', '/', $relative);
+                $relative = substr($item->getPathname(), strlen($extensionRoot) + 1);
+                $files[] = $extensionDirectory . '/' . str_replace('\\', '/', $relative);
             }
         }
     }
@@ -948,24 +1050,6 @@ function public_ip_address(string $ip): bool
     return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false;
 }
 
-function validated_ai_endpoint(string $baseUrl): ?array
-{
-    if (!filter_var($baseUrl, FILTER_VALIDATE_URL)) { return null; }
-    $parts = parse_url($baseUrl);
-    if (!is_array($parts) || str_lower_u((string)($parts['scheme'] ?? '')) !== 'https' || isset($parts['user']) || isset($parts['pass'])) { return null; }
-    $host = trim((string)($parts['host'] ?? ''), '[]');
-    if ($host === '') { return null; }
-    $addresses = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : array_values(array_unique(array_merge(
-        gethostbynamel($host) ?: [],
-        array_column(dns_get_record($host, DNS_AAAA) ?: [], 'ipv6')
-    )));
-    foreach ($addresses as $address) {
-        if (!is_string($address) || !public_ip_address($address)) { return null; }
-    }
-    if ($addresses === []) { return null; }
-    return ['host' => $host, 'port' => (int)($parts['port'] ?? 443), 'ip' => $addresses[0]];
-}
-
 function json_response(array $payload, int $status = 200): void
 {
     http_response_code($status);
@@ -1006,143 +1090,6 @@ function upload_error_message(int $code): string
     };
 }
 
-function s3_endpoint_parts(string $endpoint): ?array
-{
-    if (!filter_var($endpoint, FILTER_VALIDATE_URL)) {
-        return null;
-    }
-
-    $parts = parse_url($endpoint);
-    if (!is_array($parts)) {
-        return null;
-    }
-    $scheme = str_lower_u((string)($parts['scheme'] ?? ''));
-    if (!in_array($scheme, ['http', 'https'], true) || trim((string)($parts['host'] ?? '')) === ''
-        || isset($parts['user']) || isset($parts['pass']) || isset($parts['query']) || isset($parts['fragment'])) {
-        return null;
-    }
-
-    $parts['scheme'] = $scheme;
-    return $parts;
-}
-
-function s3_encoded_path(array $segments): string
-{
-    $segments = array_values(array_filter($segments, static fn(string $segment): bool => $segment !== ''));
-    return '/' . implode('/', array_map(static fn(string $segment): string => rawurlencode(rawurldecode($segment)), $segments));
-}
-
-function s3_request_target(array $settings, string $key): ?array
-{
-    $parts = s3_endpoint_parts(rtrim(trim((string)$settings['s3_endpoint']), '/'));
-    $bucket = trim((string)$settings['s3_bucket']);
-    if ($parts === null || $bucket === '') {
-        return null;
-    }
-
-    $pathStyle = (string)$settings['s3_path_style'] === '1';
-    $hostName = trim((string)$parts['host'], '[]');
-    if (!$pathStyle) {
-        $hostName = $bucket . '.' . $hostName;
-    }
-    $urlHost = str_contains($hostName, ':') ? '[' . $hostName . ']' : $hostName;
-    $host = $urlHost . (isset($parts['port']) ? ':' . (int)$parts['port'] : '');
-    $segments = preg_split('#/+#', trim((string)($parts['path'] ?? ''), '/')) ?: [];
-    if ($pathStyle) {
-        $segments[] = $bucket;
-    }
-    $segments = array_merge($segments, preg_split('#/+#', trim($key, '/')) ?: []);
-    $uri = s3_encoded_path($segments);
-    $url = $parts['scheme'] . '://' . $host . $uri;
-
-    $publicBase = rtrim(trim((string)$settings['s3_public_url']), '/');
-    $publicUrl = $publicBase !== ''
-        ? $publicBase . s3_encoded_path(preg_split('#/+#', trim($key, '/')) ?: [])
-        : $url;
-
-    return ['url' => $url, 'public_url' => $publicUrl, 'host' => $host, 'uri' => $uri];
-}
-
-function upload_file_to_s3(string $file, string $key, string $mime, array $settings): array
-{
-    $region = trim((string)$settings['s3_region']);
-    $accessKey = trim((string)$settings['s3_access_key']);
-    $secretKey = (string)$settings['s3_secret_key'];
-    $target = s3_request_target($settings, $key);
-    if ($target === null || $region === '' || $accessKey === '' || $secretKey === '') {
-        return [false, '', 'S3 配置不完整。'];
-    }
-    if (!function_exists('curl_init')) {
-        return [false, '', '服务器缺少 cURL 扩展，无法上传到 S3。'];
-    }
-
-    $payloadHash = hash_file('sha256', $file);
-    $stream = fopen($file, 'rb');
-    if ($payloadHash === false || $stream === false) {
-        if (is_resource($stream)) { fclose($stream); }
-        return [false, '', '无法读取待上传文件。'];
-    }
-
-    $amzDate = gmdate('Ymd\THis\Z');
-    $dateStamp = gmdate('Ymd');
-    $canonicalHeaders = 'content-type:' . $mime . "\n"
-        . 'host:' . $target['host'] . "\n"
-        . 'x-amz-content-sha256:' . $payloadHash . "\n"
-        . 'x-amz-date:' . $amzDate . "\n";
-    $signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
-    $canonicalRequest = "PUT\n" . $target['uri'] . "\n\n" . $canonicalHeaders . "\n" . $signedHeaders . "\n" . $payloadHash;
-    $scope = $dateStamp . '/' . $region . '/s3/aws4_request';
-    $stringToSign = "AWS4-HMAC-SHA256\n" . $amzDate . "\n" . $scope . "\n" . hash('sha256', $canonicalRequest);
-    $dateKey = hash_hmac('sha256', $dateStamp, 'AWS4' . $secretKey, true);
-    $regionKey = hash_hmac('sha256', $region, $dateKey, true);
-    $serviceKey = hash_hmac('sha256', 's3', $regionKey, true);
-    $signingKey = hash_hmac('sha256', 'aws4_request', $serviceKey, true);
-    $signature = hash_hmac('sha256', $stringToSign, $signingKey);
-    $authorization = 'AWS4-HMAC-SHA256 Credential=' . $accessKey . '/' . $scope
-        . ', SignedHeaders=' . $signedHeaders . ', Signature=' . $signature;
-
-    $curl = curl_init($target['url']);
-    curl_setopt_array($curl, [
-        CURLOPT_UPLOAD => true,
-        CURLOPT_INFILE => $stream,
-        CURLOPT_INFILESIZE => filesize($file),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_CONNECTTIMEOUT => 15,
-        CURLOPT_TIMEOUT => 120,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
-        CURLOPT_HTTPHEADER => [
-            'Authorization: ' . $authorization,
-            'Content-Type: ' . $mime,
-            'Host: ' . $target['host'],
-            'x-amz-content-sha256: ' . $payloadHash,
-            'x-amz-date: ' . $amzDate,
-            'Expect:',
-        ],
-    ]);
-    $body = curl_exec($curl);
-    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = curl_error($curl);
-    curl_close($curl);
-    fclose($stream);
-
-    if ($body === false) {
-        return [false, '', '连接 S3 失败：' . $error];
-    }
-    if ($status < 200 || $status >= 300) {
-        $message = 'S3 返回异常（HTTP ' . $status . '）。';
-        $xml = function_exists('simplexml_load_string')
-            ? @simplexml_load_string((string)$body, SimpleXMLElement::class, LIBXML_NONET)
-            : false;
-        if ($xml instanceof SimpleXMLElement && trim((string)($xml->Message ?? '')) !== '') {
-            $message .= ' ' . trim((string)$xml->Message);
-        }
-        return [false, '', $message];
-    }
-
-    return [true, (string)$target['public_url'], ''];
-}
-
 function handle_attachment_upload(): void
 {
     require_admin();
@@ -1153,14 +1100,8 @@ function handle_attachment_upload(): void
         json_response(['ok' => false, 'error' => '没有收到附件。'], 400);
     }
 
-    $s3Settings = s3_settings();
-    $useS3 = (string)$s3Settings['s3_enabled'] === '1';
-    $keepLocal = !$useS3 || (string)$s3Settings['s3_keep_local'] === '1';
     $year = date('Y');
-    $dir = '';
-    if ($keepLocal) {
-        [, $dir] = ensure_upload_year_dir();
-    }
+    [, $dir] = ensure_upload_year_dir();
     $maxSize = 30 * 1024 * 1024;
     $allowedTypes = [
         'jpg' => ['image/jpeg'], 'jpeg' => ['image/jpeg'], 'png' => ['image/png'],
@@ -1212,23 +1153,34 @@ function handle_attachment_upload(): void
         $target = $dir . '/' . $filename;
         $isImage = @getimagesize($tmpName) !== false;
 
-        if ($keepLocal && !move_uploaded_file($tmpName, $target)) {
+        if (!move_uploaded_file($tmpName, $target)) {
             $failed[] = ['name' => $originalName, 'error' => '保存附件失败。'];
             continue;
         }
 
-        if ($useS3) {
-            $prefix = trim((string)$s3Settings['s3_path_prefix'], '/');
-            $key = ($prefix !== '' ? $prefix . '/' : '') . $year . '/' . $filename;
-            [$s3Ok, $url, $s3Error] = upload_file_to_s3($keepLocal ? $target : $tmpName, $key, $mime, $s3Settings);
-            if (!$s3Ok) {
-                if ($keepLocal && is_file($target)) { @unlink($target); }
-                $failed[] = ['name' => $originalName, 'error' => $s3Error];
-                continue;
-            }
-        } else {
-            $url = asset_url('uploads/' . $year . '/' . $filename);
+        $localUrl = asset_url('uploads/' . $year . '/' . $filename);
+        $storage = plugin_filter('attachment_storage', [
+            'ok' => true,
+            'url' => $localUrl,
+            'error' => '',
+            'remove_local' => false,
+        ], [
+            'file' => $target,
+            'year' => $year,
+            'filename' => $filename,
+            'mime' => $mime,
+            'size' => $size,
+            'original_name' => $originalName,
+            'local_url' => $localUrl,
+        ]);
+        if (!is_array($storage) || empty($storage['ok']) || trim((string)($storage['url'] ?? '')) === '') {
+            @unlink($target);
+            $message = is_array($storage) ? trim((string)($storage['error'] ?? '')) : '';
+            $failed[] = ['name' => $originalName, 'error' => $message !== '' ? $message : '附件存储插件处理失败。'];
+            continue;
         }
+        $url = trim((string)$storage['url']);
+        if (!empty($storage['remove_local']) && is_file($target)) { @unlink($target); }
         $label = trim(pathinfo($originalName, PATHINFO_FILENAME)) ?: $filename;
         $markdown = $isImage ? '![' . $label . '](' . $url . ')' : '[' . $label . '](' . $url . ')';
 
@@ -1530,7 +1482,7 @@ function apply_pretty_route(): void
         return;
     }
 
-    if (preg_match('#^/admin/(posts|comments|categories|tags|links|users|ai|mail|s3|settings)/?$#i', $path, $matches)) {
+    if (preg_match('#^/admin/(posts|comments|categories|tags|links|users|ai|mail|s3|themes|settings|plugins)/?$#i', $path, $matches)) {
         set_route_params(['a' => 'admin_' . str_lower_u($matches[1])]);
         return;
     }
@@ -1675,6 +1627,11 @@ function available_themes(): array
 
 function active_theme_slug(): string
 {
+    $preview = trim((string)($_GET['theme_preview'] ?? ''));
+    if ($preview !== '' && is_admin() && theme_manifest($preview) !== null) {
+        return $preview;
+    }
+
     $configured = trim(setting('active_theme', 'default'));
     return theme_manifest($configured) !== null ? $configured : 'default';
 }
@@ -1822,7 +1779,9 @@ function url_for(string $route, array $params = []): string
         'admin_ai' => $pretty ? app_path('/admin/ai') : script_url() . '?a=admin_ai',
         'admin_mail' => $pretty ? app_path('/admin/mail') : script_url() . '?a=admin_mail',
         'admin_s3' => $pretty ? app_path('/admin/s3') : script_url() . '?a=admin_s3',
+        'admin_themes' => $pretty ? app_path('/admin/themes') : script_url() . '?a=admin_themes',
         'admin_settings' => $pretty ? app_path('/admin/settings') : script_url() . '?a=admin_settings',
+        'admin_plugins' => $pretty ? app_path('/admin/plugins') : script_url() . '?a=admin_plugins',
         'write' => $pretty ? app_path('/write') : script_url() . '?a=write',
         'edit' => $pretty ? app_path('/edit/' . (int)($params['id'] ?? 0)) : script_url() . '?a=edit&id=' . (int)($params['id'] ?? 0),
         'post' => $pretty ? app_path('/archive/' . rawurlencode((string)($params['slug'] ?? ''))) : script_url() . '?a=post&slug=' . rawurlencode((string)($params['slug'] ?? '')),
@@ -1830,6 +1789,8 @@ function url_for(string $route, array $params = []): string
         'save_ai_settings' => script_url() . '?a=save_ai_settings',
         'save_mail_settings' => script_url() . '?a=save_mail_settings',
         'save_s3_settings' => script_url() . '?a=save_s3_settings',
+        'activate_theme' => script_url() . '?a=activate_theme',
+        'toggle_plugin' => script_url() . '?a=toggle_plugin',
         'ai_generate' => script_url() . '?a=ai_generate',
         'save_category' => script_url() . '?a=save_category',
         'delete_category' => script_url() . '?a=delete_category',
@@ -3367,30 +3328,11 @@ function send_site_mail(string $recipient, string $subject, string $body): bool
     if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
         return false;
     }
-
-    if (smtp_send_mail($recipient, $subject, $body)) {
-        return true;
-    }
-    if (!function_exists('mail')) {
-        return false;
-    }
-
-    $siteName = setting('site_name', default_settings()['site_name']);
-    $host = (string)(parse_url(site_root_url(), PHP_URL_HOST) ?: 'localhost');
-    if (!preg_match('/^[a-z0-9.-]+$/i', $host)) {
-        $host = 'localhost';
-    }
-    $headers = [
-        'Content-Type: text/plain; charset=UTF-8',
-        'From: =?UTF-8?B?' . base64_encode($siteName) . '?= <no-reply@' . $host . '>',
-    ];
-
-    return @mail(
-        $recipient,
-        '=?UTF-8?B?' . base64_encode(str_replace(["\r", "\n"], '', $subject)) . '?=',
-        $body,
-        implode("\r\n", $headers)
-    );
+    return plugin_filter('site_mail_send', false, [
+        'recipient' => $recipient,
+        'subject' => $subject,
+        'body' => $body,
+    ]) === true;
 }
 
 function send_comment_reply_notice(int $commentId): void
@@ -3810,6 +3752,10 @@ function validate_post_input(array $input, ?array $existing = null): array
 
 function save_post(array $data, ?int $id = null): int
 {
+    $filteredData = plugin_filter('post_data_before_save', $data, ['post_id' => $id]);
+    if (is_array($filteredData)) {
+        $data = $filteredData;
+    }
     $values = [
         $data['kind'],
         $data['category_id'],
@@ -3830,6 +3776,7 @@ function save_post(array $data, ?int $id = null): int
             'UPDATE posts SET kind = ?, category_id = ?, slug = ?, title = ?, tags = ?, excerpt = ?, content = ?, status = ?, published_at = ?, is_pinned = ?, allow_comments = ?, updated_at = ? WHERE id = ?',
             array_merge($values, [$now, $id])
         );
+        plugin_action('post_saved', ['post_id' => $id, 'created' => false, 'data' => $data]);
         return $id;
     }
 
@@ -3837,7 +3784,9 @@ function save_post(array $data, ?int $id = null): int
         'INSERT INTO posts(author_id, kind, category_id, slug, title, tags, excerpt, content, status, published_at, is_pinned, allow_comments, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         array_merge([(int)(current_admin()['id'] ?? 0)], $values, [$now, $now])
     );
-    return (int)db()->lastInsertId();
+    $postId = (int)db()->lastInsertId();
+    plugin_action('post_saved', ['post_id' => $postId, 'created' => true, 'data' => $data]);
+    return $postId;
 }
 
 function post_form_from_request(array $input): array
@@ -4091,6 +4040,7 @@ function admin_icon(string $name): string
         'ai' => '<path d="m12 3-1.4 3.6L7 8l3.6 1.4L12 13l1.4-3.6L17 8l-3.6-1.4L12 3z"></path><path d="m5 14-.8 2.2L2 17l2.2.8L5 20l.8-2.2L8 17l-2.2-.8L5 14z"></path><path d="m19 13-1 2.5-2.5 1 2.5 1L19 20l1-2.5 2.5-1-2.5-1L19 13z"></path>',
         'mail' => '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"></path><path d="m22 6-10 7L2 6"></path>',
         'storage' => '<ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5"></path><path d="M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"></path>',
+        'themes' => '<path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a2 2 0 0 1 0-4h2a7 7 0 0 0 0-14h-2z"></path><circle cx="7.5" cy="10" r=".5"></circle><circle cx="9" cy="6.5" r=".5"></circle><circle cx="14" cy="6.5" r=".5"></circle><circle cx="16.5" cy="10" r=".5"></circle>',
         'settings' => '<path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>',
         'menu' => '<path d="M4 6h16M4 12h16M4 18h16"></path>',
         'close' => '<path d="m6 6 12 12M18 6 6 18"></path>',
@@ -4101,6 +4051,7 @@ function admin_icon(string $name): string
         'alert-circle' => '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path>',
         'check-circle' => '<circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path>',
         'refresh' => '<path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"></path>',
+        'plugins' => '<path d="M8.5 3H5a2 2 0 0 0-2 2v3.5a2.5 2.5 0 1 1 0 5V19a2 2 0 0 0 2 2h3.5a2.5 2.5 0 1 1 5 0H19a2 2 0 0 0 2-2v-5.5a2.5 2.5 0 1 1 0-5V5a2 2 0 0 0-2-2h-5.5a2.5 2.5 0 1 1-5 0z"></path>',
         'logout' => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path>',
         default => '<circle cx="12" cy="12" r="8"></circle>',
     };
@@ -4179,25 +4130,18 @@ function render_admin_sidebar(string $active, array $summary = []): string
             'active' => $active === 'links',
         ],
         [
-            'label' => 'AI 设置',
-            'icon' => 'ai',
-            'note' => '模型与接口',
-            'href' => url_for('admin_ai'),
-            'active' => $active === 'ai',
+            'label' => '主题管理',
+            'icon' => 'themes',
+            'note' => '预览与切换',
+            'href' => url_for('admin_themes'),
+            'active' => $active === 'themes',
         ],
         [
-            'label' => '邮件通知',
-            'icon' => 'mail',
-            'note' => 'SMTP 设置',
-            'href' => url_for('admin_mail'),
-            'active' => $active === 'mail',
-        ],
-        [
-            'label' => 'S3 存储',
-            'icon' => 'storage',
-            'note' => '附件上传设置',
-            'href' => url_for('admin_s3'),
-            'active' => $active === 's3',
+            'label' => '插件管理',
+            'icon' => 'plugins',
+            'note' => '扩展与语言包',
+            'href' => url_for('admin_plugins'),
+            'active' => $active === 'plugins',
         ],
         [
             'label' => '站点设置',
@@ -4207,6 +4151,10 @@ function render_admin_sidebar(string $active, array $summary = []): string
             'active' => $active === 'settings',
         ],
     ];
+    $filteredLinks = plugin_filter('admin_sidebar_links', $links, ['active' => $active, 'admin' => $admin]);
+    if (is_array($filteredLinks)) {
+        $links = $filteredLinks;
+    }
 
     ob_start();
     ?>
@@ -4299,6 +4247,7 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
 {
     $unreadComments = unread_comment_count();
     $notificationUrl = $unreadComments > 0 ? admin_comments_url('unread') : url_for('admin_comments');
+    $flash = pull_flash();
     ob_start();
     ?>
     <div class="admin-topbar">
@@ -4329,6 +4278,13 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
         <?php endif; ?>
       </div>
     </div>
+    <?php if ($flash): ?>
+      <?php $flashType = (string)($flash['type'] ?? 'success'); ?>
+      <div class="flash flash--<?= h($flashType) ?> admin-global-notice" role="<?= $flashType === 'error' ? 'alert' : 'status' ?>">
+        <span class="admin-global-notice__icon"><?= admin_icon($flashType === 'success' ? 'check-circle' : 'alert-circle') ?></span>
+        <span><?= h((string)($flash['message'] ?? '')) ?></span>
+      </div>
+    <?php endif; ?>
     <?php
     return (string)ob_get_clean();
 }
@@ -4897,110 +4853,6 @@ function password_reset_notice_path(string $token): string
     return CACHE_DIR . '/password-reset-' . substr(hash('sha256', $token), 0, 16) . '.txt';
 }
 
-function mail_header_value(string $value): string
-{
-    return trim((string)preg_replace('/[\r\n]+/', ' ', $value));
-}
-
-function mail_address_header(string $email, string $name = ''): string
-{
-    $email = mail_header_value($email);
-    $name = mail_header_value($name);
-    if ($name === '') {
-        return '<' . $email . '>';
-    }
-
-    return '=?UTF-8?B?' . base64_encode($name) . '?= <' . $email . '>';
-}
-
-function smtp_read_response($socket): array
-{
-    $response = '';
-    while (($line = fgets($socket, 515)) !== false) {
-        $response .= $line;
-        if (preg_match('/^\d{3} /', $line)) {
-            break;
-        }
-    }
-
-    return [(int)substr($response, 0, 3), $response];
-}
-
-function smtp_expect($socket, array $accepted, string $command = ''): bool
-{
-    if ($command !== '' && fwrite($socket, $command . "\r\n") === false) {
-        return false;
-    }
-    [$code] = smtp_read_response($socket);
-    return in_array($code, $accepted, true);
-}
-
-function smtp_send_mail(string $to, string $subject, string $body): bool
-{
-    $settings = mail_settings();
-    if ($settings['smtp_enabled'] !== '1') {
-        return false;
-    }
-
-    $host = trim((string)$settings['smtp_host']);
-    $port = (int)$settings['smtp_port'];
-    $encryption = (string)$settings['smtp_encryption'];
-    $username = trim((string)$settings['smtp_username']);
-    $password = (string)$settings['smtp_password'];
-    $fromEmail = trim((string)$settings['smtp_from_email']);
-    $fromName = trim((string)$settings['smtp_from_name']);
-    $to = trim($to);
-    if ($host === '' || $port < 1 || $port > 65535 || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL) || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
-        return false;
-    }
-
-    $remote = ($encryption === 'ssl' ? 'ssl://' : '') . $host;
-    $socket = @stream_socket_client($remote . ':' . $port, $errno, $errstr, 15, STREAM_CLIENT_CONNECT);
-    if (!is_resource($socket)) {
-        return false;
-    }
-    stream_set_timeout($socket, 20);
-
-    try {
-        if (!smtp_expect($socket, [220])) { return false; }
-        $serverName = (string)(parse_url(site_root_url(), PHP_URL_HOST) ?: 'localhost');
-        if (!smtp_expect($socket, [250], 'EHLO ' . $serverName)) { return false; }
-        if ($encryption === 'tls') {
-            if (!smtp_expect($socket, [220], 'STARTTLS')) { return false; }
-            if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) { return false; }
-            if (!smtp_expect($socket, [250], 'EHLO ' . $serverName)) { return false; }
-        }
-        if ($username !== '') {
-            if (!smtp_expect($socket, [334], 'AUTH LOGIN')) { return false; }
-            if (!smtp_expect($socket, [334], base64_encode($username))) { return false; }
-            if (!smtp_expect($socket, [235], base64_encode($password))) { return false; }
-        }
-        if (!smtp_expect($socket, [250], 'MAIL FROM:<' . $fromEmail . '>')) { return false; }
-        if (!smtp_expect($socket, [250, 251], 'RCPT TO:<' . $to . '>')) { return false; }
-        if (!smtp_expect($socket, [354], 'DATA')) { return false; }
-
-        $encodedSubject = '=?UTF-8?B?' . base64_encode(mail_header_value($subject)) . '?=';
-        $message = implode("\n", [
-            'Date: ' . date(DATE_RFC2822),
-            'From: ' . mail_address_header($fromEmail, $fromName !== '' ? $fromName : setting('site_name', default_settings()['site_name'])),
-            'To: ' . mail_address_header($to),
-            'Subject: ' . $encodedSubject,
-            'MIME-Version: 1.0',
-            'Content-Type: text/plain; charset=UTF-8',
-            'Content-Transfer-Encoding: 8bit',
-            '',
-            str_replace(["\r\n", "\r"], "\n", $body),
-        ]);
-        $message = preg_replace('/^\./m', '..', $message);
-        if (fwrite($socket, str_replace("\n", "\r\n", (string)$message) . "\r\n.\r\n") === false) { return false; }
-        $ok = smtp_expect($socket, [250]);
-        smtp_expect($socket, [221], 'QUIT');
-        return $ok;
-    } finally {
-        fclose($socket);
-    }
-}
-
 function create_password_reset(array $user): array
 {
     $token = bin2hex(random_bytes(32));
@@ -5031,14 +4883,10 @@ function send_password_reset_notice(array $user, string $token, int $expiresAt):
 
 function comment_notify_email(): string
 {
-    $settings = mail_settings();
-    $email = trim((string)$settings['smtp_notify_email']);
-    if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        return $email;
-    }
-
     $adminEmail = (string)val("SELECT email FROM users WHERE email <> '' ORDER BY id ASC LIMIT 1");
-    return filter_var($adminEmail, FILTER_VALIDATE_EMAIL) ? $adminEmail : '';
+    $default = filter_var($adminEmail, FILTER_VALIDATE_EMAIL) ? $adminEmail : '';
+    $email = trim((string)plugin_filter('notification_recipient', $default, []));
+    return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : '';
 }
 
 function send_comment_notification(array $post, array $comment, string $status): bool
@@ -5438,14 +5286,7 @@ function render_admin_comments_page(): void
     $requestedPage = max(1, (int)($_GET['p'] ?? 1));
     [$comments, $total, $page, $totalPages, $filter] = fetch_admin_comments($filter, $search, $requestedPage);
     $counts = comment_admin_counts();
-    $sidebar = render_admin_sidebar('comments', [
-        'title' => '评论概览',
-        'stats' => [
-            ['label' => '未读', 'value' => $counts['unread']],
-            ['label' => '待审核', 'value' => $counts['pending']],
-            ['label' => '已通过', 'value' => $counts['approved']],
-        ],
-    ]);
+    $sidebar = render_admin_sidebar('comments');
     $filters = [
         'all' => ['label' => '全部', 'count' => $counts['all']],
         'unread' => ['label' => '未读', 'count' => $counts['unread']],
@@ -5851,127 +5692,164 @@ function render_admin_users_page(array $form = [], array $errors = []): void
     render_layout('用户管理', (string)ob_get_clean(), ['active' => 'users', 'wide' => true, 'description' => '用户管理']);
 }
 
-function render_admin_ai_page(): void
+function render_admin_plugins_page(): void
 {
     require_admin();
-    $aiSettings = ai_settings();
-    $sidebar = render_admin_sidebar('ai');
-    ob_start(); ?>
-    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar('AI 设置') ?>
-      <section class="panel admin-list-panel"><div class="panel__header"><h2>模型接口</h2><p class="panel__meta">兼容 OpenAI Chat Completions 格式的服务。</p></div><div class="panel__body">
-        <form class="form-stack" method="post" action="<?= h(url_for('save_ai_settings')) ?>"><?= csrf_field() ?>
-          <div class="field"><label for="ai_api_url">API 地址</label><input id="ai_api_url" name="ai_api_url" type="url" value="<?= h((string)$aiSettings['ai_api_url']) ?>" placeholder="https://api.deepseek.com" required><p class="field-hint">可以填写服务根地址或完整的 /chat/completions 地址。</p></div>
-          <div class="field"><label for="ai_api_key">API 密钥</label><input id="ai_api_key" name="ai_api_key" type="password" value="" placeholder="<?= $aiSettings['ai_api_key'] !== '' ? '已保存，留空则不修改' : 'sk-...' ?>" autocomplete="new-password"><p class="field-hint">密钥仅保存在服务器 SQLite 中，不会发送到浏览器前端。</p></div>
-          <div class="field"><label for="ai_model">模型名称</label><input id="ai_model" name="ai_model" value="<?= h((string)$aiSettings['ai_model']) ?>" placeholder="deepseek-v4-flash" required></div>
-          <div class="field"><label for="ai_slug_prompt">Slug 提示词</label><textarea id="ai_slug_prompt" name="ai_slug_prompt" rows="4" required><?= h((string)$aiSettings['ai_slug_prompt']) ?></textarea></div>
-          <div class="field"><label for="ai_summary_prompt">摘要提示词</label><textarea id="ai_summary_prompt" name="ai_summary_prompt" rows="4" required><?= h((string)$aiSettings['ai_summary_prompt']) ?></textarea></div>
-          <div class="field"><label for="ai_polish_prompt">润色提示词</label><textarea id="ai_polish_prompt" name="ai_polish_prompt" rows="4" required><?= h((string)$aiSettings['ai_polish_prompt']) ?></textarea><p class="field-hint">弹窗中填写的具体要求会追加到这条系统提示词之后。</p></div>
-          <div class="action-row"><button class="button">保存 AI 设置</button></div>
-        </form>
-      </div></section>
-    </div></div><?php
-    render_layout('AI 设置', (string)ob_get_clean(), ['active' => 'ai', 'wide' => true, 'description' => 'AI 模型设置']);
+
+    $plugins = available_plugins();
+    $active = active_plugin_slugs(true);
+    $errors = is_array($GLOBALS['sblog_plugin_errors'] ?? null) ? $GLOBALS['sblog_plugin_errors'] : [];
+    $sidebar = render_admin_sidebar('plugins');
+
+    ob_start();
+    ?>
+    <div class="admin-shell">
+      <?= $sidebar ?>
+
+      <div class="admin-main">
+        <?= render_admin_topbar('插件管理') ?>
+
+        <section class="panel admin-list-panel admin-animate admin-animate--2">
+          <div class="panel__header">
+            <h2>插件管理</h2>
+            <p class="panel__meta">启用可信插件，为博客增加功能或语言支持。</p>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <?php if ($plugins): ?>
+              <div class="table-wrap">
+                <table class="admin-table">
+                  <thead><tr><th>插件</th><th>版本</th><th>状态</th><th>操作</th></tr></thead>
+                  <tbody>
+                  <?php foreach ($plugins as $slug => $plugin): ?>
+                    <?php $isActive = in_array($slug, $active, true); ?>
+                    <tr>
+                      <td>
+                        <div class="table-title">
+                          <strong><?= h((string)$plugin['name']) ?></strong>
+                          <span><?= h((string)$plugin['description']) ?><?= $plugin['author'] !== '' ? ' · ' . h((string)$plugin['author']) : '' ?></span>
+                        </div>
+                      </td>
+                      <td><?= h((string)($plugin['version'] ?: '—')) ?></td>
+                      <td>
+                        <?php if (isset($errors[$slug])): ?>
+                          <span class="status-badge status-badge--draft" title="<?= h((string)$errors[$slug]) ?>">加载失败</span>
+                        <?php elseif ($isActive): ?>
+                          <span class="status-badge status-badge--published">已启用</span>
+                        <?php else: ?>
+                          <span class="status-badge status-badge--draft">未启用</span>
+                        <?php endif; ?>
+                      </td>
+                      <td>
+                        <div class="table-actions">
+                          <?php if ($isActive && (string)$plugin['settings_action'] !== ''): ?>
+                            <a class="button button--secondary" href="<?= h(script_url() . '?a=' . rawurlencode((string)$plugin['settings_action'])) ?>">设置</a>
+                          <?php endif; ?>
+                          <form method="post" action="<?= h(url_for('toggle_plugin')) ?>">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="plugin" value="<?= h((string)$slug) ?>">
+                            <input type="hidden" name="operation" value="<?= $isActive ? 'deactivate' : 'activate' ?>">
+                            <button class="button <?= $isActive ? 'button--ghost' : '' ?>" type="submit"><?= $isActive ? '停用' : '启用' ?></button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                  </tbody>
+                </table>
+              </div>
+            <?php else: ?>
+              <div class="empty-state empty-state--inside"><p>没有发现有效插件。请将插件放入 <code>plugins/插件目录</code>。</p></div>
+            <?php endif; ?>
+          </div>
+        </section>
+      </div>
+    </div>
+    <?php
+    render_layout('插件管理', (string)ob_get_clean(), [
+        'active' => 'plugins',
+        'wide' => true,
+        'description' => '博客插件管理',
+    ]);
 }
 
-function render_admin_mail_page(): void
+function render_admin_themes_page(): void
 {
     require_admin();
-    $mailSettings = mail_settings();
-    $sidebar = render_admin_sidebar('mail');
-    $encryption = (string)$mailSettings['smtp_encryption'];
-    ob_start(); ?>
-    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar('邮件通知') ?>
-      <section class="panel admin-list-panel"><div class="panel__header"><h2>SMTP 设置</h2><p class="panel__meta">用于发送站点通知邮件，配置不会写入缓存文件。</p></div><div class="panel__body">
-        <form class="form-stack" method="post" action="<?= h(url_for('save_mail_settings')) ?>"><?= csrf_field() ?>
-          <label class="setting-option"><input name="smtp_enabled" type="checkbox" value="1"<?= $mailSettings['smtp_enabled'] === '1' ? ' checked' : '' ?>><span>启用 SMTP 邮件通知</span></label>
-          <div class="field-grid">
-            <div class="field"><label for="smtp_host">SMTP 主机</label><input id="smtp_host" name="smtp_host" value="<?= h((string)$mailSettings['smtp_host']) ?>" placeholder="smtp.example.com" maxlength="255"></div>
-            <div class="field"><label for="smtp_port">端口</label><input id="smtp_port" name="smtp_port" type="number" min="1" max="65535" value="<?= h((string)$mailSettings['smtp_port']) ?>" placeholder="465"></div>
-          </div>
-          <div class="field-grid">
-            <div class="field"><label for="smtp_encryption">加密方式</label><select id="smtp_encryption" name="smtp_encryption"><option value="ssl"<?= $encryption === 'ssl' ? ' selected' : '' ?>>SSL</option><option value="tls"<?= $encryption === 'tls' ? ' selected' : '' ?>>TLS</option><option value="none"<?= $encryption === 'none' ? ' selected' : '' ?>>无</option></select></div>
-            <div class="field"><label for="smtp_username">SMTP 账号</label><input id="smtp_username" name="smtp_username" value="<?= h((string)$mailSettings['smtp_username']) ?>" maxlength="255" autocomplete="username"></div>
-          </div>
-          <div class="field"><label for="smtp_password">SMTP 密码</label><input id="smtp_password" name="smtp_password" type="password" value="" placeholder="<?= $mailSettings['smtp_password'] !== '' ? '已保存，留空则不修改' : '授权码或密码' ?>" autocomplete="new-password"></div>
-          <div class="field-grid">
-            <div class="field"><label for="smtp_from_email">发件邮箱</label><input id="smtp_from_email" name="smtp_from_email" type="email" value="<?= h((string)$mailSettings['smtp_from_email']) ?>" maxlength="160" placeholder="noreply@example.com"></div>
-            <div class="field"><label for="smtp_from_name">发件名称</label><input id="smtp_from_name" name="smtp_from_name" value="<?= h((string)$mailSettings['smtp_from_name']) ?>" maxlength="120" placeholder="<?= h(setting('site_name', default_settings()['site_name'])) ?>"></div>
-          </div>
-          <div class="field"><label for="smtp_notify_email">通知收件邮箱</label><input id="smtp_notify_email" name="smtp_notify_email" type="email" value="<?= h((string)$mailSettings['smtp_notify_email']) ?>" maxlength="160" placeholder="admin@example.com"><p class="field-hint">留空时可使用管理员账号邮箱作为通知收件人。</p></div>
-          <div class="action-row"><button class="button">保存邮件设置</button></div>
-        </form>
-      </div></section>
-    </div></div><?php
-    render_layout('邮件通知', (string)ob_get_clean(), ['active' => 'mail', 'wide' => true, 'description' => 'SMTP 邮件通知设置']);
-}
 
-function render_admin_s3_page(): void
-{
-    require_admin();
-    $settings = s3_settings();
-    $sidebar = render_admin_sidebar('s3');
-    ob_start(); ?>
-    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar('S3 存储') ?>
-      <section class="panel admin-list-panel"><div class="panel__header"><h2>S3 上传设置</h2><p class="panel__meta">启用后，新上传的附件将由 S3 接管；密钥不会写入配置缓存。</p></div><div class="panel__body">
-        <form class="form-stack" method="post" action="<?= h(url_for('save_s3_settings')) ?>"><?= csrf_field() ?>
-          <div class="settings-option-list">
-            <label class="setting-option"><input name="s3_enabled" type="checkbox" value="1"<?= $settings['s3_enabled'] === '1' ? ' checked' : '' ?>><span>启用 S3 上传</span></label>
-            <label class="setting-option"><input name="s3_keep_local" type="checkbox" value="1"<?= $settings['s3_keep_local'] === '1' ? ' checked' : '' ?>><span>在本地保留上传备份</span></label>
-            <label class="setting-option"><input name="s3_path_style" type="checkbox" value="1"<?= $settings['s3_path_style'] === '1' ? ' checked' : '' ?>><span>使用 Path-style 地址（MinIO 等兼容服务常用）</span></label>
-          </div>
-          <div class="field"><label for="s3_endpoint">Endpoint</label><input id="s3_endpoint" name="s3_endpoint" type="url" value="<?= h((string)$settings['s3_endpoint']) ?>" placeholder="https://s3.amazonaws.com" maxlength="500"><p class="field-hint">填写服务地址，不要包含 Bucket、查询参数或具体对象路径；生产环境建议使用 HTTPS。</p></div>
-          <div class="field-grid">
-            <div class="field"><label for="s3_region">Region</label><input id="s3_region" name="s3_region" value="<?= h((string)$settings['s3_region']) ?>" placeholder="us-east-1" maxlength="100"></div>
-            <div class="field"><label for="s3_bucket">Bucket</label><input id="s3_bucket" name="s3_bucket" value="<?= h((string)$settings['s3_bucket']) ?>" maxlength="255" autocomplete="off"></div>
-          </div>
-          <div class="field-grid">
-            <div class="field"><label for="s3_access_key">Access Key</label><input id="s3_access_key" name="s3_access_key" value="<?= h((string)$settings['s3_access_key']) ?>" maxlength="255" autocomplete="username"></div>
-            <div class="field"><label for="s3_secret_key">Secret Key</label><input id="s3_secret_key" name="s3_secret_key" type="password" value="" placeholder="<?= $settings['s3_secret_key'] !== '' ? '已保存，留空则不修改' : 'Secret Access Key' ?>" autocomplete="new-password"></div>
-          </div>
-          <div class="field-grid">
-            <div class="field"><label for="s3_path_prefix">对象路径前缀</label><input id="s3_path_prefix" name="s3_path_prefix" value="<?= h((string)$settings['s3_path_prefix']) ?>" placeholder="uploads" maxlength="500"><p class="field-hint">实际对象键会追加年份和随机文件名；可留空。</p></div>
-            <div class="field"><label for="s3_public_url">CDN 域名</label><input id="s3_public_url" name="s3_public_url" type="url" value="<?= h((string)$settings['s3_public_url']) ?>" placeholder="https://cdn.example.com" maxlength="500"><p class="field-hint">填写包含 http:// 或 https:// 的完整 CDN 地址；附件 URL 将使用此地址拼接对象键。留空时使用 S3 Endpoint。</p></div>
-          </div>
-          <div class="action-row"><button class="button">保存 S3 设置</button></div>
-        </form>
-      </div></section>
-    </div></div><?php
-    render_layout('S3 存储', (string)ob_get_clean(), ['active' => 's3', 'wide' => true, 'description' => 'S3 附件上传设置']);
-}
+    $themes = available_themes();
+    $configuredSlug = trim(setting('active_theme', 'default'));
+    $activeSlug = isset($themes[$configuredSlug]) ? $configuredSlug : 'default';
+    $sidebar = render_admin_sidebar('themes');
 
-function ai_completion(string $instruction, string $content): array
-{
-    $aiSettings = ai_settings();
-    $baseUrl = rtrim(trim((string)$aiSettings['ai_api_url']), '/');
-    $apiKey = trim((string)$aiSettings['ai_api_key']);
-    $model = trim((string)$aiSettings['ai_model']);
-    if ($baseUrl === '' || $apiKey === '' || $model === '') { return [false, '请先完成 AI 设置。']; }
-    $url = str_ends_with($baseUrl, '/chat/completions') ? $baseUrl : $baseUrl . '/chat/completions';
-    $endpoint = validated_ai_endpoint($url);
-    if ($endpoint === null) { return [false, 'AI 地址必须使用 HTTPS 并解析到公网地址。']; }
-    $payload = json_encode(['model' => $model, 'messages' => [['role' => 'system', 'content' => $instruction], ['role' => 'user', 'content' => $content]], 'temperature' => 0.3], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $curl = curl_init($url);
-    $resolvedIp = str_contains($endpoint['ip'], ':') ? '[' . $endpoint['ip'] . ']' : $endpoint['ip'];
-    curl_setopt_array($curl, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 60, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_FOLLOWLOCATION => false, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_RESOLVE => [$endpoint['host'] . ':' . $endpoint['port'] . ':' . $resolvedIp], CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $apiKey, 'Content-Type: application/json'], CURLOPT_POSTFIELDS => $payload]);
-    $body = curl_exec($curl);
-    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $error = curl_error($curl);
-    curl_close($curl);
-    if ($body === false) { return [false, 'AI 服务连接失败：' . $error]; }
-    $data = json_decode((string)$body, true);
-    $result = trim((string)($data['choices'][0]['message']['content'] ?? ''));
-    if ($status < 200 || $status >= 300 || $result === '') { return [false, (string)($data['error']['message'] ?? 'AI 服务返回异常（HTTP ' . $status . '）。')]; }
-    return [true, $result];
+    ob_start();
+    ?>
+    <div class="admin-shell">
+      <?= $sidebar ?>
+
+      <div class="admin-main">
+        <?= render_admin_topbar('主题管理') ?>
+
+        <section class="theme-manager admin-animate admin-animate--2" aria-labelledby="theme-manager-title">
+          <header class="theme-manager__header">
+            <div>
+              <p class="admin-masthead__eyebrow">Appearance</p>
+              <h1 id="theme-manager-title">主题管理</h1>
+              <p>预览已安装主题，并为博客前台启用新的外观。</p>
+            </div>
+            <span class="theme-manager__count"><?= count($themes) ?> 个主题</span>
+          </header>
+
+          <div class="theme-grid">
+            <?php foreach ($themes as $slug => $theme): ?>
+              <?php
+              $isActive = $slug === $activeSlug;
+              $previewUrl = url_with_query(url_for('home'), ['theme_preview' => (string)$slug]);
+              ?>
+              <article class="theme-card<?= $isActive ? ' is-active' : '' ?>">
+                <a class="theme-card__preview" href="<?= h($previewUrl) ?>" target="_blank" rel="noopener" aria-label="预览主题 <?= h((string)$theme['name']) ?>">
+                  <iframe src="<?= h($previewUrl) ?>" loading="lazy" tabindex="-1" aria-hidden="true" title=""></iframe>
+                  <span>打开预览</span>
+                </a>
+                <div class="theme-card__body">
+                  <div class="theme-card__heading">
+                    <div>
+                      <h2><?= h((string)$theme['name']) ?></h2>
+                      <p><?= h((string)$slug) ?><?= $theme['version'] !== '' ? ' · ' . h((string)$theme['version']) : '' ?></p>
+                    </div>
+                    <?php if ($isActive): ?><span class="status-badge status-badge--published">当前主题</span><?php endif; ?>
+                  </div>
+                  <p class="theme-card__description"><?= h((string)($theme['description'] ?: '该主题没有提供说明。')) ?></p>
+                  <div class="theme-card__footer">
+                    <span><?= $theme['author'] !== '' ? '作者：' . h((string)$theme['author']) : '作者未注明' ?></span>
+                    <?php if ($isActive): ?>
+                      <span class="button button--ghost is-disabled" aria-disabled="true">已启用</span>
+                    <?php else: ?>
+                      <form method="post" action="<?= h(url_for('activate_theme')) ?>">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="theme" value="<?= h((string)$slug) ?>">
+                        <button class="button" type="submit">启用</button>
+                      </form>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              </article>
+            <?php endforeach; ?>
+          </div>
+        </section>
+      </div>
+    </div>
+    <?php
+    render_layout('主题管理', (string)ob_get_clean(), [
+        'active' => 'themes',
+        'wide' => true,
+        'description' => '博客前台主题管理',
+    ]);
 }
 
 function render_admin_settings_page(): void
 {
     require_admin();
 
-    $siteName = setting('site_name', default_settings()['site_name']);
-    $themes = available_themes();
-    $activeThemeSlug = active_theme_slug();
-    $activeTheme = $themes[$activeThemeSlug] ?? $themes['default'];
     $sidebar = render_admin_sidebar('settings');
 
     ob_start();
@@ -5999,23 +5877,6 @@ function render_admin_settings_page(): void
                 <input id="site_url" name="site_url" type="url" value="<?= h(setting('site_url')) ?>" placeholder="https://example.com/blog">
                 <p class="field-hint">RSS 会优先使用这里的绝对地址，子目录部署时请带上完整路径。</p>
               </div>
-              <fieldset class="field settings-field">
-                <legend>前台主题</legend>
-                <div class="field">
-                  <label for="active_theme">当前主题</label>
-                  <select id="active_theme" name="active_theme">
-                    <?php foreach ($themes as $slug => $themeOption): ?>
-                      <option value="<?= h((string)$slug) ?>"<?= $slug === $activeThemeSlug ? ' selected' : '' ?>><?= h((string)$themeOption['name']) ?><?= $themeOption['version'] !== '' ? ' · ' . h((string)$themeOption['version']) : '' ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div class="theme-summary">
-                  <strong><?= h((string)$activeTheme['name']) ?></strong>
-                  <?php if ($activeTheme['author'] !== ''): ?><span>作者：<?= h((string)$activeTheme['author']) ?></span><?php endif; ?>
-                  <p><?= h((string)$activeTheme['description']) ?></p>
-                </div>
-                <p class="field-hint">将自定义主题放入 <code>themes/主题目录</code>，刷新页面后即可选择。主题只影响前台页面。</p>
-              </fieldset>
               <div class="field"><label for="favicon_url">Favicon 地址</label><input id="favicon_url" name="favicon_url" value="<?= h(setting('favicon_url', 'logo.png')) ?>" placeholder="logo.png"><p class="field-hint">默认使用项目根目录的 logo.png，也可以填写完整图片 URL 或站内绝对路径。</p></div>
               <div class="field">
                 <label for="footer_beian">备案号</label>
@@ -6103,14 +5964,15 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
     $values = array_merge($defaults, $form);
     $isEdit = $existing !== null;
     $siteName = setting('site_name', default_settings()['site_name']);
-    $sidebar = render_admin_sidebar($isEdit ? 'edit' : 'write', [
-        'title' => '写作提示',
-        'items' => [
-            'Slug 留空会按标题自动生成。',
-            '发布时间晚于当前时间会按定时发布处理。',
-            '独立页面可以不填标签。',
-        ],
-    ]);
+    $editorContext = ['is_edit' => $isEdit, 'post_id' => (int)($existing['id'] ?? 0)];
+    $editorActions = [];
+    foreach (['slug', 'excerpt', 'content'] as $field) {
+        $actionHtml = plugin_filter('editor_field_actions_html', '', $editorContext + ['field' => $field]);
+        $editorActions[$field] = is_string($actionHtml) ? $actionHtml : '';
+    }
+    $afterFormHtml = plugin_filter('editor_after_form_html', '', $editorContext);
+    $afterFormHtml = is_string($afterFormHtml) ? $afterFormHtml : '';
+    $sidebar = render_admin_sidebar($isEdit ? 'edit' : 'write');
 
     ob_start();
     ?>
@@ -6160,7 +6022,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                   </select>
                 </div>
                 <div class="field">
-                  <div class="field-label-row"><label for="slug">Slug</label><button class="button button--ghost button--compact" type="button" data-ai-action="slug">AI 生成</button></div>
+                  <div class="field-label-row"><label for="slug">Slug</label><?= $editorActions['slug'] ?></div>
                   <input id="slug" name="slug" type="text" value="<?= h((string)$values['slug']) ?>" placeholder="留空将自动生成">
                 </div>
                 <div class="field">
@@ -6185,7 +6047,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
               </div>
 
               <div class="field">
-                <div class="field-label-row"><label for="excerpt">摘要</label><button class="button button--ghost button--compact" type="button" data-ai-action="summary">AI 摘要</button></div>
+                <div class="field-label-row"><label for="excerpt">摘要</label><?= $editorActions['excerpt'] ?></div>
                 <textarea id="excerpt" name="excerpt" rows="3" placeholder="留空将自动从正文截取"><?= h((string)$values['excerpt']) ?></textarea>
               </div>
 
@@ -6209,7 +6071,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
               </label>
 
               <div class="field">
-                <div class="field-label-row"><label for="content">正文</label><button class="button button--ghost button--compact" type="button" data-ai-action="polish">AI 润色</button></div>
+                <div class="field-label-row"><label for="content">正文</label><?= $editorActions['content'] ?></div>
                 <div class="markdown-editor" data-markdown-editor>
                   <div class="markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具栏">
                     <label class="sr-only" for="markdown-heading">标题级别</label>
@@ -6258,17 +6120,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                 <button class="button" type="submit"><?= $isEdit ? '保存修改' : '创建文章' ?></button>
               </div>
             </form>
-            <div class="ai-editor" data-ai-editor data-url="<?= h(url_for('ai_generate')) ?>" data-csrf="<?= h(csrf_token()) ?>">
-              <div class="ai-modal" data-ai-modal hidden role="dialog" aria-modal="true" aria-labelledby="ai-modal-title">
-                <div class="ai-modal__backdrop" data-ai-close></div>
-                <div class="ai-modal__panel">
-                  <div class="ai-modal__header"><h2 id="ai-modal-title">AI 润色正文</h2><button class="button button--ghost button--compact" type="button" data-ai-close aria-label="关闭">关闭</button></div>
-                  <div class="field"><label for="ai_instruction">润色或生成要求</label><textarea id="ai_instruction" rows="5" placeholder="例如：修正语病，保持 Markdown 格式；补充一段实际使用示例；将内容改得更简洁。"></textarea></div>
-                  <p class="field-hint" data-ai-status></p>
-                  <div class="action-row"><button class="button button--secondary" type="button" data-ai-close>取消</button><button class="button" type="button" data-ai-confirm>确定并填入正文</button></div>
-                </div>
-              </div>
-            </div>
+            <?= $afterFormHtml ?>
           </div>
         </section>
       </div>
@@ -6287,13 +6139,18 @@ if (!is_installed()) {
     redirect_to(install_url());
 }
 
+load_active_plugins();
+plugin_action('plugins_loaded', ['plugins' => $GLOBALS['sblog_loaded_plugins'] ?? []]);
+ob_start('plugin_output_buffer');
 apply_pretty_route();
 
 if (($_GET['__route_not_found'] ?? '') === '1') {
     simple_error_page('页面不存在', '你访问的地址没有匹配到任何页面。', 404);
 }
 
-$action = (string)($_GET['a'] ?? 'home');
+$action = (string)plugin_filter('route_action', (string)($_GET['a'] ?? 'home'), ['request' => $_REQUEST]);
+$GLOBALS['sblog_current_action'] = $action;
+plugin_action('request', ['action' => $action, 'request' => $_REQUEST]);
 
 switch ($action) {
     case 'douban_cover':
@@ -6479,6 +6336,12 @@ switch ($action) {
             try { $database->exec('ROLLBACK'); } catch (Throwable) {}
             throw $exception;
         }
+        plugin_action('comment_created', [
+            'comment_id' => $commentId,
+            'post_id' => $postId,
+            'status' => $status,
+            'comment' => $comment,
+        ]);
         if ($status === 'approved' && $parentId > 0) {
             try {
                 send_comment_reply_notice($commentId);
@@ -6699,158 +6562,58 @@ switch ($action) {
         render_admin_users_page();
         break;
 
-    case 'admin_ai':
-        render_admin_ai_page();
-        break;
-
-    case 'admin_mail':
-        render_admin_mail_page();
-        break;
-
-    case 'admin_s3':
-        render_admin_s3_page();
+    case 'admin_themes':
+        render_admin_themes_page();
         break;
 
     case 'admin_settings':
         render_admin_settings_page();
         break;
 
-    case 'save_ai_settings':
-        require_admin_post(url_for('admin_ai'));
-        $apiUrl = rtrim(trim((string)($_POST['ai_api_url'] ?? '')), '/');
-        $apiKey = trim((string)($_POST['ai_api_key'] ?? ''));
-        $model = trim((string)($_POST['ai_model'] ?? ''));
-        $slugPrompt = trim((string)($_POST['ai_slug_prompt'] ?? ''));
-        $summaryPrompt = trim((string)($_POST['ai_summary_prompt'] ?? ''));
-        $polishPrompt = trim((string)($_POST['ai_polish_prompt'] ?? ''));
-        if (validated_ai_endpoint($apiUrl) === null || $model === '' || $slugPrompt === '' || $summaryPrompt === '' || $polishPrompt === '') {
-            set_flash('error', 'API 地址必须使用 HTTPS 并解析到公网地址，同时请填写模型名称和提示词。');
-            redirect_to(url_for('admin_ai'));
-        }
-        $values = ['ai_api_url' => $apiUrl, 'ai_model' => $model, 'ai_slug_prompt' => $slugPrompt, 'ai_summary_prompt' => $summaryPrompt, 'ai_polish_prompt' => $polishPrompt];
-        if ($apiKey !== '') { $values['ai_api_key'] = $apiKey; }
-        save_ai_settings($values);
-        set_flash('success', 'AI 设置已保存。');
-        redirect_to(url_for('admin_ai'));
+    case 'admin_plugins':
+        render_admin_plugins_page();
         break;
 
-    case 'save_mail_settings':
-        require_admin_post(url_for('admin_mail'));
-        $enabled = isset($_POST['smtp_enabled']) ? '1' : '0';
-        $host = trim((string)($_POST['smtp_host'] ?? ''));
-        $port = max(1, min(65535, (int)($_POST['smtp_port'] ?? 465)));
-        $encryption = (string)($_POST['smtp_encryption'] ?? 'ssl');
-        if (!in_array($encryption, ['ssl', 'tls', 'none'], true)) {
-            $encryption = 'ssl';
+    case 'toggle_plugin':
+        require_admin_post(url_for('admin_plugins'));
+        $slug = trim((string)($_POST['plugin'] ?? ''));
+        $operation = (string)($_POST['operation'] ?? '');
+        $plugins = available_plugins();
+        if (!isset($plugins[$slug]) || !in_array($operation, ['activate', 'deactivate'], true)) {
+            set_flash('error', '插件不存在或操作无效。');
+            redirect_to(url_for('admin_plugins'));
         }
-        $username = trim((string)($_POST['smtp_username'] ?? ''));
-        $password = trim((string)($_POST['smtp_password'] ?? ''));
-        $fromEmail = str_lower_u(trim((string)($_POST['smtp_from_email'] ?? '')));
-        $fromName = trim((string)($_POST['smtp_from_name'] ?? ''));
-        $notifyEmail = str_lower_u(trim((string)($_POST['smtp_notify_email'] ?? '')));
-        if ($enabled === '1' && ($host === '' || $fromEmail === '' || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL))) {
-            set_flash('error', '启用 SMTP 时，请填写 SMTP 主机和有效的发件邮箱。');
-            redirect_to(url_for('admin_mail'));
+        $activePlugins = active_plugin_slugs(true);
+        if ($operation === 'activate' && !in_array($slug, $activePlugins, true)) {
+            $activePlugins[] = $slug;
+        } elseif ($operation === 'deactivate') {
+            $activePlugins = array_values(array_filter($activePlugins, static fn(string $activeSlug): bool => $activeSlug !== $slug));
         }
-        if ($notifyEmail !== '' && !filter_var($notifyEmail, FILTER_VALIDATE_EMAIL)) {
-            set_flash('error', '通知收件邮箱格式不正确。');
-            redirect_to(url_for('admin_mail'));
-        }
-        $values = [
-            'smtp_enabled' => $enabled,
-            'smtp_host' => str_sub_u($host, 0, 255),
-            'smtp_port' => (string)$port,
-            'smtp_encryption' => $encryption,
-            'smtp_username' => str_sub_u($username, 0, 255),
-            'smtp_from_email' => str_sub_u($fromEmail, 0, 160),
-            'smtp_from_name' => str_sub_u($fromName, 0, 120),
-            'smtp_notify_email' => str_sub_u($notifyEmail, 0, 160),
-        ];
-        if ($password !== '') { $values['smtp_password'] = $password; }
-        save_mail_settings($values);
-        set_flash('success', '邮件通知设置已保存。');
-        redirect_to(url_for('admin_mail'));
+        save_active_plugins($activePlugins);
+        plugin_action('plugin_status_changed', ['plugin' => $slug, 'operation' => $operation]);
+        set_flash('success', $operation === 'activate' ? '插件已启用。' : '插件已停用。');
+        redirect_to(url_with_query(url_for('admin_plugins'), ['changed' => bin2hex(random_bytes(4))]), 303);
         break;
 
-    case 'save_s3_settings':
-        require_admin_post(url_for('admin_s3'));
-        $current = s3_settings();
-        $enabled = isset($_POST['s3_enabled']) ? '1' : '0';
-        $endpoint = rtrim(trim((string)($_POST['s3_endpoint'] ?? '')), '/');
-        $region = trim((string)($_POST['s3_region'] ?? ''));
-        $bucket = trim((string)($_POST['s3_bucket'] ?? ''));
-        $accessKey = trim((string)($_POST['s3_access_key'] ?? ''));
-        $secretKey = trim((string)($_POST['s3_secret_key'] ?? ''));
-        $pathPrefix = trim(str_replace('\\', '/', (string)($_POST['s3_path_prefix'] ?? '')), '/');
-        $publicUrl = rtrim(trim((string)($_POST['s3_public_url'] ?? '')), '/');
-        $effectiveSecret = $secretKey !== '' ? $secretKey : (string)$current['s3_secret_key'];
-        $endpointValid = $endpoint !== '' && s3_endpoint_parts($endpoint) !== null;
-        $publicUrlValid = $publicUrl === '' || s3_endpoint_parts($publicUrl) !== null;
-        $prefixValid = !preg_match('/[\x00-\x1F\x7F]/', $pathPrefix)
-            && !preg_match('#(?:^|/)\.\.?(?:/|$)#', $pathPrefix);
-        $credentialsValid = !preg_match('/[\x00-\x1F\x7F]/', $region . $accessKey);
-        if ($enabled === '1' && (!$endpointValid || $region === '' || $bucket === '' || $accessKey === '' || $effectiveSecret === '' || !$credentialsValid || !function_exists('curl_init'))) {
-            set_flash('error', '启用 S3 时，请填写有效的 Endpoint、Region、Bucket 和访问密钥，并确认服务器已启用 cURL。');
-            redirect_to(url_for('admin_s3'));
+    case 'activate_theme':
+        require_admin_post(url_for('admin_themes'));
+        $themeSlug = trim((string)($_POST['theme'] ?? ''));
+        if (!array_key_exists($themeSlug, available_themes())) {
+            set_flash('error', '所选主题不存在或 theme.json 无效。');
+            redirect_to(url_for('admin_themes'));
         }
-        if (($bucket !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/', $bucket)) || !$publicUrlValid || !$prefixValid) {
-            set_flash('error', 'Bucket、CDN 域名或对象路径前缀格式不正确。');
-            redirect_to(url_for('admin_s3'));
-        }
-        $values = [
-            's3_enabled' => $enabled,
-            's3_keep_local' => isset($_POST['s3_keep_local']) ? '1' : '0',
-            's3_endpoint' => str_sub_u($endpoint, 0, 500),
-            's3_region' => str_sub_u($region, 0, 100),
-            's3_bucket' => str_sub_u($bucket, 0, 255),
-            's3_access_key' => str_sub_u($accessKey, 0, 255),
-            's3_path_prefix' => str_sub_u($pathPrefix, 0, 500),
-            's3_public_url' => str_sub_u($publicUrl, 0, 500),
-            's3_path_style' => isset($_POST['s3_path_style']) ? '1' : '0',
-        ];
-        if ($secretKey !== '') { $values['s3_secret_key'] = $secretKey; }
-        save_s3_settings($values);
-        set_flash('success', 'S3 上传设置已保存。');
-        redirect_to(url_for('admin_s3'));
-        break;
-
-    case 'ai_generate':
-        require_admin();
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { json_response(['ok' => false, 'error' => '仅支持 POST 请求。'], 405); }
-        verify_csrf();
-        $type = (string)($_POST['type'] ?? '');
-        $content = trim((string)($_POST['content'] ?? ''));
-        $instruction = trim((string)($_POST['instruction'] ?? ''));
-        if (str_len_u($content) > 50000) { json_response(['ok' => false, 'error' => '内容过长，请控制在 50000 字以内。'], 422); }
-        if ($type === 'slug') {
-            if ($content === '') { json_response(['ok' => false, 'error' => '请先填写文章标题。'], 422); }
-            [$ok, $result] = ai_completion(ai_setting('ai_slug_prompt', default_ai_settings()['ai_slug_prompt']), $content);
-            if ($ok) { $result = trim((string)preg_replace('/[^a-z0-9]+/', '-', str_lower_u($result)), '-'); $result = substr($result, 0, 100); }
-        } elseif ($type === 'summary') {
-            if ($content === '') { json_response(['ok' => false, 'error' => '请先填写文章正文。'], 422); }
-            [$ok, $result] = ai_completion(ai_setting('ai_summary_prompt', default_ai_settings()['ai_summary_prompt']), $content);
-            if ($ok) { $result = str_sub_u($result, 0, 100); }
-        } elseif ($type === 'polish') {
-            if ($instruction === '') { json_response(['ok' => false, 'error' => '请填写润色或生成要求。'], 422); }
-            [$ok, $result] = ai_completion(ai_setting('ai_polish_prompt', default_ai_settings()['ai_polish_prompt']) . ' 用户要求：' . $instruction, $content !== '' ? $content : '请根据要求生成正文。');
-        } else { json_response(['ok' => false, 'error' => '未知的 AI 操作。'], 422); }
-        if (!$ok) { json_response(['ok' => false, 'error' => $result], 502); }
-        json_response(['ok' => true, 'result' => $result]);
+        save_settings(['active_theme' => $themeSlug]);
+        set_flash('success', '主题已启用。');
+        redirect_to(url_with_query(url_for('admin_themes'), ['changed' => bin2hex(random_bytes(4))]), 303);
         break;
 
     case 'save_settings':
         require_admin_post(url_for('admin_settings'));
         $siteName = trim((string)($_POST['site_name'] ?? ''));
-        $activeTheme = trim((string)($_POST['active_theme'] ?? 'default'));
-        if (!array_key_exists($activeTheme, available_themes())) {
-            set_flash('error', '所选主题不存在或 theme.json 无效。');
-            redirect_to(url_for('admin_settings'));
-        }
         $postsPerPage = max(1, min(24, (int)($_POST['posts_per_page'] ?? (int)default_settings()['posts_per_page'])));
         $prettyUrl = (string)($_POST['pretty_url'] ?? '0') === '1' ? '1' : '0';
         save_settings([
             'site_name' => $siteName !== '' ? $siteName : default_settings()['site_name'],
-            'active_theme' => $activeTheme,
             'site_url' => trim((string)($_POST['site_url'] ?? '')),
             'favicon_url' => trim((string)($_POST['favicon_url'] ?? '')) ?: default_settings()['favicon_url'],
             'footer_beian' => trim((string)($_POST['footer_beian'] ?? '')),
