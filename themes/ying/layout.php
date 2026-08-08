@@ -19,8 +19,6 @@ foreach (social_profile_definitions() as $definition) {
     }
 }
 
-$accountUrl = $admin ? url_for('admin') : url_for('login');
-$accountLabel = $admin ? '管理后台' : '登录';
 $keywords = trim(setting('site_keywords'));
 $customHeadCode = trim(setting('custom_head_code'));
 $themeVersion = (string)($theme['version'] ?? '1.0.0');
@@ -65,7 +63,7 @@ $viewClass = (string)($_GET['a'] ?? '') === 'category' ? 'ying-view-category'
               <?php foreach ($socialLinks as $social): ?>
                 <li><a href="<?= h((string)$social['url']) ?>" target="_blank" rel="me noopener noreferrer" aria-label="<?= h((string)$social['label']) ?>" title="<?= h((string)$social['label']) ?>"><i class="<?= h((string)$social['icon']) ?>" aria-hidden="true"></i></a></li>
               <?php endforeach; ?>
-              <li><a href="<?= h($accountUrl) ?>" aria-label="<?= h($accountLabel) ?>" title="<?= h($accountLabel) ?>"><i class="ri-user-line" aria-hidden="true"></i></a></li>
+              <?php if ($admin): ?><li><a href="<?= h(url_for('admin')) ?>" aria-label="管理后台" title="管理后台"><i class="ri-user-line" aria-hidden="true"></i></a></li><?php endif; ?>
               <li><a href="<?= h(url_for('rss')) ?>" target="_blank" rel="noopener noreferrer" aria-label="RSS" title="RSS"><i class="ri-rss-fill" aria-hidden="true"></i></a></li>
             </ul>
           </nav>

@@ -3,8 +3,6 @@
 declare(strict_types=1);
 
 $action = (string)($_GET['a'] ?? '');
-$accountUrl = $admin ? url_for('admin') : url_for('login');
-$accountLabel = $admin ? '管理后台' : '登录';
 $keywords = trim(setting('site_keywords'));
 $customHeadCode = trim(setting('custom_head_code'));
 $themeVersion = (string)($theme['version'] ?? '1.0.0');
@@ -63,9 +61,9 @@ $viewClass = match (true) {
       </nav>
 
       <div class="aqua-nav__tools">
-        <a class="aqua-icon-button" href="<?= h($accountUrl) ?>" aria-label="<?= h($accountLabel) ?>" title="<?= h($accountLabel) ?>">
+        <?php if ($admin): ?><a class="aqua-icon-button" href="<?= h(url_for('admin')) ?>" aria-label="管理后台" title="管理后台">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 21a8 8 0 0 0-16 0m8-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>
-        </a>
+        </a><?php endif; ?>
         <button class="aqua-icon-button aqua-theme-toggle" type="button" aria-label="切换深浅模式" aria-pressed="false" title="切换深浅模式">
           <svg class="aqua-icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
           <svg class="aqua-icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>

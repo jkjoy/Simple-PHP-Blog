@@ -3,8 +3,6 @@
 declare(strict_types=1);
 
 $action = (string)($_GET['a'] ?? '');
-$accountUrl = $admin ? url_for('admin') : url_for('login');
-$accountLabel = $admin ? '管理' : '登录';
 $keywords = trim(setting('site_keywords'));
 $customHeadCode = trim(setting('custom_head_code'));
 $themeVersion = (string)($theme['version'] ?? '1.0.0');
@@ -65,7 +63,7 @@ $greeting = $hour < 6 ? '夜深了' : ($hour < 11 ? '早上好' : ($hour < 14 ? 
         <?php foreach ($navPages as $page): ?>
           <a href="<?= h(content_permalink($page)) ?>" class="<?= $active === 'page:' . $page['slug'] ? 'is-active' : '' ?>"><?= h((string)$page['title']) ?></a>
         <?php endforeach; ?>
-        <a class="hammer-nav__account <?= in_array($active, ['login', 'admin'], true) ? 'is-active' : '' ?>" href="<?= h($accountUrl) ?>"><?= h($accountLabel) ?></a>
+        <?php if ($admin): ?><a class="hammer-nav__account <?= $active === 'admin' ? 'is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">管理</a><?php endif; ?>
       </nav>
 
       <div class="hammer-tools">

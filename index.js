@@ -1,3 +1,69 @@
+function initAdminTheme() {
+  const controls = Array.from(document.querySelectorAll("[data-admin-theme-toggle]"));
+  if (!controls.length) return;
+
+  const root = document.documentElement;
+  const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+  const savedTheme = () => {
+    try {
+      const value = localStorage.getItem("sblog-admin-theme");
+      return value === "light" || value === "dark" ? value : "";
+    } catch (error) {
+      return "";
+    }
+  };
+  const applyTheme = (theme, persist = false) => {
+    root.dataset.adminTheme = theme;
+    controls.forEach((control) => {
+      const nextLabel = theme === "dark" ? "切换到浅色模式" : "切换到深色模式";
+      control.setAttribute("aria-label", nextLabel);
+      control.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
+      control.setAttribute("title", nextLabel);
+    });
+    if (persist) {
+      try {
+        localStorage.setItem("sblog-admin-theme", theme);
+      } catch (error) {
+        // The active page still keeps the selected theme when storage is unavailable.
+      }
+    }
+  };
+
+  applyTheme(root.dataset.adminTheme === "dark" ? "dark" : "light");
+  controls.forEach((control) => {
+    control.addEventListener("click", () => {
+      applyTheme(root.dataset.adminTheme === "dark" ? "light" : "dark", true);
+    });
+  });
+
+  const syncSystemTheme = (event) => {
+    if (!savedTheme()) applyTheme(event.matches ? "dark" : "light");
+  };
+  if (typeof systemTheme.addEventListener === "function") {
+    systemTheme.addEventListener("change", syncSystemTheme);
+  } else {
+    systemTheme.addListener(syncSystemTheme);
+  }
+}
+
+function initPasswordToggles() {
+  document.querySelectorAll("[data-password-toggle]").forEach((control) => {
+    if (!(control instanceof HTMLButtonElement)) return;
+    const input = document.getElementById(control.dataset.passwordToggle || "");
+    if (!(input instanceof HTMLInputElement)) return;
+
+    control.addEventListener("click", () => {
+      const reveal = input.type === "password";
+      input.type = reveal ? "text" : "password";
+      const label = reveal ? "隐藏密码" : "显示密码";
+      control.setAttribute("aria-label", label);
+      control.setAttribute("aria-pressed", reveal ? "true" : "false");
+      control.setAttribute("title", label);
+      input.focus({ preventScroll: true });
+    });
+  });
+}
+
 function initAccountMenus() {
   const accountMenus = Array.from(document.querySelectorAll("[data-admin-account]"));
   if (!accountMenus.length) return;
@@ -693,6 +759,8 @@ function initTerminal() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  initAdminTheme();
+  initPasswordToggles();
   initAdminNavigation();
   initAccountMenus();
   initSettingsControls();

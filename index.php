@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.4.3';
+const APP_VERSION = 'v1.4.4';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -3934,6 +3934,22 @@ function render_layout(string $title, string $content, array $options = []): voi
   <meta name="description" content="<?= h($description) ?>">
   <?php if ($keywords !== ''): ?><meta name="keywords" content="<?= h($keywords) ?>"><?php endif; ?>
   <title><?= h($fullTitle) ?></title>
+  <?php if ($mode !== 'public'): ?>
+  <meta name="color-scheme" content="light dark">
+  <script>
+    (() => {
+      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      try {
+        const saved = localStorage.getItem('sblog-admin-theme');
+        document.documentElement.dataset.adminTheme = saved === 'light' || saved === 'dark'
+          ? saved
+          : (systemDark ? 'dark' : 'light');
+      } catch (error) {
+        document.documentElement.dataset.adminTheme = systemDark ? 'dark' : 'light';
+      }
+    })();
+  </script>
+  <?php endif; ?>
   <link rel="icon" href="<?= h(theme_favicon_url()) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -3960,18 +3976,16 @@ function render_layout(string $title, string $content, array $options = []): voi
           <a class="<?= $active === 'tags' ? 'is-active' : '' ?>" href="<?= h(url_for('tags')) ?>">[标签]</a>
           <a class="<?= $active === 'archives' ? 'is-active' : '' ?>" href="<?= h(url_for('archives')) ?>">[归档]</a>
           <a class="<?= $active === 'links' ? 'is-active' : '' ?>" href="<?= h(url_for('links')) ?>">[链接]</a>
-          <?php $accountUrl = $admin ? url_for('admin') : url_for('login'); ?>
-          <?php $accountLabel = $admin ? '管理' : '登录'; ?>
-          <?php $loginLinkRendered = false; ?>
+          <?php $adminLinkRendered = false; ?>
           <?php foreach ($navPages as $page): ?>
             <a class="<?= $active === 'page:' . $page['slug'] ? 'is-active' : '' ?>" href="<?= h(content_permalink($page)) ?>">[<?= h($page['title']) ?>]</a>
-            <?php if (!$loginLinkRendered && (strtolower((string)$page['slug']) === 'about' || trim((string)$page['title']) === '关于')): ?>
-              <a class="<?= in_array($active, ['login', 'admin'], true) ? 'is-active' : '' ?>" href="<?= h($accountUrl) ?>">[<?= h($accountLabel) ?>]</a>
-              <?php $loginLinkRendered = true; ?>
+            <?php if ($admin && !$adminLinkRendered && (strtolower((string)$page['slug']) === 'about' || trim((string)$page['title']) === '关于')): ?>
+              <a class="<?= $active === 'admin' ? 'is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">[管理]</a>
+              <?php $adminLinkRendered = true; ?>
             <?php endif; ?>
           <?php endforeach; ?>
-          <?php if (!$loginLinkRendered): ?>
-            <a class="<?= in_array($active, ['login', 'admin'], true) ? 'is-active' : '' ?>" href="<?= h($accountUrl) ?>">[<?= h($accountLabel) ?>]</a>
+          <?php if ($admin && !$adminLinkRendered): ?>
+            <a class="<?= $active === 'admin' ? 'is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">[管理]</a>
           <?php endif; ?>
         </nav>
         <div class="cmd-echo"><span class="prompt-part">visitor@<?= h($siteName) ?></span><span class="path-part">:~</span>$ cat <?= h(strtolower(str_replace(' ', '-', $title))) ?>.md</div>
@@ -4005,7 +4019,7 @@ function render_layout(string $title, string $content, array $options = []): voi
             <img class="site-brand__logo" src="<?= h(theme_logo_url()) ?>" width="44" height="44" alt="<?= h($siteName) ?>">
             <span class="site-brand__copy">
               <strong class="site-brand__title"><?= h($siteName) ?></strong>
-              <span class="site-brand__meta"><?= $admin ? 'Simple-PHP-Blog Admin' : 'Admin Entry' ?></span>
+              <span class="site-brand__meta"><?= $admin ? 'Simple-PHP-Blog Admin' : '管理后台' ?></span>
             </span>
           </a>
           <?php if ($admin): ?>
@@ -4017,15 +4031,30 @@ function render_layout(string $title, string $content, array $options = []): voi
                 <button class="nav-link" type="submit">退出</button>
               </form>
             </nav>
+          <?php else: ?>
+            <?= render_admin_theme_toggle() ?>
           <?php endif; ?>
         </div>
       </header>
 
       <main class="main-wrap<?= $wide ? ' main-wrap--wide' : '' ?>">
-        <?php if ($flash): ?>
-          <div class="flash flash--<?= h((string)$flash['type']) ?>"><?= h((string)$flash['message']) ?></div>
+        <?php if (!$admin): ?>
+          <div class="auth-stage">
+            <?php if ($flash): ?>
+              <?php $flashType = (string)$flash['type']; ?>
+              <div class="flash flash--<?= h($flashType) ?> auth-notice" role="<?= $flashType === 'error' ? 'alert' : 'status' ?>">
+                <span class="auth-notice__icon"><?= admin_icon($flashType === 'success' ? 'check-circle' : 'alert-circle') ?></span>
+                <span class="auth-notice__message"><?= h((string)$flash['message']) ?></span>
+              </div>
+            <?php endif; ?>
+            <?= $content ?>
+          </div>
+        <?php else: ?>
+          <?php if ($flash): ?>
+            <div class="flash flash--<?= h((string)$flash['type']) ?>"><?= h((string)$flash['message']) ?></div>
+          <?php endif; ?>
+          <?= $content ?>
         <?php endif; ?>
-        <?= $content ?>
       </main>
 
       <footer class="site-footer">
@@ -4065,12 +4094,27 @@ function admin_icon(string $name): string
         'settings' => '<path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>',
         'menu' => '<path d="M4 6h16M4 12h16M4 18h16"></path>',
         'close' => '<path d="m6 6 12 12M18 6 6 18"></path>',
+        'sun' => '<circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path>',
+        'moon' => '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
+        'eye' => '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle>',
+        'eye-off' => '<path d="m3 3 18 18"></path><path d="M10.6 5.2A11.7 11.7 0 0 1 12 5c6.5 0 10 7 10 7a18.7 18.7 0 0 1-2.2 3.1"></path><path d="M6.6 6.6C3.6 8.6 2 12 2 12s3.5 7 10 7a9.8 9.8 0 0 0 4.1-.9"></path><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>',
+        'alert-circle' => '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path>',
+        'check-circle' => '<circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path>',
         'refresh' => '<path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"></path>',
         'logout' => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path>',
         default => '<circle cx="12" cy="12" r="8"></circle>',
     };
 
     return '<svg ' . $attrs . '>' . $paths . '</svg>';
+}
+
+function render_admin_theme_toggle(): string
+{
+    return '<button class="admin-icon-btn admin-theme-toggle" type="button" data-admin-theme-toggle aria-label="切换到深色模式" title="切换到深色模式">'
+        . '<span class="admin-theme-toggle__icons" aria-hidden="true">'
+        . '<span class="admin-theme-toggle__icon admin-theme-toggle__icon--moon">' . admin_icon('moon') . '</span>'
+        . '<span class="admin-theme-toggle__icon admin-theme-toggle__icon--sun">' . admin_icon('sun') . '</span>'
+        . '</span></button>';
 }
 
 function render_admin_sidebar(string $active, array $summary = []): string
@@ -4265,6 +4309,7 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
         <div class="admin-crumb"><span>控制台 /</span> <b><?= h($title) ?></b></div>
       </div>
       <div class="admin-topbar__actions">
+        <?= render_admin_theme_toggle() ?>
         <form class="admin-update-check" method="post" action="<?= h(url_for('check_update')) ?>">
           <?= csrf_field() ?>
           <button class="button button--secondary button--compact" type="submit" aria-label="检测更新" title="检测更新">
@@ -4491,9 +4536,9 @@ function render_comments_section(array $post, array $form = [], array $errors = 
               <header class="comment-item__meta">
                 <img class="comment-item__avatar" src="<?= h(gravatar_url((string)$comment['author_email'])) ?>" width="36" height="36" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
                 <?php if ($authorUrl !== '#'): ?>
-                  <a class="comment-item__author" href="<?= h($authorUrl) ?>" target="_blank" rel="ugc nofollow noopener noreferrer">@<?= h((string)$comment['author_name']) ?></a>
+                  <a class="comment-item__author" href="<?= h($authorUrl) ?>" target="_blank" rel="ugc nofollow noopener noreferrer"><?= h((string)$comment['author_name']) ?></a>
                 <?php else: ?>
-                  <strong class="comment-item__author">@<?= h((string)$comment['author_name']) ?></strong>
+                  <strong class="comment-item__author"><?= h((string)$comment['author_name']) ?></strong>
                 <?php endif; ?>
                 <time class="comment-item__time" datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
                 <?php if ($accepting): ?>
@@ -4807,12 +4852,6 @@ function render_login_page(string $error = '', array $form = []): void
     <div class="auth-layout">
       <section class="panel auth-panel admin-animate admin-animate--1">
         <div class="panel__body">
-          <header class="auth-heading">
-            <p class="auth-heading__eyebrow">Admin access</p>
-            <h1>登录后台</h1>
-            <p>使用管理员账号继续。</p>
-          </header>
-
           <?php if ($error !== ''): ?>
             <div class="flash flash--error" role="alert"><?= h($error) ?></div>
           <?php endif; ?>
@@ -4824,13 +4863,21 @@ function render_login_page(string $error = '', array $form = []): void
               <input id="username" name="username" type="text" value="<?= h((string)($form['username'] ?? '')) ?>" autocomplete="username" required autofocus>
             </div>
             <div class="field">
-              <label for="password">密码</label>
-              <input id="password" name="password" type="password" autocomplete="current-password" required>
+              <div class="auth-field-row">
+                <label for="password">密码</label>
+                <a href="<?= h(url_for('forgot_password')) ?>">忘记密码？</a>
+              </div>
+              <div class="auth-password">
+                <input id="password" name="password" type="password" autocomplete="current-password" required>
+                <button class="auth-password-toggle" type="button" data-password-toggle="password" aria-label="显示密码" aria-pressed="false" title="显示密码">
+                  <span class="auth-password-toggle__icon auth-password-toggle__icon--show"><?= admin_icon('eye') ?></span>
+                  <span class="auth-password-toggle__icon auth-password-toggle__icon--hide"><?= admin_icon('eye-off') ?></span>
+                </button>
+              </div>
             </div>
             <div class="action-row auth-actions">
               <button class="button" type="submit">登录后台</button>
             </div>
-            <p class="auth-link-row"><a href="<?= h(url_for('forgot_password')) ?>">忘记密码？</a></p>
           </form>
         </div>
       </section>

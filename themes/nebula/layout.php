@@ -3,8 +3,6 @@
 declare(strict_types=1);
 
 $action = (string)($_GET['a'] ?? '');
-$accountUrl = $admin ? url_for('admin') : url_for('login');
-$accountLabel = $admin ? '管理' : '登录';
 $keywords = trim(setting('site_keywords'));
 $customHeadCode = trim(setting('custom_head_code'));
 $themeVersion = (string)($theme['version'] ?? '1.0.0');
@@ -60,7 +58,7 @@ $viewClass = match (true) {
         <?php foreach ($navPages as $page): ?>
           <a href="<?= h(content_permalink($page)) ?>" class="<?= $active === 'page:' . $page['slug'] ? 'active' : '' ?>"><?= h((string)$page['title']) ?></a>
         <?php endforeach; ?>
-        <a href="<?= h($accountUrl) ?>" class="<?= in_array($active, ['login', 'admin'], true) ? 'active' : '' ?>"><?= h($accountLabel) ?></a>
+        <?php if ($admin): ?><a href="<?= h(url_for('admin')) ?>" class="<?= $active === 'admin' ? 'active' : '' ?>">管理</a><?php endif; ?>
       </nav>
 
       <div class="nav-actions">
