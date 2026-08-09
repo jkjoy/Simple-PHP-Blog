@@ -207,6 +207,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$viewsExist) {
                 $changes[] = '新增文章独立访客计数表';
             }
+            $mediaExists = (bool)$db->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'media' LIMIT 1")->fetchColumn();
+            $db->exec(
+                "CREATE TABLE IF NOT EXISTS media(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    original_name TEXT NOT NULL,
+                    title TEXT NOT NULL DEFAULT '',
+                    alt_text TEXT NOT NULL DEFAULT '',
+                    caption TEXT NOT NULL DEFAULT '',
+                    url TEXT NOT NULL,
+                    storage_driver TEXT NOT NULL DEFAULT 'local',
+                    storage_key TEXT NOT NULL DEFAULT '',
+                    local_path TEXT NOT NULL DEFAULT '',
+                    mime_type TEXT NOT NULL,
+                    file_size INTEGER NOT NULL DEFAULT 0,
+                    is_image INTEGER NOT NULL DEFAULT 0,
+                    width INTEGER NOT NULL DEFAULT 0,
+                    height INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )"
+            );
+            $db->exec('CREATE INDEX IF NOT EXISTS idx_media_created ON media(created_at DESC, id DESC)');
+            $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_media_local_path ON media(local_path) WHERE local_path <> ''");
+            if (!$mediaExists) {
+                $changes[] = '新增媒体资料表和查询索引';
+            }
             $replyFieldsAdded = false;
             if (!update_has_column($db, 'comments', 'parent_id')) {
                 $db->exec('ALTER TABLE comments ADD COLUMN parent_id INTEGER REFERENCES comments(id) ON DELETE SET NULL');
@@ -359,7 +385,7 @@ if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token']) || $_
       <div class="panel__body">
         <?php if ($message !== ''): ?><div class="flash flash--success"><?= update_h($message) ?></div><?php endif; ?>
         <?php if ($error !== ''): ?><div class="flash flash--error"><?= update_h($error) ?></div><?php endif; ?>
-        <p>本次升级将补齐文章置顶、评论、通知、存储和用户社交平台所需的数据结构。操作可重复执行，不会覆盖文章内容。</p>
+        <p>本次升级将补齐文章置顶、评论、通知、媒体、存储和用户社交平台所需的数据结构。操作可重复执行，不会覆盖文章内容。</p>
         <form method="post">
           <input type="hidden" name="csrf_token" value="<?= update_h((string)$_SESSION['csrf_token']) ?>">
           <div class="form-actions">

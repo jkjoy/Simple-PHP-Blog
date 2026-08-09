@@ -2,6 +2,7 @@
   "name": "邮件通知",
   "version": "1.0.0",
   "author": "Simple PHP Blog",
+  "url": "https://github.com/jkjoy/Simple-PHP-Blog",
   "description": "通过 SMTP 或 PHP mail 发送密码重置和评论通知邮件。",
   "settings_action": "admin_mail"
 }

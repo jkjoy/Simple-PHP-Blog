@@ -1,3 +1,12 @@
+function sblogText(key, fallback, variables = {}) {
+  const messages = window.sblogI18n;
+  let text = typeof messages?.[key] === "string" ? messages[key] : fallback;
+  Object.entries(variables).forEach(([name, value]) => {
+    text = text.replaceAll(`{${name}}`, String(value));
+  });
+  return text;
+}
+
 function initAdminTheme() {
   const controls = Array.from(document.querySelectorAll("[data-admin-theme-toggle]"));
   if (!controls.length) return;
@@ -15,7 +24,9 @@ function initAdminTheme() {
   const applyTheme = (theme, persist = false) => {
     root.dataset.adminTheme = theme;
     controls.forEach((control) => {
-      const nextLabel = theme === "dark" ? "切换到浅色模式" : "切换到深色模式";
+      const nextLabel = theme === "dark"
+        ? sblogText("switch_to_light", "切换到浅色模式")
+        : sblogText("switch_to_dark", "切换到深色模式");
       control.setAttribute("aria-label", nextLabel);
       control.setAttribute("aria-pressed", theme === "dark" ? "true" : "false");
       control.setAttribute("title", nextLabel);
@@ -55,7 +66,9 @@ function initPasswordToggles() {
     control.addEventListener("click", () => {
       const reveal = input.type === "password";
       input.type = reveal ? "text" : "password";
-      const label = reveal ? "隐藏密码" : "显示密码";
+      const label = reveal
+        ? sblogText("hide_password", "隐藏密码")
+        : sblogText("show_password", "显示密码");
       control.setAttribute("aria-label", label);
       control.setAttribute("aria-pressed", reveal ? "true" : "false");
       control.setAttribute("title", label);
@@ -115,7 +128,9 @@ function initAdminNavigation() {
     const mobileOpen = mobile.matches && open;
     body.classList.toggle("admin-nav-open", mobileOpen);
     toggle.setAttribute("aria-expanded", mobileOpen ? "true" : "false");
-    toggle.setAttribute("aria-label", mobileOpen ? "关闭后台菜单" : "打开后台菜单");
+    toggle.setAttribute("aria-label", mobileOpen
+      ? sblogText("close_admin_menu", "关闭后台菜单")
+      : sblogText("open_admin_menu", "打开后台菜单"));
     sidebar.toggleAttribute("inert", mobile.matches && !mobileOpen);
     if (mobile.matches) {
       sidebar.setAttribute("aria-hidden", mobileOpen ? "false" : "true");
@@ -183,11 +198,13 @@ function initAttachmentUploader() {
   const editor = document.getElementById("content");
   const uploadUrl = uploader.dataset.uploadUrl || "";
   const csrf = uploader.dataset.csrf || "";
+  const refreshOnUpload = uploader.dataset.refreshOnUpload === "1";
   const maxSize = 30 * 1024 * 1024;
 
-  if (!input || !drop || !list || !editor || !uploadUrl || !csrf) return;
+  if (!input || !drop || !list || !uploadUrl || !csrf) return;
 
   const appendMarkdown = (markdown) => {
+    if (!editor) return;
     const start = editor.selectionStart ?? editor.value.length;
     const end = editor.selectionEnd ?? editor.value.length;
     const before = editor.value.slice(0, start);
@@ -225,7 +242,9 @@ function initAttachmentUploader() {
     name.textContent = file.name;
 
     const status = document.createElement("span");
-    status.textContent = file.size > maxSize ? "文件超过 30M" : "等待上传";
+    status.textContent = file.size > maxSize
+      ? sblogText("file_too_large", "文件超过 30M")
+      : sblogText("waiting_to_upload", "等待上传");
 
     body.append(name, status);
     item.append(preview, body);
@@ -244,7 +263,7 @@ function initAttachmentUploader() {
         continue;
       }
 
-      row.status.textContent = "上传中...";
+      row.status.textContent = sblogText("uploading", "上传中...");
 
       const data = new FormData();
       data.append("csrf_token", csrf);
@@ -259,13 +278,15 @@ function initAttachmentUploader() {
         const result = await response.json();
 
         if (!response.ok || !result.ok || !result.files?.length) {
-          const message = result.errors?.[0]?.error || result.error || "上传失败";
+          const message = result.errors?.[0]?.error || result.error || sblogText("upload_failed", "上传失败");
           throw new Error(message);
         }
 
         const uploaded = result.files[0];
         row.item.classList.add("is-done");
-        row.status.textContent = "已上传并插入 Markdown";
+        row.status.textContent = editor
+          ? sblogText("uploaded_and_inserted", "已上传并插入 Markdown")
+          : sblogText("upload_complete", "上传完成");
         appendMarkdown(uploaded.markdown);
 
         if (uploaded.is_image) {
@@ -276,11 +297,14 @@ function initAttachmentUploader() {
         }
       } catch (error) {
         row.item.classList.add("is-error");
-        row.status.textContent = error instanceof Error ? error.message : "上传失败";
+        row.status.textContent = error instanceof Error ? error.message : sblogText("upload_failed", "上传失败");
       }
     }
 
     input.value = "";
+    if (refreshOnUpload && list.querySelector(".attachment-item.is-done")) {
+      window.location.reload();
+    }
   };
 
   input.addEventListener("change", () => uploadFiles(input.files));
@@ -314,7 +338,7 @@ function initMarkdownEditor() {
   if (!(editor instanceof HTMLTextAreaElement)) return;
 
   const updateCount = () => {
-    if (count) count.textContent = `${editor.value.length} 字符`;
+    if (count) count.textContent = sblogText("character_count", "{count} 字符", { count: editor.value.length });
   };
 
   const replaceSelection = (replacement, selectionOffset = replacement.length, selectionLength = 0) => {
@@ -365,10 +389,10 @@ function initMarkdownEditor() {
   };
 
   const applyAction = (action) => {
-    if (action === "bold") wrapSelection("**", "**", "粗体文本");
-    if (action === "italic") wrapSelection("*", "*", "斜体文本");
-    if (action === "strike") wrapSelection("~~", "~~", "删除线文本");
-    if (action === "inline-code") wrapSelection("`", "`", "代码");
+    if (action === "bold") wrapSelection("**", "**", sblogText("bold_text", "粗体文本"));
+    if (action === "italic") wrapSelection("*", "*", sblogText("italic_text", "斜体文本"));
+    if (action === "strike") wrapSelection("~~", "~~", sblogText("strikethrough_text", "删除线文本"));
+    if (action === "inline-code") wrapSelection("`", "`", sblogText("code", "代码"));
     if (action === "quote") prefixLines(() => "> ", /^>\s?/);
     if (action === "unordered-list") prefixLines(() => "- ", /^[-*+]\s+/);
     if (action === "ordered-list") prefixLines((index) => `${index + 1}. `, /^\d+[.)]\s+/);
@@ -376,7 +400,7 @@ function initMarkdownEditor() {
     if (action === "link") {
       const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd);
       const isUrl = /^https?:\/\/\S+$/i.test(selected);
-      const label = isUrl ? "链接文字" : (selected || "链接文字");
+      const label = isUrl ? sblogText("link_text", "链接文字") : (selected || sblogText("link_text", "链接文字"));
       const url = isUrl ? selected : "https://";
       const replacement = `[${label}](${url})`;
       const selectionOffset = isUrl ? 1 : replacement.indexOf(url);
@@ -384,18 +408,21 @@ function initMarkdownEditor() {
       replaceSelection(replacement, selectionOffset, selectionLength);
     }
     if (action === "image") {
-      const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd) || "图片描述";
+      const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd) || sblogText("image_description", "图片描述");
       const replacement = `![${selected}](https://)`;
       const urlStart = replacement.indexOf("https://");
       replaceSelection(replacement, urlStart, "https://".length);
     }
     if (action === "table") {
-      const firstHeading = editor.value.slice(editor.selectionStart, editor.selectionEnd) || "列 1";
-      const table = `| ${firstHeading} | 列 2 | 列 3 |\n| --- | --- | --- |\n| 内容 | 内容 | 内容 |`;
+      const firstHeading = editor.value.slice(editor.selectionStart, editor.selectionEnd) || sblogText("column_1", "列 1");
+      const column2 = sblogText("column_2", "列 2");
+      const column3 = sblogText("column_3", "列 3");
+      const content = sblogText("table_content", "内容");
+      const table = `| ${firstHeading} | ${column2} | ${column3} |\n| --- | --- | --- |\n| ${content} | ${content} | ${content} |`;
       insertBlock(table, 2, firstHeading.length);
     }
     if (action === "code-block") {
-      const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd) || "在这里输入代码";
+      const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd) || sblogText("enter_code_here", "在这里输入代码");
       const block = `\`\`\`\n${selected}\n\`\`\``;
       insertBlock(block, 4);
     }
@@ -452,10 +479,10 @@ function initAiEditor() {
     });
     const result = await response
       .json()
-      .catch(() => ({ ok: false, error: "AI 服务返回了无法解析的响应。" }));
+      .catch(() => ({ ok: false, error: sblogText("ai_invalid_response", "AI 服务返回了无法解析的响应。") }));
 
     if (!response.ok || !result.ok) {
-      throw new Error(result.error || "AI 生成失败。");
+      throw new Error(result.error || sblogText("ai_generation_failed", "AI 生成失败。"));
     }
     return result.result || "";
   };
@@ -472,14 +499,14 @@ function initAiEditor() {
       const source = type === "slug" ? title.value.trim() : content.value.trim();
       const original = button.textContent;
       button.disabled = true;
-      button.textContent = "生成中...";
+      button.textContent = sblogText("generating", "生成中...");
 
       try {
         const result = await generate(type, source);
         if (type === "slug") slug.value = result;
         if (type === "summary") excerpt.value = result;
       } catch (error) {
-        window.alert(error instanceof Error ? error.message : "AI 生成失败。");
+        window.alert(error instanceof Error ? error.message : sblogText("ai_generation_failed", "AI 生成失败。"));
       } finally {
         button.disabled = false;
         button.textContent = original;
@@ -496,7 +523,7 @@ function initAiEditor() {
 
   confirm.addEventListener("click", async () => {
     confirm.disabled = true;
-    status.textContent = "AI 正在处理正文...";
+    status.textContent = sblogText("ai_processing_content", "AI 正在处理正文...");
 
     try {
       content.value = await generate("polish", content.value, instruction.value.trim());
@@ -505,7 +532,7 @@ function initAiEditor() {
       status.textContent = "";
       content.focus();
     } catch (error) {
-      status.textContent = error instanceof Error ? error.message : "AI 生成失败。";
+      status.textContent = error instanceof Error ? error.message : sblogText("ai_generation_failed", "AI 生成失败。");
     } finally {
       confirm.disabled = false;
     }
@@ -539,7 +566,7 @@ function initComments() {
       replyButtons.forEach((item) => {
         item.setAttribute("aria-pressed", item === button ? "true" : "false");
       });
-      cancelButton?.setAttribute("aria-label", `取消回复 @${author}`);
+      cancelButton?.setAttribute("aria-label", sblogText("cancel_reply_to", "取消回复 @{author}", { author }));
 
       if (focusContent) {
         replyName.textContent = "";
@@ -569,7 +596,7 @@ function initComments() {
       replyState.hidden = true;
       activeReplyButton = null;
       replyButtons.forEach((item) => item.setAttribute("aria-pressed", "false"));
-      cancelButton?.setAttribute("aria-label", "取消回复");
+      cancelButton?.setAttribute("aria-label", sblogText("cancel_reply", "取消回复"));
       (returnTarget || content)?.focus();
     };
 

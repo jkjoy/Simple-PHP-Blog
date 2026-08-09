@@ -10,6 +10,55 @@ if (!defined('PLUGINS_DIR')) {
 function sblog_english_language_map(): array
 {
     return [
+        '媒体库' => 'Media library',
+        '上传与文件管理' => 'Uploads and file management',
+        '上传媒体' => 'Upload media',
+        '图片、PDF、文本和 ZIP 文件，每个最大 30M。' => 'Images, PDFs, text, and ZIP files up to 30 MB each.',
+        '选择或拖入媒体文件' => 'Choose or drop media files',
+        '上传完成后会自动加入媒体库。' => 'Uploaded files are added to the media library automatically.',
+        '媒体资料：' => 'Media items:',
+        '搜索媒体' => 'Search media',
+        '媒体类型' => 'Media type',
+        '全部媒体' => 'All media',
+        '文件' => 'Files',
+        '编辑媒体' => 'Edit media',
+        '替代文本' => 'Alternative text',
+        '说明文字' => 'Caption',
+        '保存媒体' => 'Save media',
+        '打开文件' => 'Open file',
+        '打开' => 'Open',
+        '删除此媒体资料？文件将被永久删除。' => 'Delete this media item? The file will be permanently removed.',
+        '没有匹配的媒体资料。' => 'No matching media found.',
+        '暂无媒体资料。' => 'No media has been uploaded yet.',
+        '媒体资料管理' => 'Media management',
+        '媒体资料已更新。' => 'Media item updated.',
+        '媒体标题不能为空。' => 'The media title cannot be empty.',
+        '媒体资料已删除。' => 'Media item deleted.',
+        '找不到媒体资料。' => 'Media item not found.',
+        '删除媒体资料失败。' => 'Could not delete the media item.',
+        '媒体资料登记失败。' => 'Could not add the file to the media library.',
+        '当前存储插件不可用，无法删除远端文件。' => 'The storage plugin is unavailable, so the remote file cannot be deleted.',
+        '删除存储文件失败。' => 'Could not delete the stored file.',
+        '媒体文件路径无效，已停止删除。' => 'The media file path is invalid. Deletion was stopped.',
+        '服务器无法删除本地媒体文件。' => 'The server could not delete the local media file.',
+        '媒体资料缺少 S3 对象键，无法安全删除。' => 'The media item has no S3 object key and cannot be deleted safely.',
+        'S3 配置不完整，无法删除对象。' => 'The S3 configuration is incomplete, so the object cannot be deleted.',
+        '服务器缺少 cURL 扩展，无法删除 S3 对象。' => 'The server does not have the cURL extension required to delete S3 objects.',
+        '没有收到附件。' => 'No attachment was received.',
+        '文件超过服务器允许的大小。' => 'The file exceeds the server size limit.',
+        '文件只上传了一部分。' => 'The file was only partially uploaded.',
+        '没有选择文件。' => 'No file was selected.',
+        '服务器缺少临时目录。' => 'The server is missing its temporary directory.',
+        '服务器无法写入文件。' => 'The server could not write the file.',
+        '上传被服务器扩展拦截。' => 'A server extension blocked the upload.',
+        '上传失败。' => 'Upload failed.',
+        '临时文件无效。' => 'The temporary upload file is invalid.',
+        '文件类型不在允许列表中。' => 'This file type is not allowed.',
+        '保存附件失败。' => 'Could not save the attachment.',
+        '附件存储插件处理失败。' => 'The attachment storage plugin failed.',
+        'S3 配置不完整。' => 'The S3 configuration is incomplete.',
+        '服务器缺少 cURL 扩展，无法上传到 S3。' => 'The server does not have the cURL extension required to upload to S3.',
+        '无法读取待上传文件。' => 'Could not read the file being uploaded.',
         '博客尚未安装或数据库配置无效。' => 'The blog is not installed or its database configuration is invalid.',
         '如果账号存在，重置链接已经生成。请检查管理员邮箱；若服务器未配置发信，请查看 cache 目录中的 password-reset 文件。' => 'If the account exists, a reset link has been generated. Check the administrator email, or the password-reset file in the cache directory when email is not configured.',
         '启用 S3 时，请填写有效的 Endpoint、Region、Bucket 和访问密钥，并确认服务器已启用 cURL。' => 'To enable S3, enter a valid endpoint, region, bucket, and credentials, and make sure cURL is enabled.',
@@ -53,6 +102,121 @@ function sblog_english_language_map(): array
         '将博客前台、登录页面和后台管理界面翻译为英文。' => 'Translates the public site, sign-in screens, and administration interface into English.',
         '俄语语言包' => 'Russian Language',
         '将博客前台、登录页面和后台管理界面翻译为俄语。' => 'Translates the public site, sign-in screens, and administration interface into Russian.',
+        '公开文章与页面累计' => 'Public posts and pages',
+        '前台可访问内容' => 'Publicly accessible content',
+        '包含所有审核状态' => 'Includes all moderation states',
+        '只显示访问和内容统计数据。' => 'Shows only traffic and content statistics.',
+        '博客数据预览' => 'Blog data overview',
+        '分类数' => 'Categories',
+        '已发布文章' => 'Published posts',
+        '平均浏览' => 'Average views',
+        '待审核评论' => 'Pending comments',
+        '总浏览量' => 'Total views',
+        '按文章数粗略计算' => 'Approximate per-post average',
+        '文章分类总数' => 'Total post categories',
+        '评论总数' => 'Total comments',
+        '需要管理员处理' => 'Needs administrator attention',
+        '分类列表' => 'Category list',
+        '分类描述' => 'Category description',
+        '分类用于组织文章，不影响独立页面。' => 'Categories organize posts and do not affect standalone pages.',
+        '名称、URL 标识和排序。' => 'Name, URL slug, and order.',
+        '安装时自动创建的默认文章分类。' => 'The default post category created during installation.',
+        '排序权重' => 'Order weight',
+        '链接列表' => 'Link list',
+        '排序数字越小越靠前。' => 'Lower order values appear first.',
+        '简短描述' => 'Short description',
+        '网站图标地址' => 'Site icon URL',
+        '还没有友情链接。' => 'No links yet.',
+        '标签列表' => 'Tag list',
+        '标签名称' => 'Tag name',
+        '修改标签' => 'Edit tag',
+        '原标签' => 'Current tag',
+        '仅使用小写字母、数字和连字符。' => 'Use only lowercase letters, numbers, and hyphens.',
+        '文章数' => 'Posts',
+        '管理员账号' => 'Administrator accounts',
+        '系统至少保留一个管理员。' => 'At least one administrator account must remain.',
+        '用户' => 'User',
+        '个人签名档' => 'Profile signature',
+        '头像地址' => 'Avatar URL',
+        '邮箱地址' => 'Email address',
+        '哔哩哔哩' => 'Bilibili',
+        '微信' => 'WeChat',
+        '微博' => 'Weibo',
+        '内容与文章' => 'Content and post',
+        '提交时间' => 'Submitted',
+        '搜索' => 'Search',
+        '撤下' => 'Move to pending',
+        '标记垃圾' => 'Mark as spam',
+        '评论者' => 'Commenter',
+        '请选择' => 'Select an option',
+        '转待审核' => 'Move to pending',
+        '选择评论' => 'Select comment',
+        '全选' => 'Select all',
+        '全选评论' => 'Select all comments',
+        '支持基础 Markdown，可创建文章或独立页面。' => 'Supports basic Markdown for posts and standalone pages.',
+        '返回后台' => 'Back to dashboard',
+        '独立页面' => 'Standalone page',
+        '请选择分类' => 'Select a category',
+        '发布后优先显示在前端文章列表顶部，仅对文章生效。' => 'After publishing, show this at the top of the public post list. Applies only to posts.',
+        '如果发布时间晚于当前时间，前台会按定时发布处理。' => 'A future publication time schedules the content for public release.',
+        '独立页面可以留空，文章会用这些标签生成聚合页。' => 'Optional for standalone pages. Post tags generate archive pages.',
+        '可同时上传多个附件，每个最大 30M；图片上传完成后显示缩略图并插入 Markdown。' => 'Upload multiple attachments up to 30 MB each. Uploaded images show a thumbnail and are inserted as Markdown.',
+        '选择或拖入附件' => 'Choose or drop attachments',
+        '支持 Markdown；将网易云音乐、哔哩哔哩、YouTube 或豆瓣链接单独放在一段可自动解析。' => 'Supports Markdown. NetEase Music, Bilibili, YouTube, and Douban links on their own line are embedded automatically.',
+        'API 地址' => 'API URL',
+        'API 密钥' => 'API key',
+        '模型接口' => 'Model API',
+        '兼容 OpenAI Chat Completions 格式的服务。' => 'Use a service compatible with the OpenAI Chat Completions format.',
+        '可以填写服务根地址或完整的 /chat/completions 地址。' => 'Enter either the service root URL or the complete /chat/completions URL.',
+        '密钥仅保存在服务器 SQLite 中，不会发送到浏览器前端。' => 'The key is stored only in server-side SQLite and is never sent to the browser.',
+        '弹窗中填写的具体要求会追加到这条系统提示词之后。' => 'Instructions entered in the dialog are appended to this system prompt.',
+        '留空时使用管理员账号邮箱作为评论通知收件人。' => 'Leave blank to use the administrator account email for comment notifications.',
+        '附件 URL 将使用此地址拼接对象键，留空时使用 S3 Endpoint。' => 'Attachment URLs use this address with the object key. Leave blank to use the S3 endpoint.',
+        'Markdown 格式工具栏' => 'Markdown formatting toolbar',
+        'S3 附件上传设置' => 'S3 attachment upload settings',
+        'SMTP 邮件通知设置' => 'SMTP email notification settings',
+        '作者、邮箱、正文或文章' => 'Author, email, content, or post',
+        '用逗号分隔，例如 PHP, SQLite, 随笔' => 'Separate with commas, for example PHP, SQLite, Notes',
+        '留空将自动生成' => 'Leave blank to generate automatically',
+        '留空自动生成' => 'Leave blank to generate automatically',
+        '留空将自动从正文截取' => 'Leave blank to generate from the content',
+        '一句话介绍自己' => 'A short introduction',
+        '例如：修正语病，保持 Markdown 格式；补充一段实际使用示例；将内容改得更简洁。' => 'For example: fix grammar while preserving Markdown, add a practical example, or make the content more concise.',
+        '评论筛选' => 'Comment filters',
+        '图片' => 'Image',
+        '表格' => 'Table',
+        '加粗 (Ctrl/Cmd+B)' => 'Bold (Ctrl/Cmd+B)',
+        '斜体 (Ctrl/Cmd+I)' => 'Italic (Ctrl/Cmd+I)',
+        '链接 (Ctrl/Cmd+K)' => 'Link (Ctrl/Cmd+K)',
+        'PHP, SQLite, 博客' => 'PHP, SQLite, Blog',
+        '京 ICP 备 12345678 号' => 'ICP 12345678',
+        '博客后台概览' => 'Blog dashboard',
+        '博客文章管理' => 'Blog post management',
+        '博客评论管理' => 'Blog comment management',
+        '博客分类管理' => 'Blog category management',
+        '友情链接管理' => 'Link management',
+        '博客文章编辑器' => 'Blog post editor',
+        '博客站点设置' => 'Blog site settings',
+        '作者：' => 'Author: ',
+        '若博客安装在子目录，请把' => 'If the blog is installed in a subdirectory, change',
+        '改为包含子目录的入口路径，例如' => 'to an entry path containing the subdirectory, for example',
+        '，并为当前目录设置' => ', and set the following for the current directory:',
+        '。项目根目录已有可直接使用的' => '. The project root already includes a ready-to-use',
+        'Aqua Glass 液态玻璃' => 'Aqua Glass',
+        'HammerOS 锤伴' => 'HammerOS',
+        'Nebula 星云' => 'Nebula',
+        '明亮、通透的苹果风格阅读主题。支持深浅模式、响应式导航、文章封面、玻璃质感控件与完整内容页面。' => 'A bright, translucent Apple-inspired reading theme with light and dark modes, responsive navigation, post covers, glass controls, and complete content pages.',
+        '拟人化内容主题：瓷白机身、实体键感、系统管家与安静的阅读工作台。' => 'A personable content theme with a porcelain-white shell, tactile controls, a system companion, and a quiet reading workspace.',
+        '深空极光 · 玻璃拟态 · 暗色优先。星空粒子背景、渐变封面卡片、时间轴归档与标签云，支持亮暗主题切换。' => 'Deep-space aurora, glassmorphism, and dark-first styling with a starfield, cover cards, timeline archives, tag clouds, and light/dark modes.',
+        '演示样式覆盖、head action 与 body_class filter 的入门主题。' => 'A starter theme demonstrating style overrides, the head action, and the body_class filter.',
+        '移植自 Halo Theme Ying 的白色极简内容主题，适配当前博客的文章、评论、归档、标签与友链。' => 'A minimal white content theme adapted from Halo Theme Ying for posts, comments, archives, tags, and links.',
+        '确定永久删除这条评论吗？' => 'Permanently delete this comment?',
+        '确定永久删除选中的评论吗？' => 'Permanently delete the selected comments?',
+        '确定删除这个空分类吗？' => 'Delete this empty category?',
+        '确定删除这个链接吗？' => 'Delete this link?',
+        '确定删除选中的标签吗？文章本身不会被删除。' => 'Delete the selected tags? Posts will not be deleted.',
+        '确定删除这个管理员吗？' => 'Delete this administrator?',
+        '确定删除这篇文章吗？' => 'Delete this post?',
         '没有发现有效插件。请将插件放入 ' => 'No valid plugins were found. Place plugins in ',
         '主题只影响前台页面。' => 'Themes affect public pages only.',
         '将自定义主题放入 ' => 'Place custom themes in ',
@@ -305,6 +469,7 @@ function sblog_english_language_map(): array
         '新评论显示后台提醒' => 'Show admin alerts for new comments',
         '伪静态 URL' => 'Pretty URLs',
         '关闭' => 'Off',
+        '关闭窗口' => 'Close',
         '开启' => 'On',
         '页脚文案' => 'Footer text',
         '支持 {year} 占位符' => 'Supports the {year} placeholder',
@@ -395,6 +560,42 @@ function sblog_english_language_map(): array
     ];
 }
 
+function sblog_english_client_translations(): array
+{
+    return [
+        'switch_to_light' => 'Switch to light mode',
+        'switch_to_dark' => 'Switch to dark mode',
+        'hide_password' => 'Hide password',
+        'show_password' => 'Show password',
+        'close_admin_menu' => 'Close admin menu',
+        'open_admin_menu' => 'Open admin menu',
+        'file_too_large' => 'File exceeds 30 MB',
+        'waiting_to_upload' => 'Waiting to upload',
+        'uploading' => 'Uploading...',
+        'upload_failed' => 'Upload failed',
+        'uploaded_and_inserted' => 'Uploaded and inserted as Markdown',
+        'upload_complete' => 'Upload complete',
+        'character_count' => '{count} characters',
+        'bold_text' => 'bold text',
+        'italic_text' => 'italic text',
+        'strikethrough_text' => 'strikethrough text',
+        'code' => 'code',
+        'link_text' => 'link text',
+        'image_description' => 'image description',
+        'column_1' => 'Column 1',
+        'column_2' => 'Column 2',
+        'column_3' => 'Column 3',
+        'table_content' => 'Content',
+        'enter_code_here' => 'Enter code here',
+        'ai_invalid_response' => 'The AI service returned an unreadable response.',
+        'ai_generation_failed' => 'AI generation failed.',
+        'generating' => 'Generating...',
+        'ai_processing_content' => 'AI is processing the content...',
+        'cancel_reply_to' => 'Cancel reply to @{author}',
+        'cancel_reply' => 'Cancel reply',
+    ];
+}
+
 function sblog_english_translate_phrase(string $phrase): string
 {
     $translations = sblog_english_language_map();
@@ -402,15 +603,35 @@ function sblog_english_translate_phrase(string $phrase): string
         return (string)$translations[$phrase];
     }
 
-    if (preg_match('/^(.+) · (.+)$/u', $phrase, $titleParts) && isset($translations[$titleParts[1]])) {
-        return (string)$translations[$titleParts[1]] . ' · ' . $titleParts[2];
+    if (preg_match('/^([\s\S]+?)\s*·\s*([\s\S]+)$/u', $phrase, $titleParts)) {
+        $label = trim((string)$titleParts[1]);
+        if (isset($translations[$label])) {
+            return (string)$translations[$label] . ' · ' . trim((string)$titleParts[2]);
+        }
+    }
+    if (preg_match('/^([\s\S]+?)\s*·$/u', $phrase, $titleParts)) {
+        $label = trim((string)$titleParts[1]);
+        if (isset($translations[$label])) {
+            return (string)$translations[$label] . ' ·';
+        }
     }
     if (preg_match('/^(.+)，(\d+) 条未读评论$/u', $phrase, $labelParts)) {
         $label = (string)($translations[$labelParts[1]] ?? $labelParts[1]);
         return $label . ', ' . $labelParts[2] . ' unread comments';
     }
+    if (preg_match('/^预览主题 (.+)$/u', $phrase, $previewParts)) {
+        $theme = (string)($translations[$previewParts[1]] ?? $previewParts[1]);
+        return 'Preview theme ' . $theme;
+    }
 
     $patterns = [
+        '/^选择 (.+) 的评论$/u' => 'Select $1\'s comment',
+        '/^回复 @(.+)$/u' => 'Reply to @$1',
+        '/^(.+)（当前）$/u' => '$1 (current)',
+        '/^(\d+) 字符$/u' => '$1 characters',
+        '/^当前筛选 (\d+) 条，审核状态与未读通知独立管理。$/u' => '$1 results in this filter. Moderation status and unread alerts are managed separately.',
+        '/^标签来自文章内容，共 (\d+) 个。$/u' => '$1 tags found in post content.',
+        '/^确定更新到 (.+) 吗？更新期间请勿关闭页面。$/u' => 'Update to $1? Do not close this page during the update.',
         '/^(\d+)\s*条未读评论$/u' => '$1 unread comments',
         '/^(\d+)\s*条评论$/u' => '$1 comments',
         '/^(\d+)\s*个主题$/u' => '$1 themes',
@@ -432,6 +653,9 @@ function sblog_english_translate_phrase(string $phrase): string
         '/^已将 (\d+) 条评论转为待审核。$/u' => 'Moved $1 comments to pending.',
         '/^已更新到 (.+)，并已同步内置主题和插件。$/u' => 'Updated to $1, with bundled themes and plugins synchronized.',
         '/^程序已更新，但内置主题和插件同步失败：(.+)$/u' => 'The application was updated, but bundled theme and plugin synchronization failed: $1',
+        '/^连接 S3 失败：(.+)$/u' => 'Could not connect to S3: $1',
+        '/^S3 删除对象失败（HTTP (\d+)）。$/u' => 'Failed to delete the S3 object (HTTP $1).',
+        '/^S3 返回异常（HTTP (\d+)）。(.*)$/u' => 'S3 returned an error (HTTP $1).$2',
     ];
     foreach ($patterns as $pattern => $replacement) {
         if (preg_match($pattern, $phrase)) {
@@ -457,7 +681,7 @@ function sblog_english_translate_tag(string $tag): string
     if (!preg_match('/[\x{4e00}-\x{9fff}]/u', $tag)) {
         return $tag;
     }
-    return preg_replace_callback(
+    $tag = preg_replace_callback(
         '/\b(aria-label|title|placeholder|data-confirm|content)=("|\')(.*?)\2/su',
         static function (array $matches): string {
             $value = html_entity_decode((string)$matches[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -469,14 +693,62 @@ function sblog_english_translate_tag(string $tag): string
         },
         $tag
     ) ?? $tag;
+
+    return preg_replace_callback(
+        '/\b(onclick|onsubmit)=("|\')(.*?)\2/su',
+        static function (array $matches): string {
+            $code = html_entity_decode((string)$matches[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $translated = preg_replace_callback(
+                '/\bconfirm\(("|\')(.*?)\1\)/su',
+                static function (array $confirmMatches): string {
+                    $message = sblog_english_translate_phrase((string)$confirmMatches[2]);
+                    return 'confirm(' . $confirmMatches[1] . $message . $confirmMatches[1] . ')';
+                },
+                $code
+            ) ?? $code;
+            if ($translated === $code) {
+                return (string)$matches[0];
+            }
+            return $matches[1] . '=' . $matches[2] . htmlspecialchars($translated, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . $matches[2];
+        },
+        $tag
+    ) ?? $tag;
+}
+
+function sblog_english_translate_json_value(mixed $value): mixed
+{
+    if (is_string($value)) {
+        return sblog_english_translate_phrase($value);
+    }
+    if (is_array($value)) {
+        foreach ($value as $key => $item) {
+            $value[$key] = sblog_english_translate_json_value($item);
+        }
+    }
+    return $value;
 }
 
 add_plugin_filter('output_html', static function (string $html, array $context): string {
     if (stripos($html, '<html') === false) {
+        if ((string)($context['action'] ?? '') === 'upload_attachment') {
+            $payload = json_decode($html, true);
+            if (is_array($payload)) {
+                $translated = json_encode(sblog_english_translate_json_value($payload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                return is_string($translated) ? $translated : $html;
+            }
+        }
         return $html;
     }
 
     $html = str_replace(['lang="zh-CN"', "lang='zh-CN'"], ['lang="en"', "lang='en'"], $html);
+    $clientTranslations = json_encode(
+        sblog_english_client_translations(),
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    );
+    if (is_string($clientTranslations)) {
+        $script = '<script>window.sblogI18n=Object.assign({},window.sblogI18n||{},' . $clientTranslations . ');</script>';
+        $html = preg_replace('/<\/head>/i', $script . '</head>', $html, 1) ?? $html;
+    }
     $tokens = preg_split('/(<[^>]+>)/s', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
     if (is_array($tokens)) {
         $rawElement = '';

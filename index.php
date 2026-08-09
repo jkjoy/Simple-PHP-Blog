@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.5.2';
+const APP_VERSION = 'v1.6.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -152,6 +152,57 @@ function table_columns(PDO $pdo, string $table): array
     }
 
     return $columns;
+}
+
+function import_legacy_local_media(PDO $pdo): void
+{
+    $migration = $pdo->prepare('SELECT value FROM settings WHERE name = ?');
+    $migration->execute(['media_library_local_imported']);
+    if ($migration->fetchColumn() !== false) {
+        return;
+    }
+
+    if (is_dir(UPLOAD_DIR)) {
+        $insert = $pdo->prepare(
+            'INSERT OR IGNORE INTO media(original_name, title, alt_text, caption, url, storage_driver, storage_key, local_path, mime_type, file_size, is_image, width, height, created_at, updated_at)
+             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+        );
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(UPLOAD_DIR, FilesystemIterator::SKIP_DOTS)
+        );
+        $uploadsRoot = rtrim(str_replace('\\', '/', (string)realpath(UPLOAD_DIR)), '/') . '/';
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+
+        foreach ($iterator as $file) {
+            if (!$file instanceof SplFileInfo || !$file->isFile() || $file->isLink()) {
+                continue;
+            }
+            $realPath = realpath($file->getPathname());
+            $normalized = $realPath !== false ? str_replace('\\', '/', $realPath) : '';
+            if ($normalized === '' || !str_starts_with($normalized, $uploadsRoot)) {
+                continue;
+            }
+            $relativePath = substr($normalized, strlen($uploadsRoot));
+            if ($relativePath === '' || str_starts_with(basename($relativePath), '.')) {
+                continue;
+            }
+            $imageInfo = @getimagesize($realPath);
+            $isImage = is_array($imageInfo);
+            $name = basename($relativePath);
+            $title = trim(pathinfo($name, PATHINFO_FILENAME)) ?: $name;
+            $timestamp = max(1, (int)($file->getMTime() ?: time()));
+            $mime = $finfo->file($realPath) ?: 'application/octet-stream';
+            $insert->execute([
+                $name, $title, '', '', asset_url('uploads/' . str_replace('%2F', '/', rawurlencode($relativePath))),
+                'local', '', $relativePath, $mime, max(0, (int)$file->getSize()), $isImage ? 1 : 0,
+                $isImage ? (int)($imageInfo[0] ?? 0) : 0, $isImage ? (int)($imageInfo[1] ?? 0) : 0,
+                $timestamp, $timestamp,
+            ]);
+        }
+    }
+
+    $pdo->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)')
+        ->execute(['media_library_local_imported', '1']);
 }
 
 function ensure_comment_columns(PDO $pdo): void
@@ -332,6 +383,26 @@ function ensure_schema(PDO $pdo): void
             FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
         ) WITHOUT ROWID"
     );
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS media(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_name TEXT NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            alt_text TEXT NOT NULL DEFAULT '',
+            caption TEXT NOT NULL DEFAULT '',
+            url TEXT NOT NULL,
+            storage_driver TEXT NOT NULL DEFAULT 'local',
+            storage_key TEXT NOT NULL DEFAULT '',
+            local_path TEXT NOT NULL DEFAULT '',
+            mime_type TEXT NOT NULL,
+            file_size INTEGER NOT NULL DEFAULT 0,
+            is_image INTEGER NOT NULL DEFAULT 0,
+            width INTEGER NOT NULL DEFAULT 0,
+            height INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )"
+    );
 
     $columns = table_columns($pdo, 'posts');
     $userColumns = table_columns($pdo, 'users');
@@ -394,6 +465,10 @@ function ensure_schema(PDO $pdo): void
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id, created_at, id)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_comments_user_recent ON comments(user_id, created_at DESC)');
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_comments_visitor_email_approval ON comments(author_email COLLATE NOCASE, status) WHERE user_id IS NULL");
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_media_created ON media(created_at DESC, id DESC)');
+    $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_media_local_path ON media(local_path) WHERE local_path <> ''");
+
+    import_legacy_local_media($pdo);
 
     $defaultCategoryId = (int)($pdo->query("SELECT id FROM categories WHERE slug = 'default' ORDER BY id LIMIT 1")->fetchColumn() ?: 0);
     if ($defaultCategoryId < 1) {
@@ -1127,6 +1202,73 @@ function upload_error_message(int $code): string
     };
 }
 
+function media_file_size(int $bytes): string
+{
+    if ($bytes < 1024) {
+        return max(0, $bytes) . ' B';
+    }
+    $units = ['KB', 'MB', 'GB', 'TB'];
+    $value = $bytes / 1024;
+    foreach ($units as $index => $unit) {
+        if ($value < 1024 || $index === count($units) - 1) {
+            return number_format($value, $value >= 10 ? 0 : 1) . ' ' . $unit;
+        }
+        $value /= 1024;
+    }
+    return $bytes . ' B';
+}
+
+function media_local_file(string $relativePath): ?string
+{
+    $relativePath = trim(str_replace('\\', '/', $relativePath), '/');
+    if ($relativePath === '' || preg_match('#(?:^|/)\.{1,2}(?:/|$)#', $relativePath) || str_contains($relativePath, "\0")) {
+        return null;
+    }
+    $uploadsRoot = realpath(UPLOAD_DIR);
+    if ($uploadsRoot === false) {
+        return null;
+    }
+    $candidate = UPLOAD_DIR . '/' . $relativePath;
+    $existingParent = dirname($candidate);
+    while (!file_exists($existingParent) && dirname($existingParent) !== $existingParent) {
+        $existingParent = dirname($existingParent);
+    }
+    $parent = realpath($existingParent);
+    $rootPrefix = rtrim($uploadsRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if ($parent === false || strncasecmp(rtrim($parent, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR, $rootPrefix, strlen($rootPrefix)) !== 0) {
+        return null;
+    }
+    return $candidate;
+}
+
+function delete_media_storage(array $media): array
+{
+    $driver = trim((string)($media['storage_driver'] ?? 'local')) ?: 'local';
+    if ($driver === 'local') {
+        $result = ['ok' => true, 'error' => ''];
+    } else {
+        $result = plugin_filter('attachment_delete', [
+            'ok' => false,
+            'error' => '当前存储插件不可用，无法删除远端文件。',
+        ], ['media' => $media, 'storage_driver' => $driver, 'storage_key' => (string)($media['storage_key'] ?? '')]);
+    }
+    if (!is_array($result) || empty($result['ok'])) {
+        return ['ok' => false, 'error' => trim((string)($result['error'] ?? '删除存储文件失败。')) ?: '删除存储文件失败。'];
+    }
+
+    $localPath = trim((string)($media['local_path'] ?? ''));
+    if ($localPath !== '') {
+        $file = media_local_file($localPath);
+        if ($file === null) {
+            return ['ok' => false, 'error' => '媒体文件路径无效，已停止删除。'];
+        }
+        if (is_file($file) && !@unlink($file)) {
+            return ['ok' => false, 'error' => '服务器无法删除本地媒体文件。'];
+        }
+    }
+    return ['ok' => true, 'error' => ''];
+}
+
 function handle_attachment_upload(): void
 {
     require_admin();
@@ -1188,7 +1330,8 @@ function handle_attachment_upload(): void
         $timestamp = str_replace('.', '', sprintf('%.6F', microtime(true)));
         $filename = $timestamp . '-' . bin2hex(random_bytes(3)) . '.' . $safeExtension;
         $target = $dir . '/' . $filename;
-        $isImage = @getimagesize($tmpName) !== false;
+        $imageInfo = @getimagesize($tmpName);
+        $isImage = is_array($imageInfo);
 
         if (!move_uploaded_file($tmpName, $target)) {
             $failed[] = ['name' => $originalName, 'error' => '保存附件失败。'];
@@ -1201,6 +1344,8 @@ function handle_attachment_upload(): void
             'url' => $localUrl,
             'error' => '',
             'remove_local' => false,
+            'storage_driver' => 'local',
+            'storage_key' => '',
         ], [
             'file' => $target,
             'year' => $year,
@@ -1221,7 +1366,38 @@ function handle_attachment_upload(): void
         $label = trim(pathinfo($originalName, PATHINFO_FILENAME)) ?: $filename;
         $markdown = $isImage ? '![' . $label . '](' . $url . ')' : '[' . $label . '](' . $url . ')';
 
+        try {
+            $now = time();
+            q(
+                'INSERT INTO media(original_name, title, alt_text, caption, url, storage_driver, storage_key, local_path, mime_type, file_size, is_image, width, height, created_at, updated_at)
+                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                [
+                    str_sub_u($originalName, 0, 255), str_sub_u($label, 0, 255), '', '', $url,
+                    str_sub_u(trim((string)($storage['storage_driver'] ?? 'local')), 0, 80) ?: 'local',
+                    str_sub_u(trim((string)($storage['storage_key'] ?? '')), 0, 1000),
+                    !empty($storage['remove_local']) ? '' : $year . '/' . $filename,
+                    str_sub_u($mime, 0, 255), $size, $isImage ? 1 : 0,
+                    $isImage ? (int)($imageInfo[0] ?? 0) : 0, $isImage ? (int)($imageInfo[1] ?? 0) : 0,
+                    $now, $now,
+                ]
+            );
+            $mediaId = (int)db()->lastInsertId();
+        } catch (Throwable) {
+            $storageDriver = trim((string)($storage['storage_driver'] ?? 'local')) ?: 'local';
+            if ($storageDriver !== 'local') {
+                plugin_filter('attachment_delete', ['ok' => false, 'error' => ''], [
+                    'storage_driver' => $storageDriver,
+                    'storage_key' => (string)($storage['storage_key'] ?? ''),
+                    'media' => ['storage_driver' => $storageDriver, 'storage_key' => (string)($storage['storage_key'] ?? '')],
+                ]);
+            }
+            if (is_file($target)) { @unlink($target); }
+            $failed[] = ['name' => $originalName, 'error' => '媒体资料登记失败。'];
+            continue;
+        }
+
         $uploaded[] = [
+            'id' => $mediaId,
             'name' => $originalName,
             'url' => $url,
             'markdown' => $markdown,
@@ -1519,7 +1695,7 @@ function apply_pretty_route(): void
         return;
     }
 
-    if (preg_match('#^/admin/(posts|comments|categories|tags|links|users|ai|mail|s3|themes|settings|plugins)/?$#i', $path, $matches)) {
+    if (preg_match('#^/admin/(posts|comments|categories|tags|links|users|media|ai|mail|s3|themes|settings|plugins)/?$#i', $path, $matches)) {
         set_route_params(['a' => 'admin_' . str_lower_u($matches[1])]);
         return;
     }
@@ -1822,6 +1998,7 @@ function url_for(string $route, array $params = []): string
         'admin_tags' => $pretty ? app_path('/admin/tags') : script_url() . '?a=admin_tags',
         'admin_links' => $pretty ? app_path('/admin/links') : script_url() . '?a=admin_links',
         'admin_users' => $pretty ? app_path('/admin/users') : script_url() . '?a=admin_users',
+        'admin_media' => $pretty ? app_path('/admin/media') : script_url() . '?a=admin_media',
         'admin_ai' => $pretty ? app_path('/admin/ai') : script_url() . '?a=admin_ai',
         'admin_mail' => $pretty ? app_path('/admin/mail') : script_url() . '?a=admin_mail',
         'admin_s3' => $pretty ? app_path('/admin/s3') : script_url() . '?a=admin_s3',
@@ -1847,6 +2024,8 @@ function url_for(string $route, array $params = []): string
         'save_user' => script_url() . '?a=save_user',
         'delete_user' => script_url() . '?a=delete_user',
         'upload_attachment' => script_url() . '?a=upload_attachment',
+        'save_media' => script_url() . '?a=save_media',
+        'delete_media' => script_url() . '?a=delete_media',
         'delete_post' => script_url() . '?a=delete_post',
         'change_status' => script_url() . '?a=change_status',
         'submit_comment' => script_url() . '?a=submit_comment',
@@ -4076,6 +4255,7 @@ function admin_icon(string $name): string
         'overview' => '<rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect>',
         'home' => '<path d="M3 10.5 12 3l9 7.5"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path>',
         'write' => '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>',
+        'media' => '<rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m21 15-5-5L5 20"></path><path d="m14 14-2-2-6 6"></path>',
         'posts' => '<path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path>',
         'comments' => '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8z"></path><path d="M8 9h8"></path><path d="M8 13h5"></path>',
         'bell' => '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path>',
@@ -4138,6 +4318,13 @@ function render_admin_sidebar(string $active, array $summary = []): string
             'note' => '发布文章或页面',
             'href' => url_for('write'),
             'active' => in_array($active, ['write', 'edit'], true),
+        ],
+        [
+            'label' => '媒体库',
+            'icon' => 'media',
+            'note' => '上传与文件管理',
+            'href' => url_for('admin_media'),
+            'active' => $active === 'media',
         ],
         [
             'label' => '文章管理',
@@ -5738,6 +5925,109 @@ function render_admin_users_page(array $form = [], array $errors = []): void
     render_layout('用户管理', (string)ob_get_clean(), ['active' => 'users', 'wide' => true, 'description' => '用户管理']);
 }
 
+function render_admin_media_page(): void
+{
+    require_admin();
+
+    $search = trim((string)($_GET['q'] ?? ''));
+    $type = (string)($_GET['type'] ?? 'all');
+    if (!in_array($type, ['all', 'images', 'files'], true)) {
+        $type = 'all';
+    }
+    $where = [];
+    $params = [];
+    if ($search !== '') {
+        $where[] = '(title LIKE ? OR original_name LIKE ? OR caption LIKE ?)';
+        $term = '%' . $search . '%';
+        array_push($params, $term, $term, $term);
+    }
+    if ($type === 'images') {
+        $where[] = 'is_image = 1';
+    } elseif ($type === 'files') {
+        $where[] = 'is_image = 0';
+    }
+    $sql = 'SELECT * FROM media' . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY created_at DESC, id DESC';
+    $mediaItems = all_rows($sql, $params);
+    $total = (int)val('SELECT COUNT(*) FROM media');
+    $editId = max(0, (int)($_GET['id'] ?? 0));
+    $editing = $editId > 0 ? one('SELECT * FROM media WHERE id = ?', [$editId]) : null;
+
+    ob_start(); ?>
+    <div class="admin-shell">
+      <?= render_admin_sidebar('media') ?>
+      <div class="admin-main">
+        <?= render_admin_topbar('媒体库') ?>
+        <div class="media-library admin-animate admin-animate--2">
+          <section class="panel media-library-upload">
+            <div class="panel__header"><h2>上传媒体</h2><p class="panel__meta">图片、PDF、文本和 ZIP 文件，每个最大 30M。</p></div>
+            <div class="panel__body">
+              <div class="attachment-uploader" data-upload-url="<?= h(url_for('upload_attachment')) ?>" data-csrf="<?= h(csrf_token()) ?>" data-refresh-on-upload="1">
+                <input id="mediaAttachmentInput" class="attachment-input" type="file" name="attachments[]" multiple>
+                <label class="attachment-drop" for="mediaAttachmentInput">
+                  <span class="attachment-drop__title">选择或拖入媒体文件</span>
+                  <span class="attachment-drop__hint">上传完成后会自动加入媒体库。</span>
+                </label>
+                <div class="attachment-list" aria-live="polite"></div>
+              </div>
+            </div>
+          </section>
+
+          <form class="media-library-toolbar" method="get" action="<?= h(url_for('admin_media')) ?>">
+            <?php if (!use_pretty_url()): ?><input type="hidden" name="a" value="admin_media"><?php endif; ?>
+            <strong>媒体资料：<span class="media-library-count"><?= h((string)$total) ?></span></strong>
+            <label class="media-library-search"><span class="sr-only">搜索媒体</span><input name="q" type="search" value="<?= h($search) ?>" placeholder="搜索媒体"></label>
+            <label class="media-library-filter"><span class="sr-only">媒体类型</span><select name="type"><option value="all"<?= $type === 'all' ? ' selected' : '' ?>>全部媒体</option><option value="images"<?= $type === 'images' ? ' selected' : '' ?>>图片</option><option value="files"<?= $type === 'files' ? ' selected' : '' ?>>文件</option></select></label>
+            <button class="button button--secondary" type="submit">筛选</button>
+          </form>
+
+          <?php if ($editing): ?>
+            <section class="panel media-editor" id="media-editor">
+              <div class="panel__header"><h2>编辑媒体</h2><p class="panel__meta"><?= h((string)$editing['original_name']) ?></p></div>
+              <div class="panel__body">
+                <form class="form-stack" method="post" action="<?= h(url_for('save_media')) ?>">
+                  <?= csrf_field() ?><input type="hidden" name="id" value="<?= h((string)$editing['id']) ?>">
+                  <div class="field"><label for="mediaTitle">标题</label><input id="mediaTitle" name="title" value="<?= h((string)$editing['title']) ?>" maxlength="255" required></div>
+                  <?php if (!empty($editing['is_image'])): ?><div class="field"><label for="mediaAlt">替代文本</label><input id="mediaAlt" name="alt_text" value="<?= h((string)$editing['alt_text']) ?>" maxlength="500"></div><?php endif; ?>
+                  <div class="field"><label for="mediaCaption">说明文字</label><textarea id="mediaCaption" name="caption" rows="3" maxlength="2000"><?= h((string)$editing['caption']) ?></textarea></div>
+                  <div class="action-row"><a class="button button--secondary" href="<?= h(url_for('admin_media')) ?>">取消</a><button class="button" type="submit">保存媒体</button></div>
+                </form>
+              </div>
+            </section>
+          <?php elseif ($editId > 0): ?>
+            <div class="flash flash--error">找不到媒体资料。</div>
+          <?php endif; ?>
+
+          <?php if ($mediaItems): ?>
+            <div class="media-library-grid">
+              <?php foreach ($mediaItems as $media): ?>
+                <?php $extension = strtoupper(pathinfo((string)$media['original_name'], PATHINFO_EXTENSION)) ?: 'FILE'; ?>
+                <article class="media-library-item">
+                  <a class="media-library-preview" href="<?= h((string)$media['url']) ?>" target="_blank" rel="noopener noreferrer" aria-label="打开文件" title="<?= h((string)$media['original_name']) ?>">
+                    <?php if (!empty($media['is_image'])): ?><img src="<?= h((string)$media['url']) ?>" alt="<?= h((string)($media['alt_text'] ?: $media['title'])) ?>" loading="lazy"><?php else: ?><span><?= h(str_sub_u($extension, 0, 8)) ?></span><?php endif; ?>
+                  </a>
+                  <div class="media-library-meta">
+                    <strong title="<?= h((string)$media['original_name']) ?>"><?= h((string)($media['title'] ?: $media['original_name'])) ?></strong>
+                    <span><?= h((string)$media['mime_type']) ?> · <?= h(media_file_size((int)$media['file_size'])) ?></span>
+                    <span><?= h(pretty_date((int)$media['created_at'], true)) ?><?= (int)$media['width'] > 0 ? ' · ' . h((string)$media['width']) . '×' . h((string)$media['height']) : '' ?></span>
+                  </div>
+                  <div class="media-library-actions">
+                    <a class="button button--ghost" href="<?= h((string)$media['url']) ?>" target="_blank" rel="noopener noreferrer">打开</a>
+                    <a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_media'), ['id' => (int)$media['id']])) ?>#media-editor">编辑</a>
+                    <form method="post" action="<?= h(url_for('delete_media')) ?>" onsubmit="return confirm('删除此媒体资料？文件将被永久删除。');"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h((string)$media['id']) ?>"><button class="button button--danger" type="submit">删除</button></form>
+                  </div>
+                </article>
+              <?php endforeach; ?>
+            </div>
+          <?php else: ?>
+            <div class="empty-state media-library-empty"><p><?= $search !== '' || $type !== 'all' ? '没有匹配的媒体资料。' : '暂无媒体资料。' ?></p></div>
+          <?php endif; ?>
+        </div>
+      </div>
+    </div>
+    <?php
+    render_layout('媒体库', (string)ob_get_clean(), ['active' => 'media', 'wide' => true, 'description' => '媒体资料管理']);
+}
+
 function render_admin_plugins_page(): void
 {
     require_admin();
@@ -5764,7 +6054,7 @@ function render_admin_plugins_page(): void
             <?php if ($plugins): ?>
               <div class="table-wrap">
                 <table class="admin-table">
-                  <thead><tr><th>插件</th><th>版本</th><th>状态</th><th>操作</th></tr></thead>
+                  <thead><tr><th>插件</th><th>作者</th><th>版本</th><th>状态</th><th>操作</th></tr></thead>
                   <tbody>
                   <?php foreach ($plugins as $slug => $plugin): ?>
                     <?php $isActive = in_array($slug, $active, true); ?>
@@ -5772,14 +6062,10 @@ function render_admin_plugins_page(): void
                       <td>
                         <div class="table-title">
                           <strong><?= h((string)$plugin['name']) ?></strong>
-                          <span>
-                            <?= h((string)$plugin['description']) ?>
-                            <?php if ($plugin['author'] !== ''): ?>
-                              · <?php if ($plugin['url'] !== ''): ?><a href="<?= h((string)$plugin['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$plugin['author']) ?></a><?php else: ?><?= h((string)$plugin['author']) ?><?php endif; ?>
-                            <?php endif; ?>
-                          </span>
+                          <span><?= h((string)$plugin['description']) ?></span>
                         </div>
                       </td>
+                      <td><?php if ($plugin['author'] !== ''): ?><?php if ($plugin['url'] !== ''): ?><a href="<?= h((string)$plugin['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$plugin['author']) ?></a><?php else: ?><?= h((string)$plugin['author']) ?><?php endif; ?><?php else: ?>—<?php endif; ?></td>
                       <td><?= h((string)($plugin['version'] ?: '—')) ?></td>
                       <td>
                         <?php if (isset($errors[$slug])): ?>
@@ -6619,6 +6905,10 @@ switch ($action) {
         render_admin_users_page();
         break;
 
+    case 'admin_media':
+        render_admin_media_page();
+        break;
+
     case 'admin_themes':
         render_admin_themes_page();
         break;
@@ -6654,6 +6944,47 @@ switch ($action) {
         plugin_action('plugin_status_changed', ['plugin' => $slug, 'operation' => $operation]);
         set_flash('success', $operation === 'activate' ? '插件已启用。' : '插件已停用。');
         redirect_to(url_with_query(url_for('admin_plugins'), ['changed' => bin2hex(random_bytes(4))]), 303);
+        break;
+
+    case 'save_media':
+        require_admin_post(url_for('admin_media'));
+        $mediaId = max(0, (int)($_POST['id'] ?? 0));
+        $media = $mediaId > 0 ? one('SELECT * FROM media WHERE id = ?', [$mediaId]) : null;
+        if (!$media) {
+            set_flash('error', '找不到媒体资料。');
+            redirect_to(url_for('admin_media'));
+        }
+        $title = trim((string)($_POST['title'] ?? ''));
+        if ($title === '') {
+            set_flash('error', '媒体标题不能为空。');
+            redirect_to(url_with_query(url_for('admin_media'), ['id' => $mediaId]) . '#media-editor');
+        }
+        q('UPDATE media SET title = ?, alt_text = ?, caption = ?, updated_at = ? WHERE id = ?', [
+            str_sub_u($title, 0, 255),
+            !empty($media['is_image']) ? str_sub_u(trim((string)($_POST['alt_text'] ?? '')), 0, 500) : '',
+            str_sub_u(trim((string)($_POST['caption'] ?? '')), 0, 2000),
+            time(), $mediaId,
+        ]);
+        set_flash('success', '媒体资料已更新。');
+        redirect_to(url_for('admin_media'));
+        break;
+
+    case 'delete_media':
+        require_admin_post(url_for('admin_media'));
+        $mediaId = max(0, (int)($_POST['id'] ?? 0));
+        $media = $mediaId > 0 ? one('SELECT * FROM media WHERE id = ?', [$mediaId]) : null;
+        if (!$media) {
+            set_flash('error', '找不到媒体资料。');
+            redirect_to(url_for('admin_media'));
+        }
+        $deleted = delete_media_storage($media);
+        if (empty($deleted['ok'])) {
+            set_flash('error', (string)($deleted['error'] ?? '删除媒体资料失败。'));
+            redirect_to(url_for('admin_media'));
+        }
+        q('DELETE FROM media WHERE id = ?', [$mediaId]);
+        set_flash('success', '媒体资料已删除。');
+        redirect_to(url_for('admin_media'));
         break;
 
     case 'activate_theme':

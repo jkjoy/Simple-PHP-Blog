@@ -411,7 +411,7 @@ function i_render_page(string $title, string $body): void
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= i_h($title) ?></title>
-  <link rel="stylesheet" href="<?= i_h(i_asset_url('index.css')) ?>?v=v1.5.2">
+  <link rel="stylesheet" href="<?= i_h(i_asset_url('index.css')) ?>?v=v1.6.0">
 </head>
 <body>
   <div class="site-frame">
@@ -773,6 +773,26 @@ $db->exec(
         FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
     ) WITHOUT ROWID'
 );
+$db->exec(
+    'CREATE TABLE IF NOT EXISTS media(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        original_name TEXT NOT NULL,
+        title TEXT NOT NULL DEFAULT \'\',
+        alt_text TEXT NOT NULL DEFAULT \'\',
+        caption TEXT NOT NULL DEFAULT \'\',
+        url TEXT NOT NULL,
+        storage_driver TEXT NOT NULL DEFAULT \'local\',
+        storage_key TEXT NOT NULL DEFAULT \'\',
+        local_path TEXT NOT NULL DEFAULT \'\',
+        mime_type TEXT NOT NULL,
+        file_size INTEGER NOT NULL DEFAULT 0,
+        is_image INTEGER NOT NULL DEFAULT 0,
+        width INTEGER NOT NULL DEFAULT 0,
+        height INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    )'
+);
 $db->exec('CREATE INDEX IF NOT EXISTS idx_posts_published_pinned ON posts(kind, status, is_pinned DESC, published_at DESC, id DESC)');
 $db->exec('CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category_id, kind, status, published_at DESC)');
 $db->exec('CREATE INDEX IF NOT EXISTS idx_categories_sort ON categories(sort_order ASC, id DESC)');
@@ -783,6 +803,8 @@ $db->exec('CREATE INDEX IF NOT EXISTS idx_comments_ip_recent ON comments(ip_hash
 $db->exec('CREATE INDEX IF NOT EXISTS idx_comments_parent ON comments(parent_id, created_at, id)');
 $db->exec('CREATE INDEX IF NOT EXISTS idx_comments_user_recent ON comments(user_id, created_at DESC)');
 $db->exec("CREATE INDEX IF NOT EXISTS idx_comments_visitor_email_approval ON comments(author_email COLLATE NOCASE, status) WHERE user_id IS NULL");
+$db->exec('CREATE INDEX IF NOT EXISTS idx_media_created ON media(created_at DESC, id DESC)');
+$db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_media_local_path ON media(local_path) WHERE local_path <> ''");
 
 $now = time();
 $settings = i_default_settings();

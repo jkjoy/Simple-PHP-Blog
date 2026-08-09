@@ -164,6 +164,65 @@ function sblog_s3_upload(string $file, string $key, string $mime, array $setting
     return [true, (string)$target['public_url'], ''];
 }
 
+function sblog_s3_delete(string $key, array $settings): array
+{
+    $region = trim((string)$settings['s3_region']);
+    $accessKey = trim((string)$settings['s3_access_key']);
+    $secretKey = (string)$settings['s3_secret_key'];
+    $target = sblog_s3_request_target($settings, $key);
+    if ($target === null || $region === '' || $accessKey === '' || $secretKey === '') {
+        return [false, 'S3 配置不完整，无法删除对象。'];
+    }
+    if (!function_exists('curl_init')) {
+        return [false, '服务器缺少 cURL 扩展，无法删除 S3 对象。'];
+    }
+
+    $payloadHash = hash('sha256', '');
+    $amzDate = gmdate('Ymd\THis\Z');
+    $dateStamp = gmdate('Ymd');
+    $canonicalHeaders = 'host:' . $target['host'] . "\n"
+        . 'x-amz-content-sha256:' . $payloadHash . "\n"
+        . 'x-amz-date:' . $amzDate . "\n";
+    $signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+    $canonicalRequest = "DELETE\n" . $target['uri'] . "\n\n" . $canonicalHeaders . "\n" . $signedHeaders . "\n" . $payloadHash;
+    $scope = $dateStamp . '/' . $region . '/s3/aws4_request';
+    $stringToSign = "AWS4-HMAC-SHA256\n" . $amzDate . "\n" . $scope . "\n" . hash('sha256', $canonicalRequest);
+    $dateKey = hash_hmac('sha256', $dateStamp, 'AWS4' . $secretKey, true);
+    $regionKey = hash_hmac('sha256', $region, $dateKey, true);
+    $serviceKey = hash_hmac('sha256', 's3', $regionKey, true);
+    $signingKey = hash_hmac('sha256', 'aws4_request', $serviceKey, true);
+    $signature = hash_hmac('sha256', $stringToSign, $signingKey);
+    $authorization = 'AWS4-HMAC-SHA256 Credential=' . $accessKey . '/' . $scope
+        . ', SignedHeaders=' . $signedHeaders . ', Signature=' . $signature;
+
+    $curl = curl_init((string)$target['url']);
+    curl_setopt_array($curl, [
+        CURLOPT_CUSTOMREQUEST => 'DELETE',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: ' . $authorization,
+            'Host: ' . $target['host'],
+            'x-amz-content-sha256: ' . $payloadHash,
+            'x-amz-date: ' . $amzDate,
+        ],
+    ]);
+    $body = curl_exec($curl);
+    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+    if ($body === false) {
+        return [false, '连接 S3 失败：' . $error];
+    }
+    if ($status < 200 || $status >= 300) {
+        return [false, 'S3 删除对象失败（HTTP ' . $status . '）。'];
+    }
+    return [true, ''];
+}
+
 function sblog_s3_render_settings(): void
 {
     require_admin();
@@ -247,7 +306,26 @@ add_plugin_filter('attachment_storage', static function (array $storage, array $
     if (!$ok) {
         return ['ok' => false, 'url' => '', 'error' => $error, 'remove_local' => false];
     }
-    return ['ok' => true, 'url' => $url, 'error' => '', 'remove_local' => $settings['s3_keep_local'] !== '1'];
+    return [
+        'ok' => true,
+        'url' => $url,
+        'error' => '',
+        'remove_local' => $settings['s3_keep_local'] !== '1',
+        'storage_driver' => 's3-storage',
+        'storage_key' => $key,
+    ];
+});
+
+add_plugin_filter('attachment_delete', static function (array $result, array $context): array {
+    if ((string)($context['storage_driver'] ?? '') !== 's3-storage') {
+        return $result;
+    }
+    $key = trim((string)($context['storage_key'] ?? ''));
+    if ($key === '') {
+        return ['ok' => false, 'error' => '媒体资料缺少 S3 对象键，无法安全删除。'];
+    }
+    [$ok, $error] = sblog_s3_delete($key, sblog_s3_settings());
+    return ['ok' => $ok, 'error' => $error];
 });
 
 add_plugin_action('request', 'sblog_s3_handle_request');
