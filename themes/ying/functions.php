@@ -106,7 +106,7 @@ function ying_render_category_content(string $slug): string
         <header class="category-header">
           <h1 class="item-a category-title">分类：<?= h((string)$category['name']) ?></h1>
           <p class="category-summary">
-            <span>共有 <strong><?= h((string)count($posts)) ?></strong> 篇文章</span>
+            <span class="category-summary__count">共有 <?= h((string)count($posts)) ?> 篇文章</span>
             <?php if ($description !== ''): ?><span class="category-summary__divider" aria-hidden="true">·</span><span><?= h($description) ?></span><?php endif; ?>
           </p>
         </header>

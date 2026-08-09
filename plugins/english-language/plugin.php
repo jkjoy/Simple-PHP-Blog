@@ -268,6 +268,7 @@ function sblog_english_language_map(): array
         '链接已删除。' => 'Link deleted.',
         '标签名称和 Slug 已更新。' => 'Tag name and slug updated.',
         '用户已更新。' => 'User updated.',
+        '用户设置已保存。' => 'User settings saved.',
         '用户已添加。' => 'User added.',
         '文章已创建。' => 'Post created.',
         '文章已保存。' => 'Post saved.',
@@ -339,6 +340,16 @@ function sblog_english_language_map(): array
         '切换到深色模式' => 'Switch to dark mode',
         '切换到浅色模式' => 'Switch to light mode',
         '用户设置' => 'User settings',
+        '账户信息' => 'Account information',
+        '公开资料' => 'Public profile',
+        '社交链接' => 'Social links',
+        '新密码' => 'New password',
+        '原密码' => 'Current password',
+        '请输入原密码。' => 'Enter your current password.',
+        '原密码不正确。' => 'The current password is incorrect.',
+        '留空则不修改。' => 'Leave blank to keep the current password.',
+        '密码（留空则不修改）' => 'Password (leave blank to keep the current password)',
+        '取消编辑' => 'Cancel editing',
         '退出登录' => 'Sign out',
         '退出' => 'Sign out',
         '后台导航' => 'Admin navigation',
@@ -476,6 +487,7 @@ function sblog_english_language_map(): array
         'Head 自定义代码' => 'Custom head code',
         '内容类型' => 'Content type',
         '文章分类' => 'Post category',
+        '置顶' => 'Pinned',
         '置顶文章' => 'Pin post',
         '显示评论' => 'Show comments',
         '上传附件' => 'Upload attachment',
@@ -557,6 +569,64 @@ function sblog_english_language_map(): array
         '继续阅读' => 'Continue reading',
         '回到顶部' => 'Back to top',
         '朋友' => 'Friends',
+        '分页' => 'Pagination',
+        '主菜单' => 'Main menu',
+        '友链' => 'Links',
+        '管理' => 'Admin',
+        '切换主题' => 'Toggle theme',
+        '返回顶部' => 'Back to top',
+        '页脚导航' => 'Footer navigation',
+        '个人主页' => 'Personal website',
+        '个人链接' => 'Profile links',
+        '关闭菜单' => 'Close menu',
+        '黑夜模式' => 'Dark mode',
+        '切换深色模式' => 'Switch to dark mode',
+        '随笔' => 'Notes',
+        '写第一篇文章' => 'Write the first post',
+        '写下第一篇文章' => 'Write the first post',
+        '把复杂留给系统，把时间还给生活。' => 'Let the system handle complexity and give you back your time.',
+        '内容柜还是空的。' => 'There are no posts yet.',
+        '归档抽屉还是空的。' => 'The archive is still empty.',
+        '这个标签下还没有文章。' => 'There are no posts with this tag yet.',
+        '这个分类下还没有文章。' => 'There are no posts in this category yet.',
+        '这个分类下还没有已发布文章。' => 'There are no published posts in this category yet.',
+        '朋友们' => 'Friends',
+        '一些常来常往、值得敲门拜访的地方。' => 'Sites and people worth visiting.',
+        '邻居名册还是空的。' => 'No friends have been added yet.',
+        '去看看他们最近在做什么' => 'See what they have been working on',
+        '来信' => 'Comments',
+        '写封回信' => 'Write a reply',
+        '寄出回信' => 'Post comment',
+        '信箱里还没有新消息。' => 'There are no comments yet.',
+        '这篇文章暂不接收回信。' => 'Comments are closed for this post.',
+        '写下评论' => 'Write a comment',
+        '提交评论' => 'Post comment',
+        '分类:' => 'Category:',
+        '记录技术、灵感与生活片段。' => 'Notes on technology, ideas, and everyday life.',
+        '阅读文章' => 'Read posts',
+        '查看归档' => 'View archive',
+        '篇文章' => 'Posts',
+        '个标签' => 'Tags',
+        '最近更新' => 'Recent updates',
+        '浏览全部' => 'Browse all',
+        '所有文章' => 'All posts',
+        '文章标签' => 'Post tags',
+        '归档还是空的。' => 'The archive is still empty.',
+        '去看看互联网另一端的有趣灵魂。' => 'Discover interesting people across the web.',
+        '访问这个网站' => 'Visit this website',
+        '欢迎访问这个网站' => 'Visit this website',
+        '暂无评论，来留下第一条吧。' => 'No comments yet. Be the first to respond.',
+        '暂无评论，来抢沙发吧' => 'No comments yet. Be the first to respond.',
+        '最新文章' => 'Latest posts',
+        '运行天数' => 'Days online',
+        '一些值得访问的网站与朋友' => 'Websites and friends worth visiting',
+        '一些值得访问的网站与朋友。' => 'Websites and friends worth visiting.',
+        '· HammerOS 锤伴' => '· HammerOS',
+        '夜深了，我是这里的系统管家。' => 'It is late. I am your system companion.',
+        '早上好，我是这里的系统管家。' => 'Good morning. I am your system companion.',
+        '中午好，我是这里的系统管家。' => 'Good afternoon. I am your system companion.',
+        '下午好，我是这里的系统管家。' => 'Good afternoon. I am your system companion.',
+        '晚上好，我是这里的系统管家。' => 'Good evening. I am your system companion.',
     ];
 }
 
@@ -569,6 +639,14 @@ function sblog_english_client_translations(): array
         'show_password' => 'Show password',
         'close_admin_menu' => 'Close admin menu',
         'open_admin_menu' => 'Open admin menu',
+        'open_menu' => 'Open menu',
+        'close_menu' => 'Close menu',
+        'light_mode' => 'Light mode',
+        'dark_mode' => 'Dark mode',
+        'hammer_message_1' => 'Take your time. You have done enough for today.',
+        'hammer_message_2' => 'I will keep the important content up front.',
+        'hammer_message_3' => 'It is good to pause and look into the distance.',
+        'hammer_message_4' => 'The system is healthy. Take care of yourself too.',
         'file_too_large' => 'File exceeds 30 MB',
         'waiting_to_upload' => 'Waiting to upload',
         'uploading' => 'Uploading...',
@@ -593,7 +671,13 @@ function sblog_english_client_translations(): array
         'ai_processing_content' => 'AI is processing the content...',
         'cancel_reply_to' => 'Cancel reply to @{author}',
         'cancel_reply' => 'Cancel reply',
+        'theme_activate_failed' => 'Could not switch themes. Try again.',
     ];
+}
+
+function sblog_english_count(int $number, string $singular, string $plural): string
+{
+    return $number . ' ' . ($number === 1 ? $singular : $plural);
 }
 
 function sblog_english_translate_phrase(string $phrase): string
@@ -601,6 +685,98 @@ function sblog_english_translate_phrase(string $phrase): string
     $translations = sblog_english_language_map();
     if (isset($translations[$phrase])) {
         return (string)$translations[$phrase];
+    }
+
+    if (preg_match('/^(.+)链接格式不正确。$/u', $phrase, $linkParts)) {
+        $label = (string)($translations[$linkParts[1]] ?? $linkParts[1]);
+        return 'The ' . $label . ' link is invalid.';
+    }
+
+    if (preg_match('/^\[(.+)]$/u', $phrase, $bracketParts)) {
+        $label = (string)$bracketParts[1];
+        if (isset($translations[$label])) {
+            return '[' . (string)$translations[$label] . ']';
+        }
+    }
+    if (preg_match('/^\$ cat (.+)\.md$/u', $phrase, $commandParts)) {
+        $label = (string)$commandParts[1];
+        if (isset($translations[$label])) {
+            return '$ cat ' . str_lower_u(str_replace(' ', '-', (string)$translations[$label])) . '.md';
+        }
+    }
+    if (preg_match('/^分类：(.+)$/u', $phrase, $categoryParts)) {
+        $label = (string)($translations[$categoryParts[1]] ?? $categoryParts[1]);
+        return 'Category: ' . $label;
+    }
+    if (preg_match('/^标签 (.+) 下的文章$/u', $phrase, $tagParts)) {
+        return 'Posts tagged ' . $tagParts[1];
+    }
+    if (preg_match('/^(\d+)月\s+(\d+),\s+(\d{4})$/u', $phrase, $dateParts)) {
+        $months = [1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        $month = $months[(int)$dateParts[1]] ?? $dateParts[1];
+        return $month . ' ' . $dateParts[2] . ', ' . $dateParts[3];
+    }
+    if (preg_match('/^(\d+)月$/u', $phrase, $monthParts)) {
+        $months = [1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        return $months[(int)$monthParts[1]] ?? $phrase;
+    }
+    if (preg_match('/^(\d{4})\s*年\s*(\d{1,2})\s*月$/u', $phrase, $monthParts)) {
+        $months = [1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        $month = $months[(int)$monthParts[2]] ?? $monthParts[2];
+        return $month . ' ' . $monthParts[1];
+    }
+    if (preg_match('/^(\d+)\s*篇文章$/u', $phrase, $countParts) || preg_match('/^(\d+)\s*篇$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'post', 'posts');
+    }
+    if (preg_match('/^·\s*(\d+)\s*篇$/u', $phrase, $countParts)) {
+        return '· ' . sblog_english_count((int)$countParts[1], 'post', 'posts');
+    }
+    if (preg_match('/^(\d+)\s*条$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'comment', 'comments');
+    }
+    if (preg_match('/^共(?:有)?\s*(\d+)\s*篇文章(?:\s*·\s*(.+))?$/u', $phrase, $countParts)) {
+        $result = sblog_english_count((int)$countParts[1], 'post', 'posts');
+        if (isset($countParts[2]) && trim((string)$countParts[2]) !== '') {
+            $description = trim((string)$countParts[2]);
+            $result .= ' · ' . (string)($translations[$description] ?? $description);
+        }
+        return $result;
+    }
+    if (preg_match('/^共收好\s*(\d+)\s*篇文章，按时间整齐放置。$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'post filed', 'posts filed') . ' neatly by date.';
+    }
+    if (preg_match('/^(\d+)\s*枚索引，帮你快速找回感兴趣的内容。$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'tag', 'tags') . ' to help you find what interests you.';
+    }
+    if (preg_match('/^为你找到\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'post found', 'posts found') . '.';
+    }
+    if (preg_match('/^这个(?:标签|分类)(?:下|里)共有\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'post', 'posts') . ' in this collection.';
+    }
+    if (preg_match('/^按时间回看写过的\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'post', 'posts') . ', organized by date.';
+    }
+    if (preg_match('/^(\d+)\s*个主题，找到你感兴趣的内容。$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'topic', 'topics') . ' to explore.';
+    }
+    if (preg_match('/^时间轴上的\s*(\d+)\s*篇文章\s*·\s*总共写了\s*(\d+)\s*字$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'post', 'posts') . ' on the timeline · ' . $countParts[2] . ' characters written';
+    }
+    if (preg_match('/^(\d+)\s*个标签，(\d+)\s*篇文章\s*·\s*每一枚标签，都是一颗星$/u', $phrase, $countParts)) {
+        return sblog_english_count((int)$countParts[1], 'tag', 'tags') . ', ' . sblog_english_count((int)$countParts[2], 'post', 'posts') . ' · Every tag is a star';
+    }
+    if (preg_match('/^继续翻阅，第\s*(\d+)\s*页$/u', $phrase, $pageParts)) {
+        return 'Keep reading, page ' . $pageParts[1];
+    }
+    if (preg_match('/^作者:\s*(.+)$/u', $phrase, $authorParts)) {
+        return 'Author: ' . $authorParts[1];
+    }
+    if (preg_match('/^浏览:\s*(\d+)$/u', $phrase, $viewParts)) {
+        return 'Views: ' . $viewParts[1];
+    }
+    if (preg_match('/^回复给 @(.+)$/u', $phrase, $replyParts)) {
+        return 'Reply to @' . $replyParts[1];
     }
 
     if (preg_match('/^([\s\S]+?)\s*·\s*([\s\S]+)$/u', $phrase, $titleParts)) {

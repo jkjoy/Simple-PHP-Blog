@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-const ADMIN_SESSION_IDLE_TIMEOUT = 1800;
-const ADMIN_SESSION_ABSOLUTE_TIMEOUT = 43200;
+const ADMIN_SESSION_IDLE_TIMEOUT = 43200;
+const ADMIN_SESSION_ABSOLUTE_TIMEOUT = 86400;
 const ADMIN_PRESENCE_TIMEOUT = 300;
 
 $sessionSecure = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.6.0';
+const APP_VERSION = 'v1.6.1';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -276,6 +276,7 @@ function ensure_schema(PDO $pdo): void
             email TEXT NOT NULL DEFAULT '',
             avatar_url TEXT NOT NULL DEFAULT '',
             website_url TEXT NOT NULL DEFAULT '',
+            github_url TEXT NOT NULL DEFAULT '',
             qq_url TEXT NOT NULL DEFAULT '',
             wechat_url TEXT NOT NULL DEFAULT '',
             weibo_url TEXT NOT NULL DEFAULT '',
@@ -407,7 +408,7 @@ function ensure_schema(PDO $pdo): void
     $columns = table_columns($pdo, 'posts');
     $userColumns = table_columns($pdo, 'users');
 
-    foreach (['nickname', 'email', 'avatar_url', 'website_url', 'qq_url', 'wechat_url', 'weibo_url', 'x_url', 'telegram_url', 'mastodon_url', 'bilibili_url', 'instagram_url', 'tiktok_url', 'signature'] as $column) {
+    foreach (['nickname', 'email', 'avatar_url', 'website_url', 'github_url', 'qq_url', 'wechat_url', 'weibo_url', 'x_url', 'telegram_url', 'mastodon_url', 'bilibili_url', 'instagram_url', 'tiktok_url', 'signature'] as $column) {
         if (!isset($userColumns[$column])) { $pdo->exec("ALTER TABLE users ADD COLUMN {$column} TEXT NOT NULL DEFAULT ''"); }
     }
     if (isset($userColumns['social_links'])) { $pdo->exec('ALTER TABLE users DROP COLUMN social_links'); }
@@ -2022,7 +2023,6 @@ function url_for(string $route, array $params = []): string
         'save_link' => script_url() . '?a=save_link',
         'delete_link' => script_url() . '?a=delete_link',
         'save_user' => script_url() . '?a=save_user',
-        'delete_user' => script_url() . '?a=delete_user',
         'upload_attachment' => script_url() . '?a=upload_attachment',
         'save_media' => script_url() . '?a=save_media',
         'delete_media' => script_url() . '?a=delete_media',
@@ -2271,6 +2271,7 @@ function gravatar_url(string $email, int $size = 72): string
 function social_profile_definitions(): array
 {
     return [
+        'github' => ['column' => 'github_url', 'label' => 'GitHub', 'icon' => 'ri-github-fill', 'placeholder' => 'https://github.com/...'],
         'qq' => ['column' => 'qq_url', 'label' => 'QQ', 'icon' => 'ri-qq-fill', 'placeholder' => 'https://qm.qq.com/q/...'],
         'wechat' => ['column' => 'wechat_url', 'label' => '微信', 'icon' => 'ri-wechat-fill', 'placeholder' => 'https://example.com/wechat'],
         'weibo' => ['column' => 'weibo_url', 'label' => '微博', 'icon' => 'ri-weibo-fill', 'placeholder' => 'https://weibo.com/...'],
@@ -4277,6 +4278,7 @@ function admin_icon(string $name): string
         'alert-circle' => '<circle cx="12" cy="12" r="9"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path>',
         'check-circle' => '<circle cx="12" cy="12" r="9"></circle><path d="m8 12 2.5 2.5L16 9"></path>',
         'refresh' => '<path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 4v5h5"></path><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 20v-5h-5"></path>',
+        'pin' => '<path d="M12 17v5"></path><path d="M5 17h14"></path><path d="M6 17h12v-2a4 4 0 0 0-4-4V5l1-2H9l1 2v6a4 4 0 0 0-4 4v2Z"></path>',
         'plugins' => '<path d="M8.5 3H5a2 2 0 0 0-2 2v3.5a2.5 2.5 0 1 1 0 5V19a2 2 0 0 0 2 2h3.5a2.5 2.5 0 1 1 5 0H19a2 2 0 0 0 2-2v-5.5a2.5 2.5 0 1 1 0-5V5a2 2 0 0 0-2-2h-5.5a2.5 2.5 0 1 1-5 0z"></path>',
         'logout' => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path>',
         default => '<circle cx="12" cy="12" r="8"></circle>',
@@ -4299,10 +4301,9 @@ function render_admin_sidebar(string $active, array $summary = []): string
     $siteName = setting('site_name', default_settings()['site_name']);
     $admin = current_admin();
     $adminName = (string)($admin['username'] ?? 'Admin');
-    $adminId = (int)($admin['id'] ?? 0);
     $adminAvatarUrl = trim((string)($admin['avatar_url'] ?? ''));
     $adminInitial = str_sub_u($adminName, 0, 1);
-    $userSettingsUrl = $adminId > 0 ? url_with_query(url_for('admin_users'), ['id' => $adminId]) : url_for('admin_users');
+    $userSettingsUrl = url_for('admin_users');
     $unreadComments = unread_comment_count();
     $links = [
         [
@@ -5457,13 +5458,16 @@ function render_admin_posts_page(): void
                   </thead>
                   <tbody>
                   <?php foreach ($posts as $post): ?>
-                    <?php $state = post_state($post); ?>
-                    <tr>
+                    <?php
+                    $state = post_state($post);
+                    $isPinned = !empty($post['is_pinned']) && content_kind($post) === 'post';
+                    ?>
+                    <tr class="admin-post-row<?= $isPinned ? ' admin-post-row--pinned' : '' ?>">
                       <td><span class="content-kind content-kind--<?= h(content_kind($post)) ?>"><?= h(content_type_label($post)) ?></span></td>
                       <td>
-                        <div class="table-title">
+                        <div class="table-title admin-post-title">
                           <strong><a href="<?= h(url_for('edit', ['id' => $post['id']])) ?>"><?= h($post['title']) ?></a></strong>
-                          <?php if (!empty($post['is_pinned']) && content_kind($post) === 'post'): ?><span class="admin-pinned-badge">置顶</span><?php endif; ?>
+                          <?php if ($isPinned): ?><span class="admin-pinned-badge"><?= admin_icon('pin') ?>置顶</span><?php endif; ?>
                         </div>
                       </td>
                       <td><span class="status-badge status-badge--<?= h($state['class']) ?>"><?= h($state['label']) ?></span></td>
@@ -5882,34 +5886,52 @@ function render_admin_tags_page(array $form = [], array $errors = []): void
 function render_admin_users_page(array $form = [], array $errors = []): void
 {
     require_admin();
-    $users = all_rows('SELECT * FROM users ORDER BY id ASC');
-    $id = (int)($_GET['id'] ?? $form['id'] ?? 0);
-    $editing = $id > 0 ? one('SELECT * FROM users WHERE id = ?', [$id]) : null;
-    $username = (string)($form['username'] ?? $editing['username'] ?? '');
+    $adminId = (int)(current_admin()['id'] ?? 0);
+    $account = one('SELECT * FROM users WHERE id = ?', [$adminId]) ?? [];
+    $username = (string)($form['username'] ?? $account['username'] ?? '');
     $profileDefaults = ['nickname' => '', 'email' => '', 'avatar_url' => '', 'website_url' => '', 'signature' => ''];
     foreach (social_profile_definitions() as $definition) { $profileDefaults[$definition['column']] = ''; }
-    $profile = array_merge($profileDefaults, $editing ?: [], $form);
+    $profile = array_merge($profileDefaults, $account, $form);
     $sidebar = render_admin_sidebar('users');
     ob_start(); ?>
-    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar('用户管理') ?><div class="admin-grid admin-grid--split">
-      <section class="panel admin-list-panel"><div class="panel__header"><h2>管理员账号</h2><p class="panel__meta">系统至少保留一个管理员。</p></div><div class="panel__body panel__body--flush"><div class="table-wrap"><table class="admin-table"><thead><tr><th>用户</th><th>邮箱</th><th>创建时间</th><th>操作</th></tr></thead><tbody><?php foreach ($users as $user): ?><tr><td><div class="table-title"><strong><?= h((string)($user['nickname'] ?: $user['username'])) ?></strong><span>@<?= h((string)$user['username']) ?><?= (int)$user['id'] === (int)(current_admin()['id'] ?? 0) ? '（当前）' : '' ?></span></div></td><td><?= h((string)$user['email']) ?></td><td><?= h(pretty_date((int)$user['created_at'], true)) ?></td><td><div class="table-actions"><a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_users'), ['id' => (int)$user['id']])) ?>">编辑</a><?php if ((int)$user['id'] !== (int)(current_admin()['id'] ?? 0)): ?><form method="post" action="<?= h(url_for('delete_user')) ?>" onsubmit="return confirm('确定删除这个管理员吗？');"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h($user['id']) ?>"><button class="button button--danger">删除</button></form><?php endif; ?></div></td></tr><?php endforeach; ?></tbody></table></div></div></section>
-      <section class="panel admin-list-panel">
-        <div class="panel__header"><h2><?= $editing ? '编辑用户' : '添加用户' ?></h2></div>
-        <div class="panel__body">
-          <?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', $errors)) ?></div><?php endif; ?>
-          <form class="form-stack" method="post" action="<?= h(url_for('save_user')) ?>">
-            <?= csrf_field() ?>
-            <input type="hidden" name="id" value="<?= h((string)$id) ?>">
-            <div class="field-grid">
-              <div class="field"><label for="user-username">用户名</label><input id="user-username" name="username" value="<?= h($username) ?>" required></div>
-              <div class="field"><label for="user-nickname">昵称</label><input id="user-nickname" name="nickname" value="<?= h((string)$profile['nickname']) ?>" required></div>
+    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar('用户设置') ?><div class="admin-grid admin-user-settings">
+      <section class="admin-profile-settings" aria-labelledby="user-settings-title">
+        <header class="admin-profile-settings__header">
+          <h2 id="user-settings-title">用户设置</h2>
+          <p>@<?= h($username) ?></p>
+        </header>
+        <?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', $errors)) ?></div><?php endif; ?>
+        <form class="admin-profile-form" method="post" action="<?= h(url_for('save_user')) ?>">
+          <?= csrf_field() ?>
+          <section class="admin-profile-section" aria-labelledby="account-settings-title">
+            <div class="admin-profile-section__title"><h3 id="account-settings-title">账户信息</h3></div>
+            <div class="admin-profile-section__fields">
+              <div class="field-grid">
+                <div class="field"><label for="user-username">用户名</label><input id="user-username" name="username" value="<?= h($username) ?>" autocomplete="username" required></div>
+                <div class="field"><label for="user-email">邮箱地址</label><input id="user-email" name="email" type="email" value="<?= h((string)$profile['email']) ?>" autocomplete="email"></div>
+              </div>
+              <div class="field-grid field-grid--triple">
+                <div class="field"><label for="user-current-password">原密码</label><input id="user-current-password" name="current_password" type="password" autocomplete="current-password"></div>
+                <div class="field"><label for="user-password">新密码</label><input id="user-password" name="password" type="password" minlength="8" autocomplete="new-password"></div>
+                <div class="field"><label for="user-password-confirm">确认新密码</label><input id="user-password-confirm" name="password_confirm" type="password" minlength="8" autocomplete="new-password"></div>
+              </div>
+              <p class="field-hint">留空则不修改。</p>
             </div>
-            <div class="field"><label for="user-password">密码<?= $editing ? '（留空则不修改）' : '' ?></label><input id="user-password" name="password" type="password"<?= $editing ? '' : ' required' ?> minlength="8"></div>
-            <div class="field"><label for="user-signature">个人签名档</label><textarea id="user-signature" name="signature" rows="3" placeholder="一句话介绍自己"><?= h((string)$profile['signature']) ?></textarea></div>
-            <div class="field"><label for="user-email">邮箱地址</label><input id="user-email" name="email" type="email" value="<?= h((string)$profile['email']) ?>"></div>
-            <div class="field"><label for="user-avatar">头像地址</label><input id="user-avatar" name="avatar_url" type="url" value="<?= h((string)$profile['avatar_url']) ?>" placeholder="https://example.com/avatar.jpg"></div>
-            <div class="field"><label for="user-website">网站地址</label><input id="user-website" name="website_url" type="url" value="<?= h((string)$profile['website_url']) ?>" placeholder="https://example.com"></div>
-            <div class="field-grid">
+          </section>
+          <section class="admin-profile-section" aria-labelledby="public-profile-title">
+            <div class="admin-profile-section__title"><h3 id="public-profile-title">公开资料</h3></div>
+            <div class="admin-profile-section__fields">
+              <div class="field-grid">
+                <div class="field"><label for="user-nickname">昵称</label><input id="user-nickname" name="nickname" value="<?= h((string)$profile['nickname']) ?>" required></div>
+                <div class="field"><label for="user-avatar">头像地址</label><input id="user-avatar" name="avatar_url" type="url" maxlength="300" value="<?= h((string)$profile['avatar_url']) ?>" placeholder="https://example.com/avatar.jpg"></div>
+              </div>
+              <div class="field"><label for="user-signature">个人签名档</label><textarea id="user-signature" name="signature" rows="3" placeholder="一句话介绍自己"><?= h((string)$profile['signature']) ?></textarea></div>
+              <div class="field"><label for="user-website">网站地址</label><input id="user-website" name="website_url" type="url" maxlength="300" value="<?= h((string)$profile['website_url']) ?>" placeholder="https://example.com"></div>
+            </div>
+          </section>
+          <section class="admin-profile-section" aria-labelledby="social-profile-title">
+            <div class="admin-profile-section__title"><h3 id="social-profile-title">社交链接</h3></div>
+            <div class="admin-profile-section__fields field-grid">
               <?php foreach (social_profile_definitions() as $key => $definition): ?>
                 <div class="field">
                   <label for="social-<?= h($key) ?>"><?= h((string)$definition['label']) ?></label>
@@ -5917,12 +5939,12 @@ function render_admin_users_page(array $form = [], array $errors = []): void
                 </div>
               <?php endforeach; ?>
             </div>
-            <div class="action-row"><?php if ($editing): ?><a class="button button--secondary" href="<?= h(url_for('admin_users')) ?>">取消编辑</a><?php endif; ?><button class="button"><?= $editing ? '保存修改' : '添加用户' ?></button></div>
-          </form>
-        </div>
+          </section>
+          <div class="admin-profile-actions"><button class="button" type="submit">保存修改</button></div>
+        </form>
       </section>
     </div></div></div><?php
-    render_layout('用户管理', (string)ob_get_clean(), ['active' => 'users', 'wide' => true, 'description' => '用户管理']);
+    render_layout('用户设置', (string)ob_get_clean(), ['active' => 'users', 'wide' => true, 'description' => '用户设置']);
 }
 
 function render_admin_media_page(): void
@@ -6126,7 +6148,7 @@ function render_admin_themes_page(): void
       <div class="admin-main">
         <?= render_admin_topbar('主题管理') ?>
 
-        <section class="theme-manager admin-animate admin-animate--2" aria-labelledby="theme-manager-title">
+        <section class="theme-manager admin-animate admin-animate--2" aria-labelledby="theme-manager-title" data-theme-manager>
           <header class="theme-manager__header">
             <div>
               <p class="admin-masthead__eyebrow">Appearance</p>
@@ -6142,7 +6164,7 @@ function render_admin_themes_page(): void
               $isActive = $slug === $activeSlug;
               $previewUrl = url_with_query(url_for('home'), ['theme_preview' => (string)$slug]);
               ?>
-              <article class="theme-card<?= $isActive ? ' is-active' : '' ?>">
+              <article class="theme-card<?= $isActive ? ' is-active' : '' ?>" data-theme-card data-theme-slug="<?= h((string)$slug) ?>">
                 <a class="theme-card__preview" href="<?= h($previewUrl) ?>" target="_blank" rel="noopener" aria-label="预览主题 <?= h((string)$theme['name']) ?>">
                   <iframe src="<?= h($previewUrl) ?>" loading="lazy" tabindex="-1" aria-hidden="true" title=""></iframe>
                   <span>打开预览</span>
@@ -6153,7 +6175,7 @@ function render_admin_themes_page(): void
                       <h2><?= h((string)$theme['name']) ?></h2>
                       <p><?= h((string)$slug) ?><?= $theme['version'] !== '' ? ' · ' . h((string)$theme['version']) : '' ?></p>
                     </div>
-                    <?php if ($isActive): ?><span class="status-badge status-badge--published">当前主题</span><?php endif; ?>
+                    <span class="status-badge status-badge--published" data-theme-current<?= $isActive ? '' : ' hidden' ?>>当前主题</span>
                   </div>
                   <p class="theme-card__description"><?= h((string)($theme['description'] ?: '该主题没有提供说明。')) ?></p>
                   <div class="theme-card__footer">
@@ -6164,15 +6186,12 @@ function render_admin_themes_page(): void
                         作者未注明
                       <?php endif; ?>
                     </span>
-                    <?php if ($isActive): ?>
-                      <span class="button button--ghost is-disabled" aria-disabled="true">已启用</span>
-                    <?php else: ?>
-                      <form method="post" action="<?= h(url_for('activate_theme')) ?>">
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="theme" value="<?= h((string)$slug) ?>">
-                        <button class="button" type="submit">启用</button>
-                      </form>
-                    <?php endif; ?>
+                    <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-activate<?= $isActive ? ' hidden' : '' ?>>
+                      <?= csrf_field() ?>
+                      <input type="hidden" name="theme" value="<?= h((string)$slug) ?>">
+                      <button class="button" type="submit">启用</button>
+                    </form>
+                    <span class="button button--ghost is-disabled" aria-disabled="true" data-theme-active<?= $isActive ? '' : ' hidden' ?>>已启用</span>
                   </div>
                 </div>
               </article>
@@ -6990,11 +7009,18 @@ switch ($action) {
     case 'activate_theme':
         require_admin_post(url_for('admin_themes'));
         $themeSlug = trim((string)($_POST['theme'] ?? ''));
+        $acceptsJson = str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
         if (!array_key_exists($themeSlug, available_themes())) {
+            if ($acceptsJson) {
+                json_response(['ok' => false, 'error' => '所选主题不存在或 theme.json 无效。'], 422);
+            }
             set_flash('error', '所选主题不存在或 theme.json 无效。');
             redirect_to(url_for('admin_themes'));
         }
         save_settings(['active_theme' => $themeSlug]);
+        if ($acceptsJson) {
+            json_response(['ok' => true, 'active_theme' => $themeSlug]);
+        }
         set_flash('success', '主题已启用。');
         redirect_to(url_with_query(url_for('admin_themes'), ['changed' => bin2hex(random_bytes(4))]), 303);
         break;
@@ -7185,9 +7211,11 @@ switch ($action) {
 
     case 'save_user':
         require_admin_post(url_for('admin_users'));
-        $id = (int)($_POST['id'] ?? 0);
+        $id = (int)(current_admin()['id'] ?? 0);
         $username = trim((string)($_POST['username'] ?? ''));
+        $currentPassword = (string)($_POST['current_password'] ?? '');
         $password = (string)($_POST['password'] ?? '');
+        $passwordConfirm = (string)($_POST['password_confirm'] ?? '');
         $nickname = trim((string)($_POST['nickname'] ?? ''));
         $email = trim((string)($_POST['email'] ?? ''));
         $avatarUrl = trim((string)($_POST['avatar_url'] ?? ''));
@@ -7207,32 +7235,28 @@ switch ($action) {
             }
         }
         if (one('SELECT id FROM users WHERE username = ? AND id != ?', [$username, $id])) { $errors[] = '用户名已存在。'; }
-        if ($id < 1 && strlen($password) < 8) { $errors[] = '密码至少需要 8 个字符。'; }
-        if ($id > 0 && $password !== '' && strlen($password) < 8) { $errors[] = '新密码至少需要 8 个字符。'; }
-        $profileForm = array_merge(['id' => (string)$id, 'username' => $username, 'nickname' => $nickname, 'email' => $email, 'avatar_url' => $avatarUrl, 'website_url' => $websiteUrl, 'signature' => $signature], $socialProfiles);
+        $passwordChangeRequested = $currentPassword !== '' || $password !== '' || $passwordConfirm !== '';
+        if ($passwordChangeRequested) {
+            $passwordHash = (string)(val('SELECT password_hash FROM users WHERE id = ?', [$id]) ?? '');
+            if ($currentPassword === '') { $errors[] = '请输入原密码。'; }
+            elseif ($passwordHash === '' || !password_verify($currentPassword, $passwordHash)) { $errors[] = '原密码不正确。'; }
+            if (strlen($password) < 8) { $errors[] = '新密码至少需要 8 个字符。'; }
+            if ($password !== $passwordConfirm) { $errors[] = '两次输入的密码不一致。'; }
+        }
+        $profileForm = array_merge(['username' => $username, 'nickname' => $nickname, 'email' => $email, 'avatar_url' => $avatarUrl, 'website_url' => $websiteUrl, 'signature' => $signature], $socialProfiles);
         if ($errors) { render_admin_users_page($profileForm, $errors); }
         $userValues = array_merge(['username' => $username, 'nickname' => $nickname, 'email' => $email, 'avatar_url' => $avatarUrl, 'website_url' => $websiteUrl], $socialProfiles, ['signature' => $signature]);
-        if ($id > 0 && one('SELECT id FROM users WHERE id = ?', [$id])) {
-            if ($password !== '') { $userValues['password_hash'] = password_hash($password, PASSWORD_DEFAULT); }
-            $assignments = implode(', ', array_map(static fn(string $column): string => $column . ' = ?', array_keys($userValues)));
-            q('UPDATE users SET ' . $assignments . ' WHERE id = ?', [...array_values($userValues), $id]);
-            set_flash('success', '用户已更新。');
-        } else {
-            $userValues['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
-            $userValues['created_at'] = time();
-            $columns = array_keys($userValues);
-            q('INSERT INTO users(' . implode(', ', $columns) . ') VALUES(' . implode(', ', array_fill(0, count($columns), '?')) . ')', array_values($userValues));
-            set_flash('success', '用户已添加。');
+        $newPasswordHash = '';
+        if ($passwordChangeRequested) {
+            $newPasswordHash = password_hash($password, PASSWORD_DEFAULT);
+            $userValues['password_hash'] = $newPasswordHash;
         }
-        redirect_to(url_for('admin_users'));
-        break;
-
-    case 'delete_user':
-        require_admin_post(url_for('admin_users'));
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id === (int)(current_admin()['id'] ?? 0)) { set_flash('error', '不能删除当前登录账号。'); }
-        elseif ((int)val('SELECT COUNT(*) FROM users') <= 1) { set_flash('error', '系统必须保留至少一个管理员。'); }
-        else { q('UPDATE posts SET author_id = ? WHERE author_id = ?', [(int)(current_admin()['id'] ?? 0), $id]); q('DELETE FROM users WHERE id = ?', [$id]); set_flash('success', '用户已删除，其文章已转移给当前管理员。'); }
+        $assignments = implode(', ', array_map(static fn(string $column): string => $column . ' = ?', array_keys($userValues)));
+        q('UPDATE users SET ' . $assignments . ' WHERE id = ?', [...array_values($userValues), $id]);
+        if ($newPasswordHash !== '') {
+            $_SESSION['admin_password_fingerprint'] = hash('sha256', $newPasswordHash);
+        }
+        set_flash('success', '用户设置已保存。');
         redirect_to(url_for('admin_users'));
         break;
 

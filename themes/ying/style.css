@@ -242,12 +242,12 @@
   text-wrap: pretty;
 }
 
-.ying-theme .category-summary strong {
+.ying-theme .category-summary__count {
   color: #71717a;
   font-weight: 600;
 }
 
-.dark .ying-theme .category-summary strong {
+.dark .ying-theme .category-summary__count {
   color: #d4d4d8;
 }
 

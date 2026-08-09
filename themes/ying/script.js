@@ -64,8 +64,12 @@
     if (darkToggle) {
       var icon = darkToggle.querySelector("i");
       darkToggle.setAttribute("aria-pressed", dark ? "true" : "false");
-      darkToggle.setAttribute("aria-label", dark ? "切换浅色模式" : "切换深色模式");
-      darkToggle.setAttribute("title", dark ? "白天模式" : "黑夜模式");
+      darkToggle.setAttribute("aria-label", dark
+        ? sblogText("switch_to_light", "切换浅色模式")
+        : sblogText("switch_to_dark", "切换深色模式"));
+      darkToggle.setAttribute("title", dark
+        ? sblogText("light_mode", "白天模式")
+        : sblogText("dark_mode", "黑夜模式"));
       if (icon) {
         icon.className = dark ? "ri-sun-line" : "ri-moon-line";
       }

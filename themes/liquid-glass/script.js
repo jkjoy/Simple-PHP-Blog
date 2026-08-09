@@ -36,7 +36,9 @@
     body.classList.toggle("aqua-menu-open", open);
     if (menuToggle) {
       menuToggle.setAttribute("aria-expanded", open ? "true" : "false");
-      menuToggle.setAttribute("aria-label", open ? "关闭菜单" : "打开菜单");
+      menuToggle.setAttribute("aria-label", open
+        ? sblogText("close_menu", "关闭菜单")
+        : sblogText("open_menu", "打开菜单"));
     }
   }
 

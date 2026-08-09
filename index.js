@@ -57,6 +57,72 @@ function initAdminTheme() {
   }
 }
 
+function initThemeManager() {
+  const manager = document.querySelector("[data-theme-manager]");
+  if (!(manager instanceof HTMLElement) || typeof window.fetch !== "function") return;
+
+  const cards = Array.from(manager.querySelectorAll("[data-theme-card]"));
+  const forms = Array.from(manager.querySelectorAll("[data-theme-activate]"));
+  if (!cards.length || !forms.length) return;
+
+  const setActiveTheme = (slug) => {
+    cards.forEach((card) => {
+      if (!(card instanceof HTMLElement)) return;
+      const isActive = card.dataset.themeSlug === slug;
+      card.classList.toggle("is-active", isActive);
+      card.querySelector("[data-theme-current]")?.toggleAttribute("hidden", !isActive);
+      card.querySelector("[data-theme-activate]")?.toggleAttribute("hidden", isActive);
+      card.querySelector("[data-theme-active]")?.toggleAttribute("hidden", !isActive);
+    });
+  };
+
+  forms.forEach((form) => {
+    if (!(form instanceof HTMLFormElement)) return;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (manager.getAttribute("aria-busy") === "true") return;
+
+      const card = form.closest("[data-theme-card]");
+      const slug = card instanceof HTMLElement ? card.dataset.themeSlug || "" : "";
+      if (!slug) return;
+
+      const previousCard = cards.find((item) => item.classList.contains("is-active"));
+      const previousSlug = previousCard instanceof HTMLElement ? previousCard.dataset.themeSlug || "" : "";
+      manager.setAttribute("aria-busy", "true");
+      forms.forEach((item) => {
+        const button = item.querySelector('button[type="submit"]');
+        if (button instanceof HTMLButtonElement) button.disabled = true;
+      });
+      setActiveTheme(slug);
+
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body: new FormData(form),
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+          },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        if (payload?.ok !== true || payload.active_theme !== slug) {
+          throw new Error("Invalid theme activation response");
+        }
+      } catch (error) {
+        setActiveTheme(previousSlug);
+        window.alert(sblogText("theme_activate_failed", "主题切换失败，请重试。"));
+      } finally {
+        manager.removeAttribute("aria-busy");
+        forms.forEach((item) => {
+          const button = item.querySelector('button[type="submit"]');
+          if (button instanceof HTMLButtonElement) button.disabled = false;
+        });
+      }
+    });
+  });
+}
+
 function initPasswordToggles() {
   document.querySelectorAll("[data-password-toggle]").forEach((control) => {
     if (!(control instanceof HTMLButtonElement)) return;
@@ -787,6 +853,7 @@ function initTerminal() {
 
 document.addEventListener("DOMContentLoaded", () => {
   initAdminTheme();
+  initThemeManager();
   initPasswordToggles();
   initAdminNavigation();
   initAccountMenus();

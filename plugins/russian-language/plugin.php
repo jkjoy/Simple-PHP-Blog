@@ -268,6 +268,7 @@ function sblog_russian_language_map(): array
 '链接已删除。' => 'Ссылка удалена.',
 '标签名称和 Slug 已更新。' => 'Имя тега и слаг обновлены.',
 '用户已更新。' => 'Пользователь обновлен.',
+'用户设置已保存。' => 'Настройки пользователя сохранены.',
 '用户已添加。' => 'Пользователь добавлен.',
 '文章已创建。' => 'Сообщение создано.',
 '文章已保存。' => 'Сообщение сохранено.',
@@ -339,6 +340,16 @@ function sblog_russian_language_map(): array
 '切换到深色模式' => 'Перейти в темный режим',
 '切换到浅色模式' => 'Переключиться в светлый режим',
 '用户设置' => 'Настройки пользователя',
+'账户信息' => 'Учетная запись',
+'公开资料' => 'Публичный профиль',
+'社交链接' => 'Ссылки на социальные сети',
+'新密码' => 'Новый пароль',
+'原密码' => 'Текущий пароль',
+'请输入原密码。' => 'Введите текущий пароль.',
+'原密码不正确。' => 'Текущий пароль указан неверно.',
+'留空则不修改。' => 'Оставьте пустым, чтобы сохранить текущий пароль.',
+'密码（留空则不修改）' => 'Пароль (оставьте пустым, чтобы сохранить текущий пароль)',
+'取消编辑' => 'Отменить редактирование',
 '退出登录' => 'Выйти',
 '退出' => 'Выйти',
 '后台导航' => 'Навигация администратора',
@@ -476,6 +487,7 @@ function sblog_russian_language_map(): array
 'Head 自定义代码' => 'Пользовательский код заголовка',
 '内容类型' => 'Тип контента',
 '文章分类' => 'Категория сообщения',
+'置顶' => 'Закреплено',
 '置顶文章' => 'Закрепить публикацию',
 '显示评论' => 'Показать комментарии',
 '上传附件' => 'Загрузить вложение',
@@ -557,6 +569,64 @@ function sblog_russian_language_map(): array
 '继续阅读' => 'Продолжить чтение',
 '回到顶部' => 'Вернуться наверх',
 '朋友' => 'Друзья',
+'分页' => 'Постраничная навигация',
+'主菜单' => 'Главное меню',
+'友链' => 'Ссылки',
+'管理' => 'Админ',
+'切换主题' => 'Переключить тему',
+'返回顶部' => 'Вернуться наверх',
+'页脚导航' => 'Навигация в подвале',
+'个人主页' => 'Личный сайт',
+'个人链接' => 'Ссылки профиля',
+'关闭菜单' => 'Закрыть меню',
+'黑夜模式' => 'Темная тема',
+'切换深色模式' => 'Переключиться на темную тему',
+'随笔' => 'Заметки',
+'写第一篇文章' => 'Написать первую запись',
+'写下第一篇文章' => 'Написать первую запись',
+'把复杂留给系统，把时间还给生活。' => 'Оставьте сложное системе и верните себе время.',
+'内容柜还是空的。' => 'Записей пока нет.',
+'归档抽屉还是空的。' => 'Архив пока пуст.',
+'这个标签下还没有文章。' => 'Записей с этим тегом пока нет.',
+'这个分类下还没有文章。' => 'В этой категории пока нет записей.',
+'这个分类下还没有已发布文章。' => 'В этой категории пока нет опубликованных записей.',
+'朋友们' => 'Друзья',
+'一些常来常往、值得敲门拜访的地方。' => 'Сайты и люди, которых стоит посетить.',
+'邻居名册还是空的。' => 'Ссылки на друзей пока не добавлены.',
+'去看看他们最近在做什么' => 'Узнайте, над чем они сейчас работают',
+'来信' => 'Комментарии',
+'写封回信' => 'Написать ответ',
+'寄出回信' => 'Отправить комментарий',
+'信箱里还没有新消息。' => 'Комментариев пока нет.',
+'这篇文章暂不接收回信。' => 'Комментарии к этой записи закрыты.',
+'写下评论' => 'Написать комментарий',
+'提交评论' => 'Отправить комментарий',
+'分类:' => 'Категория:',
+'记录技术、灵感与生活片段。' => 'Заметки о технологиях, идеях и повседневной жизни.',
+'阅读文章' => 'Читать записи',
+'查看归档' => 'Открыть архив',
+'篇文章' => 'Записи',
+'个标签' => 'Теги',
+'最近更新' => 'Последние обновления',
+'浏览全部' => 'Посмотреть все',
+'所有文章' => 'Все записи',
+'文章标签' => 'Теги записей',
+'归档还是空的。' => 'Архив пока пуст.',
+'去看看互联网另一端的有趣灵魂。' => 'Познакомьтесь с интересными людьми в интернете.',
+'访问这个网站' => 'Посетить сайт',
+'欢迎访问这个网站' => 'Посетить сайт',
+'暂无评论，来留下第一条吧。' => 'Комментариев пока нет. Оставьте первый.',
+'暂无评论，来抢沙发吧' => 'Комментариев пока нет. Оставьте первый.',
+'最新文章' => 'Последние записи',
+'运行天数' => 'Дней онлайн',
+'一些值得访问的网站与朋友' => 'Сайты и друзья, которых стоит посетить',
+'一些值得访问的网站与朋友。' => 'Сайты и друзья, которых стоит посетить.',
+'· HammerOS 锤伴' => '· HammerOS',
+'夜深了，我是这里的系统管家。' => 'Уже поздно. Я ваш системный помощник.',
+'早上好，我是这里的系统管家。' => 'Доброе утро. Я ваш системный помощник.',
+'中午好，我是这里的系统管家。' => 'Добрый день. Я ваш системный помощник.',
+'下午好，我是这里的系统管家。' => 'Добрый день. Я ваш системный помощник.',
+'晚上好，我是这里的系统管家。' => 'Добрый вечер. Я ваш системный помощник.',
 
     ];
 }
@@ -570,6 +640,14 @@ function sblog_russian_client_translations(): array
         'show_password' => 'Показать пароль',
         'close_admin_menu' => 'Закрыть меню администратора',
         'open_admin_menu' => 'Открыть меню администратора',
+        'open_menu' => 'Открыть меню',
+        'close_menu' => 'Закрыть меню',
+        'light_mode' => 'Светлая тема',
+        'dark_mode' => 'Темная тема',
+        'hammer_message_1' => 'Не торопитесь. На сегодня вы сделали достаточно.',
+        'hammer_message_2' => 'Я оставлю самое важное на виду.',
+        'hammer_message_3' => 'Иногда полезно остановиться и посмотреть вдаль.',
+        'hammer_message_4' => 'Система в порядке. Не забывайте заботиться и о себе.',
         'file_too_large' => 'Размер файла превышает 30 МБ',
         'waiting_to_upload' => 'Ожидание загрузки',
         'uploading' => 'Загрузка...',
@@ -594,6 +672,7 @@ function sblog_russian_client_translations(): array
         'ai_processing_content' => 'ИИ обрабатывает текст...',
         'cancel_reply_to' => 'Отменить ответ пользователю @{author}',
         'cancel_reply' => 'Отменить ответ',
+        'theme_activate_failed' => 'Не удалось переключить тему. Повторите попытку.',
     ];
 }
 
@@ -615,6 +694,106 @@ function sblog_russian_translate_phrase(string $phrase): string
     $translations = sblog_russian_language_map();
     if (isset($translations[$phrase])) {
         return (string)$translations[$phrase];
+    }
+
+    if (preg_match('/^(.+)链接格式不正确。$/u', $phrase, $linkParts)) {
+        $label = (string)($translations[$linkParts[1]] ?? $linkParts[1]);
+        return 'Ссылка ' . $label . ' недействительна.';
+    }
+
+    if (preg_match('/^\[(.+)]$/u', $phrase, $bracketParts)) {
+        $label = (string)$bracketParts[1];
+        if (isset($translations[$label])) {
+            return '[' . (string)$translations[$label] . ']';
+        }
+    }
+    if (preg_match('/^\$ cat (.+)\.md$/u', $phrase, $commandParts)) {
+        $label = (string)$commandParts[1];
+        if (isset($translations[$label])) {
+            return '$ cat ' . str_lower_u(str_replace(' ', '-', (string)$translations[$label])) . '.md';
+        }
+    }
+    if (preg_match('/^分类：(.+)$/u', $phrase, $categoryParts)) {
+        $label = (string)($translations[$categoryParts[1]] ?? $categoryParts[1]);
+        return 'Категория: ' . $label;
+    }
+    if (preg_match('/^标签 (.+) 下的文章$/u', $phrase, $tagParts)) {
+        return 'Записи с тегом ' . $tagParts[1];
+    }
+    if (preg_match('/^(\d+)月\s+(\d+),\s+(\d{4})$/u', $phrase, $dateParts)) {
+        return sprintf('%02d.%02d.%s', (int)$dateParts[2], (int)$dateParts[1], $dateParts[3]);
+    }
+    if (preg_match('/^(\d+)月$/u', $phrase, $monthParts)) {
+        return sprintf('%02d месяц', (int)$monthParts[1]);
+    }
+    if (preg_match('/^(\d{4})\s*年\s*(\d{1,2})\s*月$/u', $phrase, $monthParts)) {
+        return sprintf('%02d.%s', (int)$monthParts[2], $monthParts[1]);
+    }
+    if (preg_match('/^(\d+)\s*篇文章$/u', $phrase, $countParts) || preg_match('/^(\d+)\s*篇$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей');
+    }
+    if (preg_match('/^·\s*(\d+)\s*篇$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return '· ' . $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей');
+    }
+    if (preg_match('/^(\d+)\s*条$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return $count . ' ' . sblog_russian_plural($count, 'комментарий', 'комментария', 'комментариев');
+    }
+    if (preg_match('/^共(?:有)?\s*(\d+)\s*篇文章(?:\s*·\s*(.+))?$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        $result = $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей');
+        if (isset($countParts[2]) && trim((string)$countParts[2]) !== '') {
+            $description = trim((string)$countParts[2]);
+            $result .= ' · ' . (string)($translations[$description] ?? $description);
+        }
+        return $result;
+    }
+    if (preg_match('/^共收好\s*(\d+)\s*篇文章，按时间整齐放置。$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return $count . ' ' . sblog_russian_plural($count, 'запись аккуратно упорядочена', 'записи аккуратно упорядочены', 'записей аккуратно упорядочены') . ' по дате.';
+    }
+    if (preg_match('/^(\d+)\s*枚索引，帮你快速找回感兴趣的内容。$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return $count . ' ' . sblog_russian_plural($count, 'тег поможет', 'тега помогут', 'тегов помогут') . ' найти интересные материалы.';
+    }
+    if (preg_match('/^为你找到\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return 'Найдено ' . $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей') . '.';
+    }
+    if (preg_match('/^这个(?:标签|分类)(?:下|里)共有\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей') . ' в этой подборке.';
+    }
+    if (preg_match('/^按时间回看写过的\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей') . ' по дате публикации.';
+    }
+    if (preg_match('/^(\d+)\s*个主题，找到你感兴趣的内容。$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return $count . ' ' . sblog_russian_plural($count, 'тема', 'темы', 'тем') . ' для просмотра.';
+    }
+    if (preg_match('/^时间轴上的\s*(\d+)\s*篇文章\s*·\s*总共写了\s*(\d+)\s*字$/u', $phrase, $countParts)) {
+        $count = (int)$countParts[1];
+        return $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей') . ' на временной шкале · написано символов: ' . $countParts[2];
+    }
+    if (preg_match('/^(\d+)\s*个标签，(\d+)\s*篇文章\s*·\s*每一枚标签，都是一颗星$/u', $phrase, $countParts)) {
+        $tagCount = (int)$countParts[1];
+        $postCount = (int)$countParts[2];
+        return $tagCount . ' ' . sblog_russian_plural($tagCount, 'тег', 'тега', 'тегов') . ', ' . $postCount . ' ' . sblog_russian_plural($postCount, 'запись', 'записи', 'записей') . ' · Каждый тег — звезда';
+    }
+    if (preg_match('/^继续翻阅，第\s*(\d+)\s*页$/u', $phrase, $pageParts)) {
+        return 'Продолжить чтение, страница ' . $pageParts[1];
+    }
+    if (preg_match('/^作者:\s*(.+)$/u', $phrase, $authorParts)) {
+        return 'Автор: ' . $authorParts[1];
+    }
+    if (preg_match('/^浏览:\s*(\d+)$/u', $phrase, $viewParts)) {
+        return 'Просмотры: ' . $viewParts[1];
+    }
+    if (preg_match('/^回复给 @(.+)$/u', $phrase, $replyParts)) {
+        return 'Ответ пользователю @' . $replyParts[1];
     }
 
     if (preg_match('/^([\s\S]+?)\s*·\s*([\s\S]+)$/u', $phrase, $titleParts)) {

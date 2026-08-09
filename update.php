@@ -340,7 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $socialFieldsChanged = false;
-            foreach (['qq_url', 'wechat_url', 'weibo_url', 'x_url', 'telegram_url', 'mastodon_url', 'bilibili_url', 'instagram_url', 'tiktok_url'] as $column) {
+            foreach (['github_url', 'qq_url', 'wechat_url', 'weibo_url', 'x_url', 'telegram_url', 'mastodon_url', 'bilibili_url', 'instagram_url', 'tiktok_url'] as $column) {
                 if (!update_has_column($db, 'users', $column)) {
                     $db->exec("ALTER TABLE users ADD COLUMN {$column} TEXT NOT NULL DEFAULT ''");
                     $socialFieldsChanged = true;

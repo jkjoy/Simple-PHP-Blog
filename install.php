@@ -696,6 +696,7 @@ $db->exec(
         email TEXT NOT NULL DEFAULT \'\',
         avatar_url TEXT NOT NULL DEFAULT \'\',
         website_url TEXT NOT NULL DEFAULT \'\',
+        github_url TEXT NOT NULL DEFAULT \'\',
         qq_url TEXT NOT NULL DEFAULT \'\',
         wechat_url TEXT NOT NULL DEFAULT \'\',
         weibo_url TEXT NOT NULL DEFAULT \'\',

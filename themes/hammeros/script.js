@@ -37,7 +37,9 @@
     body.classList.toggle("nav-open", open);
     if (menuToggle) {
       menuToggle.setAttribute("aria-expanded", open ? "true" : "false");
-      menuToggle.setAttribute("aria-label", open ? "关闭菜单" : "打开菜单");
+      menuToggle.setAttribute("aria-label", open
+        ? sblogText("close_menu", "关闭菜单")
+        : sblogText("open_menu", "打开菜单"));
     }
   }
 
@@ -89,7 +91,12 @@
   var buddy = document.querySelector("[data-hammer-buddy]");
   var buddyMessage = document.querySelector("[data-hammer-message]");
   var buddyTimer = 0;
-  var messages = ["今天也辛苦了，慢慢读。", "我会把重要的内容放在前面。", "偶尔停下来，看看远处也很好。", "系统正常，心情也要在线。"];
+  var messages = [
+    sblogText("hammer_message_1", "今天也辛苦了，慢慢读。"),
+    sblogText("hammer_message_2", "我会把重要的内容放在前面。"),
+    sblogText("hammer_message_3", "偶尔停下来，看看远处也很好。"),
+    sblogText("hammer_message_4", "系统正常，心情也要在线。")
+  ];
   var messageIndex = 0;
 
   if (buddy) {

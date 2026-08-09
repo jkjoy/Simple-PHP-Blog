@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$owner = one('SELECT nickname, username, avatar_url, website_url, qq_url, wechat_url, weibo_url, x_url, telegram_url, mastodon_url, bilibili_url, instagram_url, tiktok_url, signature FROM users ORDER BY id ASC LIMIT 1') ?? [];
+$owner = one('SELECT nickname, username, avatar_url, website_url, github_url, qq_url, wechat_url, weibo_url, x_url, telegram_url, mastodon_url, bilibili_url, instagram_url, tiktok_url, signature FROM users ORDER BY id ASC LIMIT 1') ?? [];
 $ownerName = trim((string)($owner['nickname'] ?? '')) ?: trim((string)($owner['username'] ?? '')) ?: $siteName;
 $signature = trim((string)($owner['signature'] ?? '')) ?: trim(setting('site_tagline'));
 $avatarUrl = theme_logo_url();
