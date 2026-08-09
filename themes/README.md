@@ -7,9 +7,12 @@
   "name": "主题名称",
   "version": "1.0.0",
   "author": "作者",
+  "url": "https://example.com/theme-author",
   "description": "主题说明"
 }
 ```
+
+`url` 可选，用于主题管理中的作者链接，只接受完整的 HTTP 或 HTTPS 地址。
 
 主题可包含以下文件：
 

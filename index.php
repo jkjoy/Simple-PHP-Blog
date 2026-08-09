@@ -1576,6 +1576,7 @@ function theme_manifest(string $slug): ?array
             'name' => '内置终端主题',
             'version' => APP_VERSION,
             'author' => 'Simple PHP Blog',
+            'url' => 'https://github.com/jkjoy/Simple-PHP-Blog',
             'description' => '程序自带的终端风格前台主题。',
         ];
     }
@@ -1605,12 +1606,20 @@ function theme_manifest(string $slug): ?array
     if ($name === '') {
         return null;
     }
+    $url = trim((string)($manifest['url'] ?? ''));
+    $urlParts = $url !== '' ? parse_url($url) : false;
+    if (strlen($url) > 300 || !filter_var($url, FILTER_VALIDATE_URL) || !is_array($urlParts)
+        || !in_array(str_lower_u((string)($urlParts['scheme'] ?? '')), ['http', 'https'], true)
+        || trim((string)($urlParts['host'] ?? '')) === '' || isset($urlParts['user']) || isset($urlParts['pass'])) {
+        $url = '';
+    }
 
     return [
         'slug' => $slug,
         'name' => str_sub_u($name, 0, 100),
         'version' => str_sub_u(trim((string)($manifest['version'] ?? '')), 0, 40),
         'author' => str_sub_u(trim((string)($manifest['author'] ?? '')), 0, 100),
+        'url' => $url,
         'description' => str_sub_u(trim((string)($manifest['description'] ?? '')), 0, 300),
     ];
 }
@@ -5834,7 +5843,13 @@ function render_admin_themes_page(): void
                   </div>
                   <p class="theme-card__description"><?= h((string)($theme['description'] ?: '该主题没有提供说明。')) ?></p>
                   <div class="theme-card__footer">
-                    <span><?= $theme['author'] !== '' ? '作者：' . h((string)$theme['author']) : '作者未注明' ?></span>
+                    <span class="theme-card__author">
+                      <?php if ($theme['author'] !== ''): ?>
+                        作者：<?php if ($theme['url'] !== ''): ?><a href="<?= h((string)$theme['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$theme['author']) ?></a><?php else: ?><?= h((string)$theme['author']) ?><?php endif; ?>
+                      <?php else: ?>
+                        作者未注明
+                      <?php endif; ?>
+                    </span>
                     <?php if ($isActive): ?>
                       <span class="button button--ghost is-disabled" aria-disabled="true">已启用</span>
                     <?php else: ?>
