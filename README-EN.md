@@ -191,4 +191,4 @@ location ~ \.php$ {
 - The `ai_settings`, `mail_settings`, and `s3_settings` tables contain sensitive backend credentials. Modify them only through the admin panel.
 - To reinstall the application, delete `data/install.lock` first.
 - If an application update includes database schema changes, sign in to the admin panel and then open `update.php` to run the migration.
-- One-click updates preserve `data/`, `cache/`, `uploads/`, and user-created themes and plugins. Release files under `themes/` and `plugins/` are merged recursively, and overwritten application, theme, and plugin files are backed up to `cache/update-backup-*`.
+- One-click updates preserve `data/`, `cache/`, `uploads/`, and user-created themes and plugins. Release files under `themes/` and `plugins/` are merged recursively, and overwritten application, theme, and plugin files are backed up to `cache/update-backup-*`. If bundled themes or plugins are missing after an upgrade, the updater automatically reads the current release again to restore them.

@@ -28,7 +28,13 @@ function sblog_english_language_map(): array
         '默认使用项目根目录的 logo.png，也可以填写完整图片 URL 或站内绝对路径。' => 'Defaults to logo.png in the project root. A full image URL or site-absolute path is also supported.',
         '访客首次留言需审核后展示（按邮箱判断）' => 'Hold a visitor\'s first comment for approval (matched by email)',
         '原样插入前台页面的 &lt;/head&gt; 前，可用于统计脚本、meta 或 style；请仅使用可信代码。' => 'Inserted unchanged before &lt;/head&gt; on public pages. Use only trusted analytics, meta, or style code.',
-        '当前程序版本完整，但发布包中的内置主题尚未同步。' => 'The application is current, but bundled themes from the release still need to be synchronized.',
+        '当前程序版本完整，但发布包中的内置主题或插件尚未同步。' => 'The application is current, but bundled themes or plugins from the release still need to be synchronized.',
+        '更新会自动备份并覆盖程序、内置主题和内置插件文件，站点数据、上传文件及其他自定义主题和插件不受影响。' => 'The update backs up and replaces the application, bundled themes, and bundled plugins. Site data, uploads, and other custom themes and plugins are not affected.',
+        '发布文件需要补全' => 'Release files need repair',
+        '确定从当前发布包补全内置主题和插件吗？' => 'Restore bundled themes and plugins from the current release?',
+        '同步发布文件' => 'Sync release files',
+        '内置主题和插件已同步。' => 'Bundled themes and plugins synchronized.',
+        '当前版本已是最新，但内置主题或插件需要补全。' => 'The application is current, but bundled themes or plugins need repair.',
         '启用后，新上传的附件将由 S3 接管；密钥不会写入配置缓存。' => 'When enabled, new attachments are handled by S3. Secrets are not written to the settings cache.',
         '启用 SMTP 后优先通过 SMTP 发送；关闭时回退到服务器 PHP mail。' => 'When enabled, messages are sent through SMTP. When disabled, the server falls back to PHP mail.',
         '预览已安装主题，并为博客前台启用新的外观。' => 'Preview installed themes and choose the public appearance of your blog.',
@@ -422,6 +428,8 @@ function sblog_english_translate_phrase(string $phrase): string
         '/^已通过 (\d+) 条评论。$/u' => 'Approved $1 comments.',
         '/^已将 (\d+) 条评论标记为垃圾。$/u' => 'Marked $1 comments as spam.',
         '/^已将 (\d+) 条评论转为待审核。$/u' => 'Moved $1 comments to pending.',
+        '/^已更新到 (.+)，并已同步内置主题和插件。$/u' => 'Updated to $1, with bundled themes and plugins synchronized.',
+        '/^程序已更新，但内置主题和插件同步失败：(.+)$/u' => 'The application was updated, but bundled theme and plugin synchronization failed: $1',
     ];
     foreach ($patterns as $pattern => $replacement) {
         if (preg_match($pattern, $phrase)) {

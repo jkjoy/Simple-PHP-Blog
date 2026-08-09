@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.5.0';
+const APP_VERSION = 'v1.5.1';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -36,7 +36,21 @@ const INSTALL_LOCK_FILE = DATA_DIR . '/install.lock';
 const SETTINGS_CACHE_FILE = CACHE_DIR . '/settings.php';
 const UPDATE_REPOSITORY = 'jkjoy/Simple-PHP-Blog';
 const UPDATE_CACHE_FILE = CACHE_DIR . '/github-update.json';
-const BUNDLED_THEME_FILES = ['themes/starter/theme.json', 'themes/ying/theme.json'];
+const BUNDLED_RELEASE_FILES = [
+    'themes/hammeros/theme.json',
+    'themes/liquid-glass/theme.json',
+    'themes/nebula/theme.json',
+    'themes/starter/theme.json',
+    'themes/ying/theme.json',
+    'plugins/ai-assistant/plugin.json',
+    'plugins/ai-assistant/plugin.php',
+    'plugins/email-notifications/plugin.json',
+    'plugins/email-notifications/plugin.php',
+    'plugins/english-language/plugin.json',
+    'plugins/english-language/plugin.php',
+    'plugins/s3-storage/plugin.json',
+    'plugins/s3-storage/plugin.php',
+];
 
 function db_file_path(): string
 {
@@ -783,9 +797,9 @@ function update_available_for(string $latest, string $current = APP_VERSION): bo
     return $latest !== $current && version_compare($latest, $current, '>');
 }
 
-function bundled_theme_files_missing(): bool
+function bundled_release_files_missing(): bool
 {
-    foreach (BUNDLED_THEME_FILES as $file) {
+    foreach (BUNDLED_RELEASE_FILES as $file) {
         if (!is_file(__DIR__ . '/' . $file)) { return true; }
     }
     return false;
@@ -831,7 +845,7 @@ function github_update_info(bool $refresh = false): array
             $cached['available'] = update_available_for((string)($cached['latest'] ?? ''));
             $cached['repair'] = !$cached['available']
                 && normalize_version((string)($cached['latest'] ?? '')) === normalize_version(APP_VERSION)
-                && bundled_theme_files_missing();
+                && bundled_release_files_missing();
             return $cached;
         }
     }
@@ -865,7 +879,7 @@ function github_update_info(bool $refresh = false): array
             $result['available'] = update_available_for($latest);
             $result['repair'] = !$result['available']
                 && normalize_version($latest) === normalize_version(APP_VERSION)
-                && bundled_theme_files_missing();
+                && bundled_release_files_missing();
         }
     }
     file_put_contents(UPDATE_CACHE_FILE, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
@@ -5015,9 +5029,9 @@ function render_admin_page(): void
           <?php if (!empty($update['available']) || !empty($update['repair'])): ?>
             <section class="panel update-notice admin-animate">
               <div class="panel__body">
-                <div><strong><?= !empty($update['repair']) ? '发布主题需要补全' : '发现新版本 ' . h((string)$update['latest']) ?></strong><p><?= !empty($update['repair']) ? '当前程序版本完整，但发布包中的内置主题尚未同步。' : '当前版本 ' . h(APP_VERSION) . '。更新会自动备份并覆盖程序与内置主题文件，站点数据、上传文件和其他自定义主题不受影响。' ?></p></div>
-                <form method="post" action="<?= h(url_for('install_update')) ?>" onsubmit="return confirm('<?= !empty($update['repair']) ? '确定从当前发布包补全内置主题吗？' : '确定更新到 ' . h((string)$update['latest']) . ' 吗？更新期间请勿关闭页面。' ?>');">
-                  <?= csrf_field() ?><button class="button button--primary" type="submit"><?= !empty($update['repair']) ? '同步主题' : '立即更新' ?></button>
+                <div><strong><?= !empty($update['repair']) ? '发布文件需要补全' : '发现新版本 ' . h((string)$update['latest']) ?></strong><p><?= !empty($update['repair']) ? '当前程序版本完整，但发布包中的内置主题或插件尚未同步。' : '当前版本 ' . h(APP_VERSION) . '。更新会自动备份并覆盖程序、内置主题和内置插件文件，站点数据、上传文件及其他自定义主题和插件不受影响。' ?></p></div>
+                <form method="post" action="<?= h(url_for('install_update')) ?>" onsubmit="return confirm('<?= !empty($update['repair']) ? '确定从当前发布包补全内置主题和插件吗？' : '确定更新到 ' . h((string)$update['latest']) . ' 吗？更新期间请勿关闭页面。' ?>');">
+                  <?= csrf_field() ?><button class="button button--primary" type="submit"><?= !empty($update['repair']) ? '同步发布文件' : '立即更新' ?></button>
                 </form>
               </div>
             </section>
@@ -6493,17 +6507,17 @@ switch ($action) {
         $justUpdated = is_array($flash)
             && (string)($flash['type'] ?? '') === 'success'
             && str_starts_with((string)($flash['message'] ?? ''), '已更新到 ');
-        if (is_admin() && $justUpdated && bundled_theme_files_missing()) {
+        if (is_admin() && $justUpdated && bundled_release_files_missing()) {
             try {
                 $update = github_update_info(true);
                 if (!empty($update['repair'])) {
                     $version = install_github_update($update);
-                    set_flash('success', '已更新到 ' . $version . '，并已同步发布主题。');
+                    set_flash('success', '已更新到 ' . $version . '，并已同步内置主题和插件。');
                 } elseif ((string)($update['error'] ?? '') !== '') {
                     throw new RuntimeException((string)$update['error']);
                 }
             } catch (Throwable $exception) {
-                set_flash('error', '程序已更新，但发布主题同步失败：' . $exception->getMessage());
+                set_flash('error', '程序已更新，但内置主题和插件同步失败：' . $exception->getMessage());
             }
         }
         render_admin_page();
@@ -6515,7 +6529,7 @@ switch ($action) {
             $update = github_update_info(true);
             $isRepair = !empty($update['repair']);
             $version = install_github_update($update);
-            set_flash('success', $isRepair ? '发布主题已同步。' : '已更新到 ' . $version . '。如版本包含数据库变更，请继续访问 update.php。');
+            set_flash('success', $isRepair ? '内置主题和插件已同步。' : '已更新到 ' . $version . '。如版本包含数据库变更，请继续访问 update.php。');
         } catch (Throwable $exception) {
             set_flash('error', '更新失败：' . $exception->getMessage());
         }
@@ -6531,7 +6545,7 @@ switch ($action) {
         } elseif (!empty($update['available'])) {
             set_flash('success', '发现新版本 ' . (string)$update['latest'] . '，可点击“立即更新”完成升级。');
         } elseif (!empty($update['repair'])) {
-            set_flash('success', '当前版本已是最新，但发布主题需要补全。');
+            set_flash('success', '当前版本已是最新，但内置主题或插件需要补全。');
         } else {
             set_flash('success', '暂无更新，当前已是最新版本 ' . APP_VERSION . '。');
         }
