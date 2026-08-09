@@ -108,7 +108,7 @@ plugins/       Feature and language plugins
 - Plugins can be enabled, disabled, and configured under **Plugins** in the admin panel. Bundled feature plugins do not add separate sidebar entries.
 - Priority-based actions and filters can extend requests, post saves, comment creation, the admin sidebar, and final HTML output.
 - The bundled `ai-assistant`, `email-notifications`, and `s3-storage` feature plugins are enabled on new installations and can be disabled independently.
-- The bundled `english-language` plugin translates the public site, sign-in pages, and administration interface into English without changing post content in the database.
+- The bundled `english-language` and `russian-language` plugins translate the public site, sign-in pages, and administration interface without changing post content in the database. Language plugins are mutually exclusive.
 - See `plugins/README.md` for the plugin API and complete hook reference.
 - Plugins execute trusted server-side PHP. Install plugins only from sources you trust.
 

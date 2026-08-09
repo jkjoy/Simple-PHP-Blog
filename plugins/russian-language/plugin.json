@@ -1,0 +1,8 @@
+{
+  "name": "俄语语言包",
+  "version": "1.0.1",
+  "author": "zalexstudios",
+  "url": "https://github.com/zalexstudios",
+  "exclusive_group": "language",
+  "description": "将博客前台、登录页面和后台管理界面翻译为俄语。"
+}

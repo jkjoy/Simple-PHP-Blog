@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.5.1';
+const APP_VERSION = 'v1.5.2';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -48,6 +48,8 @@ const BUNDLED_RELEASE_FILES = [
     'plugins/email-notifications/plugin.php',
     'plugins/english-language/plugin.json',
     'plugins/english-language/plugin.php',
+    'plugins/russian-language/plugin.json',
+    'plugins/russian-language/plugin.php',
     'plugins/s3-storage/plugin.json',
     'plugins/s3-storage/plugin.php',
 ];
@@ -581,14 +583,27 @@ function plugin_manifest(string $slug): ?array
     if ($settingsAction !== '' && !preg_match('/^[a-z][a-z0-9_-]{0,79}$/', $settingsAction)) {
         $settingsAction = '';
     }
+    $url = trim((string)($manifest['url'] ?? ''));
+    $urlParts = $url !== '' ? parse_url($url) : false;
+    if (strlen($url) > 300 || !filter_var($url, FILTER_VALIDATE_URL) || !is_array($urlParts)
+        || !in_array(str_lower_u((string)($urlParts['scheme'] ?? '')), ['http', 'https'], true)
+        || trim((string)($urlParts['host'] ?? '')) === '' || isset($urlParts['user']) || isset($urlParts['pass'])) {
+        $url = '';
+    }
+    $exclusiveGroup = trim((string)($manifest['exclusive_group'] ?? ''));
+    if ($exclusiveGroup !== '' && !preg_match('/^[a-z0-9][a-z0-9_-]{0,79}$/', $exclusiveGroup)) {
+        $exclusiveGroup = '';
+    }
 
     return [
         'slug' => $slug,
         'name' => str_sub_u($name, 0, 100),
         'version' => str_sub_u(trim((string)($manifest['version'] ?? '')), 0, 40),
         'author' => str_sub_u(trim((string)($manifest['author'] ?? '')), 0, 100),
+        'url' => $url,
         'description' => str_sub_u(trim((string)($manifest['description'] ?? '')), 0, 300),
         'settings_action' => $settingsAction,
+        'exclusive_group' => $exclusiveGroup,
         'entry' => $entryFile,
     ];
 }
@@ -636,6 +651,10 @@ function active_plugin_slugs(bool $fresh = false): array
     foreach ($configured as $slug) {
         $slug = trim((string)$slug);
         if (isset($available[$slug]) && !in_array($slug, $active, true)) {
+            $group = (string)$available[$slug]['exclusive_group'];
+            if ($group !== '') {
+                $active = array_values(array_filter($active, static fn(string $activeSlug): bool => (string)$available[$activeSlug]['exclusive_group'] !== $group));
+            }
             $active[] = $slug;
         }
     }
@@ -649,6 +668,10 @@ function save_active_plugins(array $slugs): void
     foreach ($slugs as $slug) {
         $slug = trim((string)$slug);
         if (isset($available[$slug]) && !in_array($slug, $valid, true)) {
+            $group = (string)$available[$slug]['exclusive_group'];
+            if ($group !== '') {
+                $valid = array_values(array_filter($valid, static fn(string $activeSlug): bool => (string)$available[$activeSlug]['exclusive_group'] !== $group));
+            }
             $valid[] = $slug;
         }
     }
@@ -5749,7 +5772,12 @@ function render_admin_plugins_page(): void
                       <td>
                         <div class="table-title">
                           <strong><?= h((string)$plugin['name']) ?></strong>
-                          <span><?= h((string)$plugin['description']) ?><?= $plugin['author'] !== '' ? ' · ' . h((string)$plugin['author']) : '' ?></span>
+                          <span>
+                            <?= h((string)$plugin['description']) ?>
+                            <?php if ($plugin['author'] !== ''): ?>
+                              · <?php if ($plugin['url'] !== ''): ?><a href="<?= h((string)$plugin['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$plugin['author']) ?></a><?php else: ?><?= h((string)$plugin['author']) ?><?php endif; ?>
+                            <?php endif; ?>
+                          </span>
                         </div>
                       </td>
                       <td><?= h((string)($plugin['version'] ?: '—')) ?></td>
@@ -6614,6 +6642,10 @@ switch ($action) {
         }
         $activePlugins = active_plugin_slugs(true);
         if ($operation === 'activate' && !in_array($slug, $activePlugins, true)) {
+            $exclusiveGroup = (string)$plugins[$slug]['exclusive_group'];
+            if ($exclusiveGroup !== '') {
+                $activePlugins = array_values(array_filter($activePlugins, static fn(string $activeSlug): bool => (string)$plugins[$activeSlug]['exclusive_group'] !== $exclusiveGroup));
+            }
             $activePlugins[] = $slug;
         } elseif ($operation === 'deactivate') {
             $activePlugins = array_values(array_filter($activePlugins, static fn(string $activeSlug): bool => $activeSlug !== $slug));

@@ -7,12 +7,16 @@
   "name": "插件名称",
   "version": "1.0.0",
   "author": "作者",
+  "url": "https://example.com/plugin-author",
   "description": "插件说明",
-  "settings_action": "admin_example"
+  "settings_action": "admin_example",
+  "exclusive_group": "language"
 }
 ```
 
 `settings_action` 可选。填写后，插件启用时“插件管理”会显示设置入口；对应 action 应由插件的 `request` 回调处理。内置功能插件以此作为唯一设置入口，不额外注册侧边栏菜单。
+
+`url` 可选，用于插件管理中的作者链接，只接受完整的 HTTP 或 HTTPS 地址。`exclusive_group` 也可选；启用插件时，同一互斥组内已启用的其他插件会自动停用，适合语言包等不能同时工作的插件。
 
 安装后进入“后台 -> 插件管理”启用。插件 PHP 是服务器端可信代码，只安装来源可信的插件。
 

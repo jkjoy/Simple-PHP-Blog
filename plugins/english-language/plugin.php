@@ -51,6 +51,8 @@ function sblog_english_language_map(): array
         '将编辑器新上传的附件保存到 Amazon S3 或兼容的对象存储。' => 'Uploads new editor attachments to Amazon S3 or compatible object storage.',
         '英文语言包' => 'English Language',
         '将博客前台、登录页面和后台管理界面翻译为英文。' => 'Translates the public site, sign-in screens, and administration interface into English.',
+        '俄语语言包' => 'Russian Language',
+        '将博客前台、登录页面和后台管理界面翻译为俄语。' => 'Translates the public site, sign-in screens, and administration interface into Russian.',
         '没有发现有效插件。请将插件放入 ' => 'No valid plugins were found. Place plugins in ',
         '主题只影响前台页面。' => 'Themes affect public pages only.',
         '将自定义主题放入 ' => 'Place custom themes in ',
