@@ -34,9 +34,13 @@ function ying_render_home_content(): string
                 </div>
               <?php endif; ?>
               <div class="flex grow flex-col justify-between mb-5">
-                <div class="text-xs text-zinc-400 mb-0.5"><?= h(date('n月 d, Y', (int)$post['published_at'])) ?></div>
+                <div class="text-xs text-zinc-400 mb-0.5"><?= h(sblog_t('{month}月 {day}, {year}', [
+                    'month' => date('n', (int)$post['published_at']),
+                    'day' => date('d', (int)$post['published_at']),
+                    'year' => date('Y', (int)$post['published_at']),
+                ])) ?></div>
                 <a href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>" class="hover:underline">
-                  <?php if (!empty($post['is_pinned'])): ?><span class="text-red-500">[置顶]</span><?php endif; ?>
+                  <?php if (!empty($post['is_pinned'])): ?><span class="text-red-500">[<?= h(sblog_t('置顶')) ?>]</span><?php endif; ?>
                   <span><?= h((string)$post['title']) ?></span>
                 </a>
               </div>
@@ -45,12 +49,12 @@ function ying_render_home_content(): string
         endforeach;
         if ($totalPages > 1): ?>
           <ul class="flex justify-between pt-2">
-            <li><?php if ($page < $totalPages): ?><a href="<?= h(home_page_url($page + 1)) ?>"><span>下一页</span></a><?php endif; ?></li>
-            <li><?php if ($page > 1): ?><a href="<?= h(home_page_url($page - 1)) ?>"><span>上一页</span></a><?php endif; ?></li>
+            <li><?php if ($page < $totalPages): ?><a href="<?= h(home_page_url($page + 1)) ?>"><span><?= h(sblog_t('下一页')) ?></span></a><?php endif; ?></li>
+            <li><?php if ($page > 1): ?><a href="<?= h(home_page_url($page - 1)) ?>"><span><?= h(sblog_t('上一页')) ?></span></a><?php endif; ?></li>
           </ul>
         <?php endif;
     else: ?>
-      <div class="empty-notice"><p>还没有已发布的文章。</p></div>
+      <div class="empty-notice"><p><?= h(sblog_t('还没有已发布的文章。')) ?></p></div>
     <?php endif;
     return (string)ob_get_clean();
 }
@@ -67,13 +71,13 @@ function ying_render_archives_content(): string
     ?>
     <div class="archives-content">
       <article>
-        <h1 class="post-title">归档</h1>
-        <p class="my-5">共有 <?= h((string)count_published_posts()) ?> 篇文章</p>
+        <h1 class="post-title"><?= h(sblog_t('归档')) ?></h1>
+        <p class="my-5"><?= h(sblog_tn('共有 {count} 篇文章', count_published_posts())) ?></p>
         <?php foreach ($years as $year => $months): ?>
           <h2 class="post-card"><?= h((string)$year) ?></h2>
           <div class="list-none mb-5">
             <?php foreach ($months as $month => $posts): ?>
-              <h3 class="post-card my-5"><?= h((string)$month) ?>月</h3>
+              <h3 class="post-card my-5"><?= h(sblog_t('{month}月', ['month' => (string)$month])) ?></h3>
               <?php foreach ($posts as $post): ?>
                 <li class="post-card">
                   <span class="archives-li"><?= h(str_pad((string)$month, 2, '0', STR_PAD_LEFT) . '/' . date('d', (int)$post['published_at'])) ?></span>
@@ -104,9 +108,9 @@ function ying_render_category_content(string $slug): string
     <div class="category-content">
       <article>
         <header class="category-header">
-          <h1 class="item-a category-title">分类：<?= h((string)$category['name']) ?></h1>
+          <h1 class="item-a category-title"><?= h(sblog_t('分类：')) ?><?= h((string)$category['name']) ?></h1>
           <p class="category-summary">
-            <span class="category-summary__count">共有 <?= h((string)count($posts)) ?> 篇文章</span>
+            <span class="category-summary__count"><?= h(sblog_tn('共有 {count} 篇文章', count($posts))) ?></span>
             <?php if ($description !== ''): ?><span class="category-summary__divider" aria-hidden="true">·</span><span><?= h($description) ?></span><?php endif; ?>
           </p>
         </header>
@@ -118,14 +122,14 @@ function ying_render_category_content(string $slug): string
               <li class="category-post post-card" style="--delay:<?= h((string)(min($index, 8) * 0.04)) ?>s">
                 <time class="archives-li category-post__date" datetime="<?= h(date('Y-m-d', $publishedAt)) ?>"><?= h(date('Y/m/d', $publishedAt)) ?></time>
                 <a class="category-post__link" href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>">
-                  <?php if (!empty($post['is_pinned'])): ?><span class="category-post__pinned">[置顶]</span><?php endif; ?>
+                  <?php if (!empty($post['is_pinned'])): ?><span class="category-post__pinned">[<?= h(sblog_t('置顶')) ?>]</span><?php endif; ?>
                   <span><?= h((string)$post['title']) ?></span>
                 </a>
               </li>
             <?php endforeach; ?>
           </ol>
         <?php else: ?>
-          <div class="empty-notice"><p>这个分类下还没有已发布文章。</p></div>
+          <div class="empty-notice"><p><?= h(sblog_t('这个分类下还没有已发布文章。')) ?></p></div>
         <?php endif; ?>
       </article>
     </div>
@@ -140,8 +144,8 @@ function ying_render_links_content(): string
     ob_start();
     ?>
     <article class="links-page">
-      <h1 class="post-title">链接</h1>
-      <p class="meta">一些值得访问的网站与朋友。</p>
+      <h1 class="post-title"><?= h(sblog_t('链接')) ?></h1>
+      <p class="meta"><?= h(sblog_t('一些值得访问的网站与朋友。')) ?></p>
       <?php if ($links): ?>
         <div class="friend-links">
           <?php foreach ($links as $link): ?>
@@ -154,13 +158,13 @@ function ying_render_links_content(): string
               </span>
               <span class="friend-link__copy">
                 <strong><?= h($name) ?></strong>
-                <span><?= h(trim((string)$link['description']) ?: '欢迎访问这个网站') ?></span>
+                <span><?= h(trim((string)$link['description']) ?: sblog_t('欢迎访问这个网站')) ?></span>
               </span>
             </a>
           <?php endforeach; ?>
         </div>
       <?php else: ?>
-        <div class="empty-notice"><p>还没有添加友情链接。</p></div>
+        <div class="empty-notice"><p><?= h(sblog_t('还没有添加友情链接。')) ?></p></div>
       <?php endif; ?>
     </article>
     <?php
@@ -169,6 +173,16 @@ function ying_render_links_content(): string
 
 add_theme_filter('body_class', static function (string $classes, array $context): string {
     return trim($classes . ' ying-theme');
+});
+
+add_theme_filter('comments_labels', static function (array $labels, array $context): array {
+    return array_replace($labels, [
+        'title' => sblog_t('评论'),
+        'form_title' => sblog_t('写下评论'),
+        'submit' => sblog_t('提交评论'),
+        'empty' => sblog_t('还没有评论'),
+        'closed' => sblog_t('评论已关闭'),
+    ]);
 });
 
 add_theme_filter('content', static function (string $content, array $context): string {
@@ -187,13 +201,7 @@ add_theme_filter('content', static function (string $content, array $context): s
         return ying_render_links_content();
     }
 
-    return strtr($content, [
-        '<h2 class="section-header" id="comments-title">comments.log</h2>' => '<h2 class="section-header" id="comments-title">评论</h2>',
-        '<h3 class="comment-form__title">new-comment</h3>' => '<h3 class="comment-form__title">写下评论</h3>',
-        '<button class="terminal-action" type="submit">[提交评论]</button>' => '<button class="terminal-action" type="submit">提交评论</button>',
-        '<div class="comments__empty empty-notice">// 暂无评论</div>' => '<div class="comments__empty empty-notice">还没有评论</div>',
-        '<div class="comments__empty empty-notice">// 评论已关闭</div>' => '<div class="comments__empty empty-notice">评论已关闭</div>',
-    ]);
+    return $content;
 });
 
 add_theme_action('head', static function (array $context): string {

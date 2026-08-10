@@ -497,6 +497,11 @@ function sblog_russian_language_map(): array
 'AI 润色' => 'Улучшить с помощью ИИ',
 'AI 润色正文' => 'Улучшить текст с помощью ИИ',
 '润色或生成要求' => 'Инструкции по редактированию или созданию',
+'自动生成' => 'Автоматическое создание',
+'自动生成 Slug' => 'Автоматически создавать slug',
+'Slug 留空时使用 AI 生成；关闭或失败时使用默认生成方式。' => 'Если поле slug пустое, он будет создан с помощью ИИ; если функция отключена или ИИ недоступен, будет использован стандартный способ.',
+'自动生成摘要' => 'Автоматически создавать краткое описание',
+'摘要留空时使用 AI 生成；关闭或失败时自动从正文截取。' => 'Если краткое описание пустое, оно будет создано с помощью ИИ; если функция отключена или ИИ недоступен, оно будет автоматически извлечено из текста записи.',
 '取消' => 'Отмена',
 '确定并填入正文' => 'Применить к содержимому',
 '标题级别' => 'Уровень заголовка',
@@ -628,6 +633,381 @@ function sblog_russian_language_map(): array
 '下午好，我是这里的系统管家。' => 'Добрый день. Я ваш системный помощник.',
 '晚上好，我是这里的系统管家。' => 'Добрый вечер. Я ваш системный помощник.',
 
+'ARCHIVE' => 'АРХИВ',
+'Apache' => 'Apache',
+'Appearance' => 'Оформление',
+'CATEGORY' => 'КАТЕГОРИЯ',
+'COLLECTION' => 'КОЛЛЕКЦИЯ',
+'CONTINUE READING' => 'ПРОДОЛЖИТЬ ЧТЕНИЕ',
+'Edit' => 'Редактировать',
+'FILTERED' => 'ОТФИЛЬТРОВАНО',
+'FRIENDS' => 'ДРУЗЬЯ',
+'GitHub' => 'GitHub',
+'GitHub 暂时无法访问。' => 'GitHub временно недоступен.',
+'INDEX LABELS' => 'УКАЗАТЕЛЬ ТЕГОВ',
+'IP：{address}' => 'IP: {address}',
+'Instagram' => 'Instagram',
+'JOURNAL' => 'ЖУРНАЛ',
+'Markdown' => 'Markdown',
+'MEMORY DRAWER' => 'АРХИВ',
+'Mastodon' => 'Mastodon',
+'NEIGHBORS' => 'ДРУЗЬЯ',
+'Nginx' => 'Nginx',
+'OFFLINE' => 'НЕ В СЕТИ',
+'ONLINE' => 'В СЕТИ',
+'PERSONAL JOURNAL' => 'ЛИЧНЫЙ ЖУРНАЛ',
+'PERSONAL SYSTEM' => 'ЛИЧНАЯ СИСТЕМА',
+'Powered by' => 'Работает на',
+'Powered by Simple PHP Blog {version}' => 'Работает на Simple PHP Blog {version}',
+'QQ' => 'QQ',
+'RSS' => 'RSS',
+'SYSTEM BUDDY' => 'СИСТЕМНЫЙ ПОМОЩНИК',
+'Simple-PHP-Blog Admin' => 'Администрирование Simple PHP Blog',
+'Sitemap' => 'Карта сайта',
+'Slug' => 'Slug',
+'TODAY' => 'СЕГОДНЯ',
+'TOPIC' => 'ТЕГ',
+'TOPICS' => 'ТЕГИ',
+'Telegram' => 'Telegram',
+'Theme' => 'Тема',
+'Theme by' => 'Тема от',
+'TikTok' => 'TikTok',
+'Write' => 'Написать',
+'X' => 'X',
+'YouTube 视频' => 'Видео YouTube',
+'[{site}] {author} 回复了你的评论' => '[{site}] Новый ответ от {author} на ваш комментарий',
+'{author} 在《{post}》中回复了你：' => 'Новый ответ от {author} в публикации «{post}»:',
+'{count} 个主题' => [
+    'one' => '{count} тема',
+    'few' => '{count} темы',
+    'many' => '{count} тем',
+    'other' => '{count} темы',
+],
+'{count} 个主题，找到你感兴趣的内容。' => [
+    'one' => '{count} тема: найдите интересные материалы.',
+    'few' => '{count} темы: найдите интересные материалы.',
+    'many' => '{count} тем: найдите интересные материалы.',
+    'other' => '{count} темы: найдите интересные материалы.',
+],
+'{count} 条待审核，最近未读如下。' => [
+    'one' => '{count} комментарий ожидает модерации. Ниже последние непрочитанные.',
+    'few' => '{count} комментария ожидают модерации. Ниже последние непрочитанные.',
+    'many' => '{count} комментариев ожидают модерации. Ниже последние непрочитанные.',
+    'other' => '{count} комментария ожидают модерации. Ниже последние непрочитанные.',
+],
+'{count} 条未读评论' => [
+    'one' => '{count} непрочитанный комментарий',
+    'few' => '{count} непрочитанных комментария',
+    'many' => '{count} непрочитанных комментариев',
+    'other' => '{count} непрочитанных комментария',
+],
+'{count} 条评论' => [
+    'one' => '{count} комментарий',
+    'few' => '{count} комментария',
+    'many' => '{count} комментариев',
+    'other' => '{count} комментария',
+],
+'{count} 枚索引，帮你快速找回感兴趣的内容。' => [
+    'one' => '{count} метка поможет быстро найти интересные материалы.',
+    'few' => '{count} метки помогут быстро найти интересные материалы.',
+    'many' => '{count} меток помогут быстро найти интересные материалы.',
+    'other' => '{count} метки помогут быстро найти интересные материалы.',
+],
+'{count} 篇' => [
+    'one' => '{count} запись',
+    'few' => '{count} записи',
+    'many' => '{count} записей',
+    'other' => '{count} записи',
+],
+'{count} 篇文章' => [
+    'one' => '{count} запись',
+    'few' => '{count} записи',
+    'many' => '{count} записей',
+    'other' => '{count} записи',
+],
+'{field}格式不正确。' => 'Поле «{field}» заполнено неверно.',
+'{field}链接格式不正确。' => 'Ссылка в поле «{field}» имеет неверный формат.',
+'{label}，{count} 条未读评论' => [
+    'one' => '{label}, {count} непрочитанный комментарий',
+    'few' => '{label}, {count} непрочитанных комментария',
+    'many' => '{label}, {count} непрочитанных комментариев',
+    'other' => '{label}, {count} непрочитанных комментария',
+],
+'{month}月' => 'Месяц {month}',
+'{month}月 {day}, {year}' => '{day}.{month}.{year}',
+'{recipient}，你好：' => 'Здравствуйте, {recipient}!',
+'{state}预览' => 'Предпросмотр: {state}',
+'{tags} 个标签，{posts} 篇文章 · 每一枚标签，都是一颗星' => '{tags} тегов, {posts} записей · каждый тег как отдельная звезда',
+'{year} 年 {month} 月' => '{month}.{year}',
+'{count} 个字符' => [
+    'one' => '{count} символ',
+    'few' => '{count} символа',
+    'many' => '{count} символов',
+    'other' => '{count} символа',
+],
+'· {count} 篇' => [
+    'one' => '· {count} запись',
+    'few' => '· {count} записи',
+    'many' => '· {count} записей',
+    'other' => '· {count} записи',
+],
+'为你找到 {count} 篇文章。' => [
+    'one' => 'Найдена {count} запись.',
+    'few' => 'Найдено {count} записи.',
+    'many' => 'Найдено {count} записей.',
+    'other' => 'Найдено {count} записи.',
+],
+'主演' => 'В ролях',
+'仅支持 POST 上传。' => 'Загрузка поддерживается только методом POST.',
+'作者：{author}' => 'Автор: {author}',
+"你正在重置 {site} 的管理员密码。\n\n重置链接：{link}\n\n链接将在 {expires_at} 过期。如果不是你本人操作，请忽略这封邮件。" => "Вы запросили сброс пароля администратора сайта {site}.\n\nСсылка для сброса: {link}\n\nСсылка действует до {expires_at}. Если вы не отправляли этот запрос, проигнорируйте письмо.",
+'全部标为已读' => 'Отметить все как прочитанные',
+'共 {count} 篇文章' => [
+    'one' => 'Всего {count} запись',
+    'few' => 'Всего {count} записи',
+    'many' => 'Всего {count} записей',
+    'other' => 'Всего {count} записи',
+],
+'共收好 {count} 篇文章，按时间整齐放置。' => [
+    'one' => 'В архиве сохранена {count} запись, упорядоченная по дате.',
+    'few' => 'В архиве сохранены {count} записи, упорядоченные по дате.',
+    'many' => 'В архиве сохранено {count} записей, упорядоченных по дате.',
+    'other' => 'В архиве сохранены {count} записи, упорядоченные по дате.',
+],
+'共有 {count} 篇文章' => [
+    'one' => 'Всего {count} запись',
+    'few' => 'Всего {count} записи',
+    'many' => 'Всего {count} записей',
+    'other' => 'Всего {count} записи',
+],
+'出版' => 'Издательство',
+'分类：' => 'Категория: ',
+'分页超出了范围。' => 'Номер страницы вне допустимого диапазона.',
+'原样插入前台页面的 {closing_tag} 前，可用于统计脚本、{meta} 或 {style}；请仅使用可信代码。' => 'Код вставляется без изменений перед {closing_tag} на страницах сайта и может содержать аналитику, {meta} или {style}. Используйте только доверенный код.',
+'发现新版本 {version}' => 'Доступна новая версия {version}',
+'发现新版本 {version}，可点击“立即更新”完成升级。' => 'Доступна новая версия {version}. Нажмите «Обновить сейчас», чтобы установить ее.',
+'发行' => 'Лейбл',
+'发送重置链接' => 'Отправить ссылку для сброса',
+'名称' => 'Название',
+'启用 {module}，并为当前目录设置 {setting}。项目根目录已有可直接使用的 {file}。' => 'Включите {module} и задайте для текущего каталога {setting}. Готовый файл {file} находится в корне проекта.',
+'哔哩哔哩视频' => 'Видео Bilibili',
+'回到首页' => 'На главную',
+'回复 @{author}' => 'Ответ пользователю @{author}',
+'回复 @{name}' => 'Ответ пользователю @{name}',
+'回复给 @{author}' => 'В ответ пользователю @{author}',
+'媒体资料：{count} 项' => [
+    'one' => 'Медиафайлы: {count} объект',
+    'few' => 'Медиафайлы: {count} объекта',
+    'many' => 'Медиафайлы: {count} объектов',
+    'other' => 'Медиафайлы: {count} объекта',
+],
+'密码重置' => 'Сброс пароля',
+'导演' => 'Режиссер',
+'已删除 {count} 条评论。' => [
+    'one' => 'Удален {count} комментарий.',
+    'few' => 'Удалено {count} комментария.',
+    'many' => 'Удалено {count} комментариев.',
+    'other' => 'Удалено {count} комментария.',
+],
+'已将 {count} 条评论标为已读。' => [
+    'one' => '{count} комментарий отмечен как прочитанный.',
+    'few' => '{count} комментария отмечены как прочитанные.',
+    'many' => '{count} комментариев отмечены как прочитанные.',
+    'other' => '{count} комментария отмечены как прочитанные.',
+],
+'已将 {count} 条评论标记为垃圾。' => [
+    'one' => '{count} комментарий помечен как спам.',
+    'few' => '{count} комментария помечены как спам.',
+    'many' => '{count} комментариев помечены как спам.',
+    'other' => '{count} комментария помечены как спам.',
+],
+'已将 {count} 条评论转为待审核。' => [
+    'one' => '{count} комментарий отправлен на модерацию.',
+    'few' => '{count} комментария отправлены на модерацию.',
+    'many' => '{count} комментариев отправлены на модерацию.',
+    'other' => '{count} комментария отправлены на модерацию.',
+],
+'已更新到 {version}。如版本包含数据库变更，请继续访问 update.php。' => 'Обновлено до версии {version}. Если версия содержит изменения базы данных, откройте update.php.',
+'已更新到 {version}，并已同步内置主题和插件。' => 'Обновлено до версии {version}; встроенные темы и плагины синхронизированы.',
+'已读' => 'Прочитано',
+'已通过 {count} 条评论。' => [
+    'one' => 'Одобрен {count} комментарий.',
+    'few' => 'Одобрено {count} комментария.',
+    'many' => 'Одобрено {count} комментариев.',
+    'other' => 'Одобрено {count} комментария.',
+],
+'开启后文章链接会变成 {path}，需要服务器 rewrite 支持。' => 'После включения адреса записей будут иметь вид {path}; сервер должен поддерживать rewrite.',
+'开始写作' => 'Начать писать',
+'外观' => 'Оформление',
+'当前操作未定义。' => 'Текущее действие не определено.',
+'当前没有可安装的更新。' => 'Нет обновлений для установки.',
+'当前版本 {version}。更新会自动备份并覆盖程序、内置主题和内置插件文件，站点数据、上传文件及其他自定义主题和插件不受影响。' => 'Текущая версия: {version}. Обновление автоматически создаст резервную копию и заменит файлы приложения, встроенных тем и плагинов. Данные сайта, загрузки и другие пользовательские темы и плагины останутся без изменений.',
+'当前筛选 {count} 条评论，审核状态与未读通知独立管理。' => [
+    'one' => 'По текущему фильтру найден {count} комментарий. Статус модерации и отметка о прочтении управляются отдельно.',
+    'few' => 'По текущему фильтру найдено {count} комментария. Статус модерации и отметка о прочтении управляются отдельно.',
+    'many' => 'По текущему фильтру найдено {count} комментариев. Статус модерации и отметка о прочтении управляются отдельно.',
+    'other' => 'По текущему фильтру найдено {count} комментария. Статус модерации и отметка о прочтении управляются отдельно.',
+],
+'当前筛选下没有评论。' => 'По текущему фильтру комментариев нет.',
+'打开用户菜单：{name}' => 'Открыть меню пользователя {name}',
+'找回博客后台密码' => 'Восстановление пароля администратора блога',
+'按时间回看写过的 {count} 篇文章。' => [
+    'one' => 'Просмотрите {count} запись в хронологическом порядке.',
+    'few' => 'Просмотрите {count} записи в хронологическом порядке.',
+    'many' => 'Просмотрите {count} записей в хронологическом порядке.',
+    'other' => 'Просмотрите {count} записи в хронологическом порядке.',
+],
+'新评论：{title}' => 'Новый комментарий: {title}',
+'无效的主题过滤器名称：{hook}' => 'Недопустимое имя фильтра темы: {hook}',
+'无效的主题钩子名称：{hook}' => 'Недопустимое имя хука темы: {hook}',
+'无法创建备份目录 {file}' => 'Не удалось создать каталог резервной копии {file}',
+'无法创建更新临时目录。' => 'Не удалось создать временный каталог обновления.',
+'无法创建更新包。' => 'Не удалось создать пакет обновления.',
+'无法创建目录 {file}' => 'Не удалось создать каталог {file}',
+'无法备份 {file}' => 'Не удалось создать резервную копию {file}',
+'无法覆盖 {file}' => 'Не удалось заменить {file}',
+'时间轴上的 {count} 篇文章 · 总共写了 {words} 字' => [
+    'one' => 'На временной шкале {count} запись · всего {words} слов',
+    'few' => 'На временной шкале {count} записи · всего {words} слов',
+    'many' => 'На временной шкале {count} записей · всего {words} слов',
+    'other' => 'На временной шкале {count} записи · всего {words} слов',
+],
+'暂无更新，当前已是最新版本 {version}。' => 'Обновлений нет. Установлена последняя версия {version}.',
+'暂无评论' => 'Комментариев пока нет',
+'更新包下载失败：{error}' => 'Не удалось скачать пакет обновления: {error}',
+'更新包无法解压。' => 'Не удалось распаковать пакет обновления.',
+'更新包版本无效。' => 'Версия пакета обновления недействительна.',
+'更新包版本无效或不高于当前版本。' => 'Версия пакета обновления недействительна или не новее текущей.',
+'更新包结构无效。' => 'Структура пакета обновления недействительна.',
+'更新失败：{error}' => 'Ошибка обновления: {error}',
+'更新密码' => 'Изменить пароль',
+'更新目标不是文件：{file}' => 'Цель обновления не является файлом: {file}',
+'最新 {visible} / 共 {count} 条评论' => [
+    'one' => 'Показано последних: {visible} из {count} комментария',
+    'few' => 'Показано последних: {visible} из {count} комментариев',
+    'many' => 'Показано последних: {visible} из {count} комментариев',
+    'other' => 'Показано последних: {visible} из {count} комментариев',
+],
+'服务器未启用 ZipArchive，无法解压更新包。' => 'На сервере не включен ZipArchive, поэтому пакет обновления нельзя распаковать.',
+'服务器未启用 cURL，无法检查更新。' => 'На сервере не включен cURL, поэтому проверить обновления невозможно.',
+'未知' => 'Неизвестно',
+'查看全部' => 'Посмотреть все',
+'查看回复：{url}' => 'Посмотреть ответ: {url}',
+'查看详情' => 'Подробнее',
+'标签 {label} 下的文章' => 'Записи с тегом {label}',
+'标签来自文章内容，共 {count} 个标签。' => [
+    'one' => 'Теги извлекаются из текста записей. Всего {count} тег.',
+    'few' => 'Теги извлекаются из текста записей. Всего {count} тега.',
+    'many' => 'Теги извлекаются из текста записей. Всего {count} тегов.',
+    'other' => 'Теги извлекаются из текста записей. Всего {count} тега.',
+],
+'检测更新失败：{error}' => 'Не удалось проверить обновления: {error}',
+'没有匹配的评论。' => 'Подходящих комментариев не найдено.',
+'没有发现有效插件。请将插件放入 {path}。' => 'Допустимые плагины не найдены. Поместите плагины в {path}.',
+'没有找到这个文章分类。' => 'Категория записей не найдена.',
+'没有找到这个标签下的文章。' => 'Записи с этим тегом не найдены.',
+'浏览：{count}' => [
+    'one' => 'Просмотр: {count}',
+    'few' => 'Просмотров: {count}',
+    'many' => 'Просмотров: {count}',
+    'other' => 'Просмотров: {count}',
+],
+'用户名或邮箱' => 'Имя пользователя или адрес электронной почты',
+'确定更新到 {version} 吗？更新期间请勿关闭页面。' => 'Обновить до версии {version}? Не закрывайте страницу во время обновления.',
+'程序已更新，但内置主题和插件同步失败：{error}' => 'Приложение обновлено, но не удалось синхронизировать встроенные темы и плагины: {error}',
+'立即更新' => 'Обновить сейчас',
+"站点：{site}\n文章：{title}\n状态：{status}\n评论人：{author}\n邮箱：{email}\nIP：{ip}\n链接：{link}\n\n评论内容：\n{content}" => "Сайт: {site}\nПубликация: {title}\nСтатус: {status}\nАвтор комментария: {author}\nЭлектронная почта: {email}\nIP: {ip}\nСсылка: {link}\n\nТекст комментария:\n{content}",
+'第 {page} / {pages} 页' => 'Страница {page} из {pages}',
+'第 {page} 页' => 'Страница {page}',
+'终端输入' => 'Ввод терминала',
+'继续翻阅，第 {page} 页' => 'Продолжение чтения · страница {page}',
+'继续阅读：{title}' => 'Продолжить чтение: {title}',
+'网易云音乐' => 'NetEase Cloud Music',
+'撰写' => 'Написать',
+'网站（可选）' => 'Сайт (необязательно)',
+'若博客安装在子目录，请把 {entry} 改为包含子目录的入口路径，例如 {example}。' => 'Если блог установлен в подкаталоге, добавьте его к пути {entry}, например {example}.',
+'表演者' => 'Исполнитель',
+'设置博客后台新密码' => 'Установка нового пароля администратора блога',
+'评论分页' => 'Страницы комментариев',
+'评论已关闭' => 'Комментарии закрыты',
+'请填写用户名或邮箱。' => 'Введите имя пользователя или адрес электронной почты.',
+'豆瓣媒体资料' => 'Материалы Douban',
+'豆瓣电影' => 'Фильм на Douban',
+'豆瓣评分' => 'Рейтинг Douban',
+'豆瓣评分 {rating} 分' => 'Рейтинг Douban: {rating}',
+'豆瓣评分 {rating} 分，{count} 人评价' => [
+    'one' => 'Рейтинг Douban: {rating}, {count} оценка',
+    'few' => 'Рейтинг Douban: {rating}, {count} оценки',
+    'many' => 'Рейтинг Douban: {rating}, {count} оценок',
+    'other' => 'Рейтинг Douban: {rating}, {count} оценки',
+],
+'豆瓣读书' => 'Книга на Douban',
+'豆瓣资料' => 'Материалы Douban',
+'豆瓣音乐' => 'Музыка на Douban',
+'输入管理员用户名或邮箱，系统会生成一次性重置链接。' => 'Введите имя пользователя или адрес электронной почты администратора. Система создаст одноразовую ссылку для сброса.',
+'还没有分类。' => 'Категорий пока нет.',
+'还没有已发布的文章。' => 'Опубликованных записей пока нет.',
+'还没有评论' => 'Комментариев пока нет',
+'这个分类下共有 {count} 篇文章。' => [
+    'one' => 'В этой категории {count} запись.',
+    'few' => 'В этой категории {count} записи.',
+    'many' => 'В этой категории {count} записей.',
+    'other' => 'В этой категории {count} записи.',
+],
+'这个分类里共有 {count} 篇文章。' => [
+    'one' => 'В этой категории {count} запись.',
+    'few' => 'В этой категории {count} записи.',
+    'many' => 'В этой категории {count} записей.',
+    'other' => 'В этой категории {count} записи.',
+],
+'这个标签下共有 {count} 篇文章。' => [
+    'one' => 'С этим тегом {count} запись.',
+    'few' => 'С этим тегом {count} записи.',
+    'many' => 'С этим тегом {count} записей.',
+    'other' => 'С этим тегом {count} записи.',
+],
+'选择 {author} 的评论' => 'Выбрать комментарий пользователя {author}',
+'选择标签 {tag}' => 'Выбрать тег {tag}',
+'邮箱地址格式不正确。' => 'Неверный формат адреса электронной почты.',
+'重置 {site} 管理员密码' => 'Сброс пароля администратора сайта {site}',
+'阅读文章：{title}' => 'Читать запись: {title}',
+'预览主题 {theme}' => 'Предпросмотр темы {theme}',
+'默认使用项目根目录的 {file}，也可以填写完整图片 URL 或站内绝对路径。' => 'По умолчанию используется файл {file} в корне проекта. Также можно указать полный URL изображения или абсолютный путь внутри сайта.',
+'plugin.ai-assistant.name' => 'ИИ-помощник',
+'plugin.ai-assistant.description' => 'Создает slug и краткие описания записей, а также улучшает их текст с помощью ИИ.',
+'plugin.email-notifications.name' => 'Уведомления по электронной почте',
+'plugin.email-notifications.description' => 'Отправляет письма для сброса пароля и уведомления о комментариях через SMTP или PHP mail.',
+'plugin.english-language.name' => 'Английский язык',
+'plugin.english-language.description' => 'Переводит общедоступный сайт, страницы входа и интерфейс администрирования на английский язык.',
+'plugin.russian-language.name' => 'Русский язык',
+'plugin.russian-language.description' => 'Переводит общедоступный сайт, страницы входа и интерфейс администрирования на русский язык.',
+'plugin.s3-storage.name' => 'Хранилище S3',
+'plugin.s3-storage.description' => 'Сохраняет новые вложения из редактора в Amazon S3 или совместимом объектном хранилище.',
+'theme.default.name' => 'Встроенная тема терминала',
+'theme.default.description' => 'Встроенная тема сайта в стиле терминала.',
+'theme.hammeros.name' => 'HammerOS: системный помощник',
+'theme.hammeros.description' => 'Персонифицированная тема для публикаций: фарфорово-белый корпус, тактильные клавиши, системный помощник и спокойное пространство для чтения.',
+'theme.liquid-glass.name' => 'Aqua Glass',
+'theme.liquid-glass.description' => 'Светлая прозрачная тема для чтения в стиле Apple. Поддерживает светлый и темный режимы, адаптивную навигацию, обложки записей, стеклянные элементы управления и все страницы материалов.',
+'theme.nebula.name' => 'Nebula',
+'theme.nebula.description' => 'Глубокий космос, полярное сияние, стеклянный дизайн и приоритет темной темы. Звездные частицы на фоне, градиентные карточки обложек, архив в виде временной шкалы и облако тегов; поддерживается переключение светлой и темной тем.',
+'theme.starter.name' => 'Starter Contrast',
+'theme.starter.description' => 'Начальная тема с примерами переопределения стилей, head action и фильтра body_class.',
+'theme.ying.name' => 'Ying',
+'theme.ying.description' => 'Белая минималистичная тема для материалов, перенесенная из Halo Theme Ying и адаптированная для записей, комментариев, архивов, тегов и ссылок этого блога.',
+'请先完成 AI 设置。' => 'Сначала завершите настройку ИИ.',
+'服务器缺少 cURL 扩展，无法调用 AI 服务。' => 'На сервере отсутствует расширение cURL, необходимое для обращения к ИИ-сервису.',
+'AI 地址必须使用 HTTPS 并解析到公网地址。' => 'Адрес ИИ-сервиса должен использовать HTTPS и разрешаться в общедоступный IP-адрес.',
+'无法创建 AI 请求。' => 'Не удалось создать запрос к ИИ-сервису.',
+'AI 服务连接失败：{error}' => 'Не удалось подключиться к ИИ-сервису: {error}',
+'AI 服务返回异常（HTTP {status}）。' => 'ИИ-сервис вернул ошибку (HTTP {status}).',
+'仅支持 POST 请求。' => 'Поддерживаются только POST-запросы.',
+'内容过长，请控制在 50000 字以内。' => 'Текст слишком длинный. Ограничьте его 50 000 символами.',
+'请先填写文章标题。' => 'Сначала введите заголовок записи.',
+'请先填写文章正文。' => 'Сначала введите текст записи.',
+'请填写润色或生成要求。' => 'Укажите требования к редактированию или созданию текста.',
+'未知的 AI 操作。' => 'Неизвестная операция ИИ.',
+
     ];
 }
 
@@ -672,316 +1052,32 @@ function sblog_russian_client_translations(): array
         'ai_processing_content' => 'ИИ обрабатывает текст...',
         'cancel_reply_to' => 'Отменить ответ пользователю @{author}',
         'cancel_reply' => 'Отменить ответ',
+        'file_preview_label' => 'ФАЙЛ',
+        'terminal_themes_available' => 'темы: phosphor, amber, cyan',
+        'terminal_theme_switched' => 'тема: выбрана {name}',
+        'terminal_crt_scanlines_disabled' => 'Строки развертки ЭЛТ: отключены',
+        'terminal_crt_scanlines_enabled' => 'Строки развертки ЭЛТ: включены',
+        'terminal_use_cd' => 'Используйте: cd tags',
+        'terminal_use_cat' => 'Используйте: откройте ссылку на статью из списка ls',
+        'terminal_commands_heading' => 'КОМАНДЫ',
+        'terminal_help_ls' => '  ls                         список записей и разделов',
+        'terminal_help_navigation' => '  home|tags|links|archives   переход по сайту',
+        'terminal_help_utilities' => '  clear|history|pwd          служебные команды',
+        'terminal_help_theme' => '  theme <name>               phosphor, amber, cyan',
+        'terminal_help_display' => '  crt|date                    настройки отображения',
+        'terminal_command_not_found' => '{command}: команда не найдена. Введите "help".',
         'theme_activate_failed' => 'Не удалось переключить тему. Повторите попытку.',
     ];
 }
 
-function sblog_russian_plural(int $number, string $one, string $few, string $many): string
-{
-    $mod10 = $number % 10;
-    $mod100 = $number % 100;
-    if ($mod10 === 1 && $mod100 !== 11) {
-        return $one;
-    }
-    if ($mod10 >= 2 && $mod10 <= 4 && ($mod100 < 12 || $mod100 > 14)) {
-        return $few;
-    }
-    return $many;
-}
-
-function sblog_russian_translate_phrase(string $phrase): string
-{
-    $translations = sblog_russian_language_map();
-    if (isset($translations[$phrase])) {
-        return (string)$translations[$phrase];
-    }
-
-    if (preg_match('/^(.+)链接格式不正确。$/u', $phrase, $linkParts)) {
-        $label = (string)($translations[$linkParts[1]] ?? $linkParts[1]);
-        return 'Ссылка ' . $label . ' недействительна.';
-    }
-
-    if (preg_match('/^\[(.+)]$/u', $phrase, $bracketParts)) {
-        $label = (string)$bracketParts[1];
-        if (isset($translations[$label])) {
-            return '[' . (string)$translations[$label] . ']';
-        }
-    }
-    if (preg_match('/^\$ cat (.+)\.md$/u', $phrase, $commandParts)) {
-        $label = (string)$commandParts[1];
-        if (isset($translations[$label])) {
-            return '$ cat ' . str_lower_u(str_replace(' ', '-', (string)$translations[$label])) . '.md';
-        }
-    }
-    if (preg_match('/^分类：(.+)$/u', $phrase, $categoryParts)) {
-        $label = (string)($translations[$categoryParts[1]] ?? $categoryParts[1]);
-        return 'Категория: ' . $label;
-    }
-    if (preg_match('/^标签 (.+) 下的文章$/u', $phrase, $tagParts)) {
-        return 'Записи с тегом ' . $tagParts[1];
-    }
-    if (preg_match('/^(\d+)月\s+(\d+),\s+(\d{4})$/u', $phrase, $dateParts)) {
-        return sprintf('%02d.%02d.%s', (int)$dateParts[2], (int)$dateParts[1], $dateParts[3]);
-    }
-    if (preg_match('/^(\d+)月$/u', $phrase, $monthParts)) {
-        return sprintf('%02d месяц', (int)$monthParts[1]);
-    }
-    if (preg_match('/^(\d{4})\s*年\s*(\d{1,2})\s*月$/u', $phrase, $monthParts)) {
-        return sprintf('%02d.%s', (int)$monthParts[2], $monthParts[1]);
-    }
-    if (preg_match('/^(\d+)\s*篇文章$/u', $phrase, $countParts) || preg_match('/^(\d+)\s*篇$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей');
-    }
-    if (preg_match('/^·\s*(\d+)\s*篇$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return '· ' . $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей');
-    }
-    if (preg_match('/^(\d+)\s*条$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'комментарий', 'комментария', 'комментариев');
-    }
-    if (preg_match('/^共(?:有)?\s*(\d+)\s*篇文章(?:\s*·\s*(.+))?$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        $result = $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей');
-        if (isset($countParts[2]) && trim((string)$countParts[2]) !== '') {
-            $description = trim((string)$countParts[2]);
-            $result .= ' · ' . (string)($translations[$description] ?? $description);
-        }
-        return $result;
-    }
-    if (preg_match('/^共收好\s*(\d+)\s*篇文章，按时间整齐放置。$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'запись аккуратно упорядочена', 'записи аккуратно упорядочены', 'записей аккуратно упорядочены') . ' по дате.';
-    }
-    if (preg_match('/^(\d+)\s*枚索引，帮你快速找回感兴趣的内容。$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'тег поможет', 'тега помогут', 'тегов помогут') . ' найти интересные материалы.';
-    }
-    if (preg_match('/^为你找到\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return 'Найдено ' . $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей') . '.';
-    }
-    if (preg_match('/^这个(?:标签|分类)(?:下|里)共有\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей') . ' в этой подборке.';
-    }
-    if (preg_match('/^按时间回看写过的\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей') . ' по дате публикации.';
-    }
-    if (preg_match('/^(\d+)\s*个主题，找到你感兴趣的内容。$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'тема', 'темы', 'тем') . ' для просмотра.';
-    }
-    if (preg_match('/^时间轴上的\s*(\d+)\s*篇文章\s*·\s*总共写了\s*(\d+)\s*字$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'запись', 'записи', 'записей') . ' на временной шкале · написано символов: ' . $countParts[2];
-    }
-    if (preg_match('/^(\d+)\s*个标签，(\d+)\s*篇文章\s*·\s*每一枚标签，都是一颗星$/u', $phrase, $countParts)) {
-        $tagCount = (int)$countParts[1];
-        $postCount = (int)$countParts[2];
-        return $tagCount . ' ' . sblog_russian_plural($tagCount, 'тег', 'тега', 'тегов') . ', ' . $postCount . ' ' . sblog_russian_plural($postCount, 'запись', 'записи', 'записей') . ' · Каждый тег — звезда';
-    }
-    if (preg_match('/^继续翻阅，第\s*(\d+)\s*页$/u', $phrase, $pageParts)) {
-        return 'Продолжить чтение, страница ' . $pageParts[1];
-    }
-    if (preg_match('/^作者:\s*(.+)$/u', $phrase, $authorParts)) {
-        return 'Автор: ' . $authorParts[1];
-    }
-    if (preg_match('/^浏览:\s*(\d+)$/u', $phrase, $viewParts)) {
-        return 'Просмотры: ' . $viewParts[1];
-    }
-    if (preg_match('/^回复给 @(.+)$/u', $phrase, $replyParts)) {
-        return 'Ответ пользователю @' . $replyParts[1];
-    }
-
-    if (preg_match('/^([\s\S]+?)\s*·\s*([\s\S]+)$/u', $phrase, $titleParts)) {
-        $label = trim((string)$titleParts[1]);
-        if (isset($translations[$label])) {
-            return (string)$translations[$label] . ' · ' . trim((string)$titleParts[2]);
-        }
-    }
-    if (preg_match('/^([\s\S]+?)\s*·$/u', $phrase, $titleParts)) {
-        $label = trim((string)$titleParts[1]);
-        if (isset($translations[$label])) {
-            return (string)$translations[$label] . ' ·';
-        }
-    }
-    if (preg_match('/^(.+)，(\d+) 条未读评论$/u', $phrase, $labelParts)) {
-        $label = (string)($translations[$labelParts[1]] ?? $labelParts[1]);
-        $count = (int)$labelParts[2];
-        return $label . ', ' . $count . ' ' . sblog_russian_plural($count, 'непрочитанный комментарий', 'непрочитанных комментария', 'непрочитанных комментариев');
-    }
-    if (preg_match('/^预览主题 (.+)$/u', $phrase, $previewParts)) {
-        $theme = (string)($translations[$previewParts[1]] ?? $previewParts[1]);
-        return 'Предпросмотр темы ' . $theme;
-    }
-    if (preg_match('/^(\d+)\s*条未读评论$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'непрочитанный комментарий', 'непрочитанных комментария', 'непрочитанных комментариев');
-    }
-    if (preg_match('/^(\d+)\s*条评论$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'комментарий', 'комментария', 'комментариев');
-    }
-    if (preg_match('/^(\d+)\s*个主题$/u', $phrase, $countParts)) {
-        $count = (int)$countParts[1];
-        return $count . ' ' . sblog_russian_plural($count, 'тема', 'темы', 'тем');
-    }
-    if (preg_match('/^已删除 (\d+) 条评论。$/u', $phrase, $countParts)) {
-        return 'Удалено комментариев: ' . $countParts[1] . '.';
-    }
-    if (preg_match('/^已将 (\d+) 条评论标为已读。$/u', $phrase, $countParts)) {
-        return 'Отмечено как прочитанные: ' . $countParts[1] . '.';
-    }
-    if (preg_match('/^已通过 (\d+) 条评论。$/u', $phrase, $countParts)) {
-        return 'Одобрено комментариев: ' . $countParts[1] . '.';
-    }
-    if (preg_match('/^已将 (\d+) 条评论标记为垃圾。$/u', $phrase, $countParts)) {
-        return 'Помечено как спам: ' . $countParts[1] . '.';
-    }
-    if (preg_match('/^已将 (\d+) 条评论转为待审核。$/u', $phrase, $countParts)) {
-        return 'Перемещено на модерацию: ' . $countParts[1] . '.';
-    }
-
-    $patterns = [
-        '/^连接 S3 失败：(.+)$/u' => 'Не удалось подключиться к S3: $1',
-        '/^S3 删除对象失败（HTTP (\d+)）。$/u' => 'Не удалось удалить объект S3 (HTTP $1).',
-        '/^S3 返回异常（HTTP (\d+)）。(.*)$/u' => 'S3 вернул ошибку (HTTP $1).$2',
-        '/^选择 (.+) 的评论$/u' => 'Выбрать комментарий пользователя $1',
-        '/^回复 @(.+)$/u' => 'Ответить @$1',
-        '/^(.+)（当前）$/u' => '$1 (текущий)',
-        '/^(\d+) 字符$/u' => '$1 символов',
-        '/^当前筛选 (\d+) 条，审核状态与未读通知独立管理。$/u' => 'Результатов в текущем фильтре: $1. Статус модерации и непрочитанные уведомления управляются отдельно.',
-        '/^标签来自文章内容，共 (\d+) 个。$/u' => 'Тегов в записях: $1.',
-        '/^确定更新到 (.+) 吗？更新期间请勿关闭页面。$/u' => 'Обновить до $1? Не закрывайте страницу во время обновления.',
-        '/^作者：(.+)$/u' => 'Автор: $1',
-        '/^第\s*(\d+)\s*页$/u' => 'Страница $1',
-        '/^(\d{4})年(\d{1,2})月(\d{1,2})日$/u' => '$1-$2-$3',
-        '/^(\d{4})年(\d{1,2})月$/u' => '$1-$2',
-        '/^阅读《(.+)》$/u' => 'Читать "$1"',
-        '/^继续阅读《(.+)》$/u' => 'Продолжить чтение "$1"',
-        '/^打开用户菜单：(.+)$/u' => 'Открыть пользовательское меню: $1',
-        '/^登录 · (.+)$/u' => 'Войти · $1',
-        '/^找回密码 · (.+)$/u' => 'Забыли пароль · $1',
-        '/^设置新密码 · (.+)$/u' => 'Установить новый пароль · $1',
-        '/^选择 (.+)$/u' => 'Выбрать $1',
-        '/^已更新到 (.+)，并已同步内置主题和插件。$/u' => 'Обновлено до $1, синхронизированы входящие в комплект темы и плагины.',
-        '/^程序已更新，但内置主题和插件同步失败：(.+)$/u' => 'Приложение обновлено, но синхронизация встроенных тем и плагинов не выполнена: $1',
-    ];
-    foreach ($patterns as $pattern => $replacement) {
-        if (preg_match($pattern, $phrase)) {
-            return (string)preg_replace($pattern, $replacement, $phrase);
-        }
-    }
-    return $phrase;
-}
-
-function sblog_russian_translate_text_node(string $text): string
-{
-    if (!preg_match('/[\x{4e00}-\x{9fff}]/u', $text)) {
-        return $text;
-    }
-    if (!preg_match('/^(\s*)(.*?)(\s*)$/su', $text, $parts)) {
-        return $text;
-    }
-    return $parts[1] . sblog_russian_translate_phrase($parts[2]) . $parts[3];
-}
-
-function sblog_russian_translate_tag(string $tag): string
-{
-    if (!preg_match('/[\x{4e00}-\x{9fff}]/u', $tag)) {
-        return $tag;
-    }
-    $tag = preg_replace_callback(
-        '/\b(aria-label|title|placeholder|data-confirm|content)=("|\')(.*?)\2/su',
-        static function (array $matches): string {
-            $value = html_entity_decode((string)$matches[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $translated = sblog_russian_translate_phrase($value);
-            if ($translated === $value) {
-                return (string)$matches[0];
-            }
-            return $matches[1] . '=' . $matches[2] . htmlspecialchars($translated, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . $matches[2];
-        },
-        $tag
-    ) ?? $tag;
-
-    return preg_replace_callback(
-        '/\b(onclick|onsubmit)=("|\')(.*?)\2/su',
-        static function (array $matches): string {
-            $code = html_entity_decode((string)$matches[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $translated = preg_replace_callback(
-                '/\bconfirm\(("|\')(.*?)\1\)/su',
-                static function (array $confirmMatches): string {
-                    $message = sblog_russian_translate_phrase((string)$confirmMatches[2]);
-                    return 'confirm(' . $confirmMatches[1] . $message . $confirmMatches[1] . ')';
-                },
-                $code
-            ) ?? $code;
-            if ($translated === $code) {
-                return (string)$matches[0];
-            }
-            return $matches[1] . '=' . $matches[2] . htmlspecialchars($translated, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . $matches[2];
-        },
-        $tag
-    ) ?? $tag;
-}
-
-function sblog_russian_translate_json_value(mixed $value): mixed
-{
-    if (is_string($value)) {
-        return sblog_russian_translate_phrase($value);
-    }
-    if (is_array($value)) {
-        foreach ($value as $key => $item) {
-            $value[$key] = sblog_russian_translate_json_value($item);
-        }
-    }
-    return $value;
-}
-
-add_plugin_filter('output_html', static function (string $html, array $context): string {
-    if (stripos($html, '<html') === false) {
-        if ((string)($context['action'] ?? '') === 'upload_attachment') {
-            $payload = json_decode($html, true);
-            if (is_array($payload)) {
-                $translated = json_encode(sblog_russian_translate_json_value($payload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-                return is_string($translated) ? $translated : $html;
-            }
-        }
-        return $html;
-    }
-
-    $html = str_replace(['lang="zh-CN"', "lang='zh-CN'"], ['lang="ru"', "lang='ru'"], $html);
-    $clientTranslations = json_encode(
-        sblog_russian_client_translations(),
-        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
-    );
-    if (is_string($clientTranslations)) {
-        $script = '<script>window.sblogI18n=Object.assign({},window.sblogI18n||{},' . $clientTranslations . ');</script>';
-        $html = preg_replace('/<\/head>/i', $script . '</head>', $html, 1) ?? $html;
-    }
-    $tokens = preg_split('/(<[^>]+>)/s', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
-    if (is_array($tokens)) {
-        $rawElement = '';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, '<')) {
-                if (preg_match('/^<(script|style|textarea)\b/i', $token, $matches)) {
-                    $rawElement = strtolower((string)$matches[1]);
-                } elseif ($rawElement !== '' && preg_match('#^</' . preg_quote($rawElement, '#') . '\s*>#i', $token)) {
-                    $rawElement = '';
-                }
-                $tokens[$index] = sblog_russian_translate_tag($token);
-            } elseif ($rawElement === '') {
-                $tokens[$index] = sblog_russian_translate_text_node($token);
-            }
-        }
-        $html = implode('', $tokens);
-    }
-
-    if (!headers_sent()) {
-        header('Content-Language: ru');
-    }
-    return $html;
-}, 10);
+sblog_i18n_register('ru', array_merge(
+    sblog_russian_language_map(),
+    [
+        'post_navigation.previous' => 'Предыдущая запись',
+        'post_navigation.next' => 'Следующая запись',
+        'post_navigation.previous_label' => 'Предыдущая запись: {title}',
+        'post_navigation.next_label' => 'Следующая запись: {title}',
+    ]
+));
+sblog_i18n_register_client('ru', sblog_russian_client_translations());
+sblog_i18n_set_locale('ru');

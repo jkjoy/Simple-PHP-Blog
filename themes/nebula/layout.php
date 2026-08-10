@@ -21,7 +21,7 @@ $viewClass = match (true) {
 };
 ?>
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="<?= h(sblog_i18n_locale()) ?>" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,6 +30,7 @@ $viewClass = match (true) {
   <title><?= h($fullTitle) ?></title>
   <link rel="icon" href="<?= h(theme_favicon_url()) ?>">
   <script>(function(){document.documentElement.classList.add("js");try{var t=localStorage.getItem("nebula-theme");if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();</script>
+  <?= sblog_i18n_head() ?>
   <?php theme_action('head', $themeContext); ?>
   <?php if ($customHeadCode !== ''): ?>
 <?= $customHeadCode . "\n" ?>
@@ -51,18 +52,18 @@ $viewClass = match (true) {
       <a class="brand" href="<?= h(url_for('home')) ?>"><?= h($siteName) ?></a>
 
       <nav class="site-nav">
-        <a href="<?= h(url_for('home')) ?>" class="<?= $active === 'home' ? 'active' : '' ?>">首页</a>
-        <a href="<?= h(url_for('archives')) ?>" class="<?= $active === 'archives' ? 'active' : '' ?>">归档</a>
-        <a href="<?= h(url_for('tags')) ?>" class="<?= $active === 'tags' ? 'active' : '' ?>">标签</a>
-        <a href="<?= h(url_for('links')) ?>" class="<?= $active === 'links' ? 'active' : '' ?>">友链</a>
+        <a href="<?= h(url_for('home')) ?>" class="<?= $active === 'home' ? 'active' : '' ?>"><?= h(sblog_t('首页')) ?></a>
+        <a href="<?= h(url_for('archives')) ?>" class="<?= $active === 'archives' ? 'active' : '' ?>"><?= h(sblog_t('归档')) ?></a>
+        <a href="<?= h(url_for('tags')) ?>" class="<?= $active === 'tags' ? 'active' : '' ?>"><?= h(sblog_t('标签')) ?></a>
+        <a href="<?= h(url_for('links')) ?>" class="<?= $active === 'links' ? 'active' : '' ?>"><?= h(sblog_t('友链')) ?></a>
         <?php foreach ($navPages as $page): ?>
           <a href="<?= h(content_permalink($page)) ?>" class="<?= $active === 'page:' . $page['slug'] ? 'active' : '' ?>"><?= h((string)$page['title']) ?></a>
         <?php endforeach; ?>
-        <?php if ($admin): ?><a href="<?= h(url_for('admin')) ?>" class="<?= $active === 'admin' ? 'active' : '' ?>">管理</a><?php endif; ?>
+        <?php if ($admin): ?><a href="<?= h(url_for('admin')) ?>" class="<?= $active === 'admin' ? 'active' : '' ?>"><?= h(sblog_t('管理')) ?></a><?php endif; ?>
       </nav>
 
       <div class="nav-actions">
-        <button id="theme-toggle" type="button" aria-label="切换主题">
+        <button id="theme-toggle" type="button" aria-label="<?= h(sblog_t('切换主题')) ?>">
           <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
           </svg>
@@ -71,7 +72,7 @@ $viewClass = match (true) {
             <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
           </svg>
         </button>
-        <button id="menu-toggle" type="button" aria-label="打开菜单">
+        <button id="menu-toggle" type="button" aria-label="<?= h(sblog_t('打开菜单')) ?>">
           <span></span>
           <span></span>
           <span></span>
@@ -95,13 +96,13 @@ $viewClass = match (true) {
       <p class="site-footer__meta">
         <?php $beian = trim(setting('footer_beian')); ?>
         <?php if ($beian !== ''): ?><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer"><?= h($beian) ?></a><span aria-hidden="true"> · </span><?php endif; ?>
-        <a href="<?= h(url_for('rss')) ?>">RSS</a><span aria-hidden="true"> · </span><a href="<?= h(url_for('sitemap')) ?>">Sitemap</a><span aria-hidden="true"> · </span>Powered by <a href="https://github.com/jkjoy/Simple-PHP-Blog" target="_blank" rel="noopener noreferrer">Simple PHP Blog</a> <span aria-hidden="true">·</span> <span class="grad-text">Nebula</span> Theme
+        <a href="<?= h(url_for('rss')) ?>">RSS</a><span aria-hidden="true"> · </span><a href="<?= h(url_for('sitemap')) ?>">Sitemap</a><span aria-hidden="true"> · </span><?= h(sblog_t('Powered by')) ?> <a href="https://github.com/jkjoy/Simple-PHP-Blog" target="_blank" rel="noopener noreferrer">Simple PHP Blog</a> <span aria-hidden="true">·</span> <span class="grad-text">Nebula</span> <?= h(sblog_t('Theme')) ?>
       </p>
     </div>
   </footer>
   <?php theme_action('footer_after', $themeContext); ?>
 
-  <button id="back-top" type="button" aria-label="回到顶部">
+  <button id="back-top" type="button" aria-label="<?= h(sblog_t('回到顶部')) ?>">
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 19V5M5 12l7-7 7 7"/>
     </svg>

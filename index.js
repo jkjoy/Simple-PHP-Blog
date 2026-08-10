@@ -1,10 +1,9 @@
 function sblogText(key, fallback, variables = {}) {
   const messages = window.sblogI18n;
-  let text = typeof messages?.[key] === "string" ? messages[key] : fallback;
-  Object.entries(variables).forEach(([name, value]) => {
-    text = text.replaceAll(`{${name}}`, String(value));
-  });
-  return text;
+  const text = typeof messages?.[key] === "string" ? messages[key] : fallback;
+  return text.replace(/\{([A-Za-z_][A-Za-z0-9_.-]*)\}/g, (placeholder, name) => (
+    Object.prototype.hasOwnProperty.call(variables, name) ? String(variables[name]) : placeholder
+  ));
 }
 
 function initAdminTheme() {
@@ -298,7 +297,7 @@ function initAttachmentUploader() {
       image.onload = () => URL.revokeObjectURL(image.src);
       preview.appendChild(image);
     } else {
-      preview.textContent = "FILE";
+      preview.textContent = sblogText("file_preview_label", "FILE");
     }
 
     const body = document.createElement("div");
@@ -522,19 +521,16 @@ function initAiEditor() {
   const root = document.querySelector("[data-ai-editor]");
   if (!root) return;
 
-  const title = document.getElementById("title");
-  const slug = document.getElementById("slug");
-  const excerpt = document.getElementById("excerpt");
   const content = document.getElementById("content");
   const modal = root.querySelector("[data-ai-modal]");
   const instruction = root.querySelector("#ai_instruction");
   const status = root.querySelector("[data-ai-status]");
   const confirm = root.querySelector("[data-ai-confirm]");
 
-  const generate = async (type, source, extraInstruction = "") => {
+  const generate = async (source, extraInstruction = "") => {
     const data = new FormData();
     data.append("csrf_token", root.dataset.csrf || "");
-    data.append("type", type);
+    data.append("type", "polish");
     data.append("content", source);
     data.append("instruction", extraInstruction);
 
@@ -553,30 +549,10 @@ function initAiEditor() {
     return result.result || "";
   };
 
-  document.querySelectorAll("[data-ai-action]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      const type = button.dataset.aiAction;
-      if (type === "polish") {
-        modal.hidden = false;
-        instruction.focus();
-        return;
-      }
-
-      const source = type === "slug" ? title.value.trim() : content.value.trim();
-      const original = button.textContent;
-      button.disabled = true;
-      button.textContent = sblogText("generating", "生成中...");
-
-      try {
-        const result = await generate(type, source);
-        if (type === "slug") slug.value = result;
-        if (type === "summary") excerpt.value = result;
-      } catch (error) {
-        window.alert(error instanceof Error ? error.message : sblogText("ai_generation_failed", "AI 生成失败。"));
-      } finally {
-        button.disabled = false;
-        button.textContent = original;
-      }
+  document.querySelectorAll('[data-ai-action="polish"]').forEach((button) => {
+    button.addEventListener("click", () => {
+      modal.hidden = false;
+      instruction.focus();
     });
   });
 
@@ -592,7 +568,7 @@ function initAiEditor() {
     status.textContent = sblogText("ai_processing_content", "AI 正在处理正文...");
 
     try {
-      content.value = await generate("polish", content.value, instruction.value.trim());
+      content.value = await generate(content.value, instruction.value.trim());
       content.dispatchEvent(new Event("input", { bubbles: true }));
       modal.hidden = true;
       status.textContent = "";
@@ -740,13 +716,13 @@ function initTerminal() {
     };
     const theme = themes[name];
     if (!theme) {
-      print("themes: phosphor, amber, cyan", "dim");
+      print(sblogText("terminal_themes_available", "themes: phosphor, amber, cyan"), "dim");
       return;
     }
 
     document.documentElement.style.setProperty("--green", theme[0]);
     document.documentElement.style.setProperty("--bright", theme[1]);
-    print(`theme: switched to ${name}`, "green");
+    print(sblogText("terminal_theme_switched", "theme: switched to {name}", { name }), "green");
   };
 
   const runCommand = (raw) => {
@@ -768,12 +744,14 @@ function initTerminal() {
       return;
     }
     if (command === "date") {
-      print(new Date().toString(), "green");
+      print(new Date().toLocaleString(document.documentElement.lang || undefined), "green");
       return;
     }
     if (command === "crt") {
       scan.classList.toggle("disabled");
-      print(`CRT scanlines: ${scan.classList.contains("disabled") ? "disabled" : "enabled"}`, "dim");
+      print(scan.classList.contains("disabled")
+        ? sblogText("terminal_crt_scanlines_disabled", "CRT scanlines: disabled")
+        : sblogText("terminal_crt_scanlines_enabled", "CRT scanlines: enabled"), "dim");
       return;
     }
     if (command === "history") {
@@ -790,20 +768,22 @@ function initTerminal() {
       return;
     }
     if (command === "cd" || command === "cat") {
-      print(`Use: ${command === "cd" ? "cd tags" : "open an article link from ls"}`, "dim");
+      print(command === "cd"
+        ? sblogText("terminal_use_cd", "Use: cd tags")
+        : sblogText("terminal_use_cat", "Use: open an article link from ls"), "dim");
       return;
     }
     if (command === "help") {
-      print("COMMANDS", "amber");
-      print("  ls                         list posts and sections");
-      print("  home|tags|links|archives   navigate site");
-      print("  clear|history|pwd          shell utilities");
-      print("  theme <name>               phosphor, amber, cyan");
-      print("  crt|date                    display controls");
+      print(sblogText("terminal_commands_heading", "COMMANDS"), "amber");
+      print(sblogText("terminal_help_ls", "  ls                         list posts and sections"));
+      print(sblogText("terminal_help_navigation", "  home|tags|links|archives   navigate site"));
+      print(sblogText("terminal_help_utilities", "  clear|history|pwd          shell utilities"));
+      print(sblogText("terminal_help_theme", "  theme <name>               phosphor, amber, cyan"));
+      print(sblogText("terminal_help_display", "  crt|date                    display controls"));
       return;
     }
 
-    print(`${command}: command not found. Type "help".`, "red");
+    print(sblogText("terminal_command_not_found", '{command}: command not found. Type "help".', { command }), "red");
   };
 
   input.addEventListener("input", syncInput);

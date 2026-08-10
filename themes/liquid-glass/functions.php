@@ -43,7 +43,7 @@ function aqua_render_post_grid(array $posts): string
               <img src="<?= h($cover) ?>" alt="" loading="<?= $index === 0 ? 'eager' : 'lazy' ?>" decoding="async" onerror="this.remove()">
             <?php endif; ?>
             <span class="aqua-post-card__glyph"><?= h(str_sub_u((string)$post['title'], 0, 1)) ?></span>
-            <?php if (!empty($post['is_pinned'])): ?><span class="aqua-pin">置顶</span><?php endif; ?>
+            <?php if (!empty($post['is_pinned'])): ?><span class="aqua-pin"><?= h(sblog_t('置顶')) ?></span><?php endif; ?>
           </a>
           <div class="aqua-post-card__body">
             <div class="aqua-post-card__meta">
@@ -53,7 +53,7 @@ function aqua_render_post_grid(array $posts): string
             <h2><a href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>"><?= h((string)$post['title']) ?></a></h2>
             <p><?= h(aqua_post_excerpt($post)) ?></p>
             <a class="aqua-read-link" href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>">
-              <span>继续阅读</span>
+              <span><?= h(sblog_t('继续阅读')) ?></span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
             </a>
           </div>
@@ -72,14 +72,14 @@ function aqua_render_pager(int $page, int $totalPages): string
 
     ob_start();
     ?>
-    <nav class="aqua-pager aqua-glass aqua-reveal" aria-label="分页">
+    <nav class="aqua-pager aqua-glass aqua-reveal" aria-label="<?= h(sblog_t('分页')) ?>">
       <?php if ($page > 1): ?>
-        <a href="<?= h(home_page_url($page - 1)) ?>" aria-label="上一页"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>上一页</span></a>
-      <?php else: ?><span class="is-disabled"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span>上一页</span></span><?php endif; ?>
+        <a href="<?= h(home_page_url($page - 1)) ?>" aria-label="<?= h(sblog_t('上一页')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span><?= h(sblog_t('上一页')) ?></span></a>
+      <?php else: ?><span class="is-disabled"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><span><?= h(sblog_t('上一页')) ?></span></span><?php endif; ?>
       <strong><?= h((string)$page) ?> <i>/</i> <?= h((string)$totalPages) ?></strong>
       <?php if ($page < $totalPages): ?>
-        <a href="<?= h(home_page_url($page + 1)) ?>"><span>下一页</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
-      <?php else: ?><span class="is-disabled"><span>下一页</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span><?php endif; ?>
+        <a href="<?= h(home_page_url($page + 1)) ?>"><span><?= h(sblog_t('下一页')) ?></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></a>
+      <?php else: ?><span class="is-disabled"><span><?= h(sblog_t('下一页')) ?></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></span><?php endif; ?>
     </nav>
     <?php
     return (string)ob_get_clean();
@@ -97,14 +97,14 @@ function aqua_render_home(): string
     ?>
     <section class="aqua-feed" aria-labelledby="aqua-feed-title">
       <div class="aqua-section-head aqua-reveal">
-        <div><span class="aqua-kicker">JOURNAL</span><h2 id="aqua-feed-title"><?= $page > 1 ? '第 ' . h((string)$page) . ' 页' : '最近更新' ?></h2></div>
-        <a href="<?= h(url_for('archives')) ?>">浏览全部 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+        <div><span class="aqua-kicker"><?= h(sblog_t('JOURNAL')) ?></span><h2 id="aqua-feed-title"><?= h($page > 1 ? sblog_t('第 {page} 页', ['page' => $page]) : sblog_t('最近更新')) ?></h2></div>
+        <a href="<?= h(url_for('archives')) ?>"><?= h(sblog_t('浏览全部')) ?> <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
       </div>
       <?php if ($posts): ?>
         <?= aqua_render_post_grid($posts) ?>
         <?= aqua_render_pager($page, $totalPages) ?>
       <?php else: ?>
-        <div class="aqua-empty aqua-glass"><p>还没有已发布的文章。</p><?php if (is_admin()): ?><a href="<?= h(url_for('write')) ?>">写第一篇文章</a><?php endif; ?></div>
+        <div class="aqua-empty aqua-glass"><p><?= h(sblog_t('还没有已发布的文章。')) ?></p><?php if (is_admin()): ?><a href="<?= h(url_for('write')) ?>"><?= h(sblog_t('写第一篇文章')) ?></a><?php endif; ?></div>
       <?php endif; ?>
     </section>
     <?php
@@ -120,7 +120,7 @@ function aqua_render_timeline(array $posts, bool $groupByYear = true): string
         <?php $years = []; foreach ($posts as $post) { $years[date('Y', (int)$post['published_at'])][] = $post; } ?>
         <?php foreach ($years as $year => $yearPosts): ?>
           <section class="aqua-year aqua-reveal">
-            <header><h2><?= h((string)$year) ?></h2><span><?= h((string)count($yearPosts)) ?> 篇</span></header>
+            <header><h2><?= h((string)$year) ?></h2><span><?= h(sblog_tn('{count} 篇', count($yearPosts))) ?></span></header>
             <div class="aqua-year__posts">
               <?php foreach ($yearPosts as $post): ?>
                 <a href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>">
@@ -139,7 +139,7 @@ function aqua_render_timeline(array $posts, bool $groupByYear = true): string
               <time><?= h(date('Y.m.d', (int)$post['published_at'])) ?></time>
               <strong>
                 <?php if (!empty($post['is_pinned'])): ?>
-                  <span class="aqua-timeline-pin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5M5 17h14l-1-7H6l-1 7ZM9 10V4h6v6"/></svg>置顶</span>
+                  <span class="aqua-timeline-pin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5M5 17h14l-1-7H6l-1 7ZM9 10V4h6v6"/></svg><?= h(sblog_t('置顶')) ?></span>
                 <?php endif; ?>
                 <span class="aqua-year__title"><?= h((string)$post['title']) ?></span>
               </strong>
@@ -170,11 +170,15 @@ function aqua_render_archives(): string
 {
     $posts = fetch_archive_posts();
     ob_start();
-    echo aqua_page_head('ARCHIVE', '所有文章', '按时间回看写过的 ' . count($posts) . ' 篇文章。');
+    echo aqua_page_head(
+        sblog_t('ARCHIVE'),
+        sblog_t('所有文章'),
+        sblog_tn('按时间回看写过的 {count} 篇文章。', count($posts))
+    );
     if ($posts) {
         echo aqua_render_timeline($posts);
     } else {
-        echo '<div class="aqua-empty aqua-glass"><p>归档还是空的。</p></div>';
+        echo '<div class="aqua-empty aqua-glass"><p>' . h(sblog_t('归档还是空的。')) . '</p></div>';
     }
     return (string)ob_get_clean();
 }
@@ -183,16 +187,20 @@ function aqua_render_tags(): string
 {
     $tags = tag_index_data();
     ob_start();
-    echo aqua_page_head('TOPICS', '文章标签', count($tags) . ' 个主题，找到你感兴趣的内容。');
+    echo aqua_page_head(
+        sblog_t('TOPICS'),
+        sblog_t('文章标签'),
+        sblog_tn('{count} 个主题，找到你感兴趣的内容。', count($tags))
+    );
     if ($tags): ?>
       <div class="aqua-tag-grid">
         <?php foreach ($tags as $index => $tag): ?>
           <a class="aqua-tag aqua-glass aqua-reveal" href="<?= h(url_for('tag', ['slug' => (string)$tag['slug']])) ?>"<?= aqua_reveal_delay($index % 6) ?>>
-            <span>#</span><strong><?= h((string)$tag['label']) ?></strong><small><?= h((string)$tag['count']) ?> 篇</small>
+            <span>#</span><strong><?= h((string)$tag['label']) ?></strong><small><?= h(sblog_tn('{count} 篇', (int)$tag['count'])) ?></small>
           </a>
         <?php endforeach; ?>
       </div>
-    <?php else: ?><div class="aqua-empty aqua-glass"><p>还没有标签。</p></div><?php endif;
+    <?php else: ?><div class="aqua-empty aqua-glass"><p><?= h(sblog_t('还没有标签。')) ?></p></div><?php endif;
     return (string)ob_get_clean();
 }
 
@@ -204,8 +212,13 @@ function aqua_render_tag_page(string $slug): string
         return '';
     }
     $label = $label ?? $slug;
-    return aqua_page_head('TOPIC', '# ' . $label, '这个标签下共有 ' . count($posts) . ' 篇文章。')
-        . ($posts ? aqua_render_timeline($posts, false) : '<div class="aqua-empty aqua-glass"><p>这个标签下还没有文章。</p></div>');
+    return aqua_page_head(
+        sblog_t('TOPIC'),
+        '# ' . $label,
+        sblog_tn('这个标签下共有 {count} 篇文章。', count($posts))
+    ) . ($posts
+        ? aqua_render_timeline($posts, false)
+        : '<div class="aqua-empty aqua-glass"><p>' . h(sblog_t('这个标签下还没有文章。')) . '</p></div>');
 }
 
 function aqua_render_category_page(string $slug): string
@@ -218,33 +231,48 @@ function aqua_render_category_page(string $slug): string
         'SELECT * FROM posts WHERE kind = ? AND category_id = ? AND status = ? AND published_at <= ? ORDER BY is_pinned DESC, published_at DESC, id DESC',
         ['post', (int)$category['id'], 'published', time()]
     );
-    $description = trim((string)$category['description']) ?: '这个分类下共有 ' . count($posts) . ' 篇文章。';
-    return aqua_page_head('CATEGORY', (string)$category['name'], $description)
-        . ($posts ? aqua_render_timeline($posts, false) : '<div class="aqua-empty aqua-glass"><p>这个分类下还没有文章。</p></div>');
+    $description = trim((string)$category['description'])
+        ?: sblog_tn('这个分类下共有 {count} 篇文章。', count($posts));
+    return aqua_page_head(sblog_t('CATEGORY'), (string)$category['name'], $description)
+        . ($posts
+            ? aqua_render_timeline($posts, false)
+            : '<div class="aqua-empty aqua-glass"><p>' . h(sblog_t('这个分类下还没有文章。')) . '</p></div>');
 }
 
 function aqua_render_links(): string
 {
     $links = all_rows('SELECT * FROM links ORDER BY sort_order ASC, id DESC');
     ob_start();
-    echo aqua_page_head('FRIENDS', '朋友们', '去看看互联网另一端的有趣灵魂。');
+    echo aqua_page_head(sblog_t('FRIENDS'), sblog_t('朋友们'), sblog_t('去看看互联网另一端的有趣灵魂。'));
     if ($links): ?>
       <div class="aqua-link-grid">
         <?php foreach ($links as $index => $link): ?>
           <?php $name = trim((string)$link['name']); $iconUrl = trim((string)$link['icon_url']); ?>
           <a class="aqua-link-card aqua-glass aqua-reveal" href="<?= h(safe_link_url((string)$link['url'])) ?>" target="_blank" rel="noopener noreferrer"<?= aqua_reveal_delay($index % 6) ?>>
             <span class="aqua-link-card__icon"><b><?= h(str_sub_u($name, 0, 1)) ?></b><?php if ($iconUrl !== ''): ?><img src="<?= h($iconUrl) ?>" alt="" width="56" height="56" loading="lazy" onerror="this.remove()"><?php endif; ?></span>
-            <span><strong><?= h($name) ?></strong><small><?= h(trim((string)$link['description']) ?: '访问这个网站') ?></small></span>
+            <span><strong><?= h($name) ?></strong><small><?= h(trim((string)$link['description']) ?: sblog_t('访问这个网站')) ?></small></span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg>
           </a>
         <?php endforeach; ?>
       </div>
-    <?php else: ?><div class="aqua-empty aqua-glass"><p>还没有添加友情链接。</p></div><?php endif;
+    <?php else: ?><div class="aqua-empty aqua-glass"><p><?= h(sblog_t('还没有添加友情链接。')) ?></p></div><?php endif;
     return (string)ob_get_clean();
 }
 
 add_theme_filter('body_class', static function (string $classes, array $context): string {
     return trim($classes . ' aqua-theme');
+});
+
+add_theme_filter('comments_labels', static function (array $labels, array $context): array {
+    return array_replace($labels, [
+        'title' => sblog_t('评论'),
+        'form_title' => sblog_t('写下评论'),
+        'submit' => sblog_t('提交评论'),
+        'cancel_reply' => sblog_t('取消'),
+        'cancel_reply_aria' => sblog_t('取消回复'),
+        'empty' => sblog_t('暂无评论，来留下第一条吧。'),
+        'closed' => sblog_t('评论已关闭'),
+    ]);
 });
 
 add_theme_filter('content', static function (string $content, array $context): string {
@@ -272,14 +300,7 @@ add_theme_filter('content', static function (string $content, array $context): s
         return aqua_render_links();
     }
 
-    return strtr($content, [
-        '<h2 class="section-header" id="comments-title">comments.log</h2>' => '<h2 class="section-header" id="comments-title">评论</h2>',
-        '<h3 class="comment-form__title">new-comment</h3>' => '<h3 class="comment-form__title">写下评论</h3>',
-        '<button class="terminal-action" type="submit">[提交评论]</button>' => '<button class="terminal-action" type="submit">提交评论</button>',
-        '<div class="comments__empty empty-notice">// 暂无评论</div>' => '<div class="comments__empty empty-notice">暂无评论，来留下第一条吧。</div>',
-        '<div class="comments__empty empty-notice">// 评论已关闭</div>' => '<div class="comments__empty empty-notice">评论已关闭</div>',
-        '<button class="comment-reply-cancel" type="button" data-comment-reply-cancel aria-label="取消回复">[取消]</button>' => '<button class="comment-reply-cancel" type="button" data-comment-reply-cancel aria-label="取消回复">取消</button>',
-    ]);
+    return $content;
 });
 
 add_theme_action('head', static function (array $context): string {

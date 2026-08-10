@@ -499,6 +499,11 @@ function sblog_english_language_map(): array
         '润色或生成要求' => 'Editing or generation instructions',
         '取消' => 'Cancel',
         '确定并填入正文' => 'Apply to content',
+        '自动生成' => 'Automatic generation',
+        '自动生成 Slug' => 'Auto-generate slug',
+        'Slug 留空时使用 AI 生成；关闭或失败时使用默认生成方式。' => 'Use AI to generate a slug when the field is blank. If disabled or unsuccessful, use the default slug generator.',
+        '自动生成摘要' => 'Auto-generate excerpt',
+        '摘要留空时使用 AI 生成；关闭或失败时自动从正文截取。' => 'Use AI to generate an excerpt when the field is blank. If disabled or unsuccessful, extract one from the post content.',
         '标题级别' => 'Heading level',
         '一级标题' => 'Heading 1',
         '二级标题' => 'Heading 2',
@@ -625,8 +630,294 @@ function sblog_english_language_map(): array
         '夜深了，我是这里的系统管家。' => 'It is late. I am your system companion.',
         '早上好，我是这里的系统管家。' => 'Good morning. I am your system companion.',
         '中午好，我是这里的系统管家。' => 'Good afternoon. I am your system companion.',
-        '下午好，我是这里的系统管家。' => 'Good afternoon. I am your system companion.',
-        '晚上好，我是这里的系统管家。' => 'Good evening. I am your system companion.',
+        'ARCHIVE' => 'ARCHIVE',
+        'Apache' => 'Apache',
+        'Appearance' => 'Appearance',
+        'CATEGORY' => 'CATEGORY',
+        'COLLECTION' => 'COLLECTION',
+        'CONTINUE READING' => 'CONTINUE READING',
+        'FILTERED' => 'FILTERED',
+        'FRIENDS' => 'FRIENDS',
+        'GitHub' => 'GitHub',
+        'GitHub 暂时无法访问。' => 'GitHub is temporarily unavailable.',
+        'INDEX LABELS' => 'INDEX LABELS',
+        'IP：{address}' => 'IP: {address}',
+        'Instagram' => 'Instagram',
+        'JOURNAL' => 'JOURNAL',
+        'Markdown' => 'Markdown',
+        'MEMORY DRAWER' => 'MEMORY DRAWER',
+        'Mastodon' => 'Mastodon',
+        'NEIGHBORS' => 'NEIGHBORS',
+        'Nginx' => 'Nginx',
+        'OFFLINE' => 'OFFLINE',
+        'ONLINE' => 'ONLINE',
+        'PERSONAL JOURNAL' => 'PERSONAL JOURNAL',
+        'PERSONAL SYSTEM' => 'PERSONAL SYSTEM',
+        'Powered by' => 'Powered by',
+        'Powered by Simple PHP Blog {version}' => 'Powered by Simple PHP Blog {version}',
+        'QQ' => 'QQ',
+        'RSS' => 'RSS',
+        'SYSTEM BUDDY' => 'SYSTEM BUDDY',
+        'Simple-PHP-Blog Admin' => 'Simple-PHP-Blog Admin',
+        'Sitemap' => 'Sitemap',
+        'Slug' => 'Slug',
+        'TODAY' => 'TODAY',
+        'TOPIC' => 'TOPIC',
+        'TOPICS' => 'TOPICS',
+        'Telegram' => 'Telegram',
+        'Theme' => 'Theme',
+        'Theme by' => 'Theme by',
+        'TikTok' => 'TikTok',
+        'X' => 'X',
+        'YouTube 视频' => 'YouTube video',
+        '[{site}] {author} 回复了你的评论' => '[{site}] {author} replied to your comment',
+        '{author} 在《{post}》中回复了你：' => '{author} replied to you on "{post}":',
+        '{count} 个主题' => [
+            'one' => '{count} theme',
+            'other' => '{count} themes',
+        ],
+        '{count} 个主题，找到你感兴趣的内容。' => [
+            'one' => '{count} topic to explore.',
+            'other' => '{count} topics to explore.',
+        ],
+        '{count} 个字符' => [
+            'one' => '{count} character',
+            'other' => '{count} characters',
+        ],
+        '{count} 条待审核，最近未读如下。' => [
+            'one' => '{count} comment pending. The latest unread comments are below.',
+            'other' => '{count} comments pending. The latest unread comments are below.',
+        ],
+        '{count} 条未读评论' => [
+            'one' => '{count} unread comment',
+            'other' => '{count} unread comments',
+        ],
+        '{count} 条评论' => [
+            'one' => '{count} comment',
+            'other' => '{count} comments',
+        ],
+        '{count} 枚索引，帮你快速找回感兴趣的内容。' => [
+            'one' => '{count} tag to help you find content that interests you.',
+            'other' => '{count} tags to help you find content that interests you.',
+        ],
+        '{count} 篇' => [
+            'one' => '{count} post',
+            'other' => '{count} posts',
+        ],
+        '{count} 篇文章' => [
+            'one' => '{count} post',
+            'other' => '{count} posts',
+        ],
+        '{field}格式不正确。' => 'The {field} format is invalid.',
+        '{field}链接格式不正确。' => 'The {field} URL is invalid.',
+        '{label}，{count} 条未读评论' => [
+            'one' => '{label}, {count} unread comment',
+            'other' => '{label}, {count} unread comments',
+        ],
+        '{month}月' => 'Month {month}',
+        '{month}月 {day}, {year}' => '{month}/{day}/{year}',
+        '{recipient}，你好：' => 'Hello {recipient},',
+        '{state}预览' => '{state} preview',
+        '{tags} 个标签，{posts} 篇文章 · 每一枚标签，都是一颗星' => 'Tags: {tags} · Posts: {posts} · Every tag is a star',
+        '{year} 年 {month} 月' => '{month}/{year}',
+        '· {count} 篇' => [
+            'one' => '· {count} post',
+            'other' => '· {count} posts',
+        ],
+        '为你找到 {count} 篇文章。' => [
+            'one' => '{count} post found.',
+            'other' => '{count} posts found.',
+        ],
+        '主演' => 'Cast',
+        '仅支持 POST 上传。' => 'Only POST uploads are supported.',
+        '作者：{author}' => 'By {author}',
+        "你正在重置 {site} 的管理员密码。\n\n重置链接：{link}\n\n链接将在 {expires_at} 过期。如果不是你本人操作，请忽略这封邮件。" => "You are resetting the administrator password for {site}.\n\nReset link: {link}\n\nThis link expires at {expires_at}. If you did not request this reset, ignore this email.",
+        '全部标为已读' => 'Mark all as read',
+        '共 {count} 篇文章' => [
+            'one' => '{count} post',
+            'other' => '{count} posts',
+        ],
+        '共收好 {count} 篇文章，按时间整齐放置。' => [
+            'one' => '{count} post filed by date.',
+            'other' => '{count} posts filed by date.',
+        ],
+        '共有 {count} 篇文章' => [
+            'one' => '{count} post',
+            'other' => '{count} posts',
+        ],
+        '出版' => 'Publisher',
+        '分类：' => 'Category: ',
+        '分页超出了范围。' => 'The requested page is out of range.',
+        '原样插入前台页面的 {closing_tag} 前，可用于统计脚本、{meta} 或 {style}；请仅使用可信代码。' => 'Inserted unchanged before {closing_tag} on public pages. Use only trusted analytics scripts, {meta}, or {style}.',
+        '发现新版本 {version}' => 'Version {version} is available',
+        '发现新版本 {version}，可点击“立即更新”完成升级。' => 'Version {version} is available. Select "Update now" to install it.',
+        '发行' => 'Label',
+        '发送重置链接' => 'Send reset link',
+        '名称' => 'Name',
+        '启用 {module}，并为当前目录设置 {setting}。项目根目录已有可直接使用的 {file}。' => 'Enable {module} and set {setting} for the current directory. A ready-to-use {file} is included in the project root.',
+        '哔哩哔哩视频' => 'Bilibili video',
+        '回到首页' => 'Back to home',
+        '回复 @{author}' => 'Reply to @{author}',
+        '回复 @{name}' => 'Reply to @{name}',
+        '回复给 @{author}' => 'Replying to @{author}',
+        '媒体资料：{count} 项' => [
+            'one' => 'Media library: {count} item',
+            'other' => 'Media library: {count} items',
+        ],
+        '密码重置' => 'Password reset',
+        '导演' => 'Director',
+        '已删除 {count} 条评论。' => [
+            'one' => 'Deleted {count} comment.',
+            'other' => 'Deleted {count} comments.',
+        ],
+        '已将 {count} 条评论标为已读。' => [
+            'one' => 'Marked {count} comment as read.',
+            'other' => 'Marked {count} comments as read.',
+        ],
+        '已将 {count} 条评论标记为垃圾。' => [
+            'one' => 'Marked {count} comment as spam.',
+            'other' => 'Marked {count} comments as spam.',
+        ],
+        '已将 {count} 条评论转为待审核。' => [
+            'one' => 'Moved {count} comment to pending.',
+            'other' => 'Moved {count} comments to pending.',
+        ],
+        '已更新到 {version}。如版本包含数据库变更，请继续访问 update.php。' => 'Updated to {version}. If this release includes database changes, continue to update.php.',
+        '已更新到 {version}，并已同步内置主题和插件。' => 'Updated to {version}, including bundled themes and plugins.',
+        '已读' => 'Read',
+        '已通过 {count} 条评论。' => [
+            'one' => 'Approved {count} comment.',
+            'other' => 'Approved {count} comments.',
+        ],
+        '开启后文章链接会变成 {path}，需要服务器 rewrite 支持。' => 'When enabled, post URLs use {path} and require server rewrite support.',
+        '开始写作' => 'Start writing',
+        '外观' => 'Appearance',
+        '当前操作未定义。' => 'This action is not defined.',
+        '当前没有可安装的更新。' => 'No update is currently available.',
+        '当前版本 {version}。更新会自动备份并覆盖程序、内置主题和内置插件文件，站点数据、上传文件及其他自定义主题和插件不受影响。' => 'Current version: {version}. The update backs up and replaces the application, bundled themes, and bundled plugins. Site data, uploads, and other custom themes and plugins are not affected.',
+        '当前筛选 {count} 条评论，审核状态与未读通知独立管理。' => [
+            'one' => '{count} comment matches the current filter. Moderation status and unread notifications are managed separately.',
+            'other' => '{count} comments match the current filter. Moderation status and unread notifications are managed separately.',
+        ],
+        '当前筛选下没有评论。' => 'No comments match the current filter.',
+        '打开用户菜单：{name}' => 'Open user menu: {name}',
+        '找回博客后台密码' => 'Reset the blog administrator password',
+        '按时间回看写过的 {count} 篇文章。' => [
+            'one' => '{count} post organized by date.',
+            'other' => '{count} posts organized by date.',
+        ],
+        '新评论：{title}' => 'New comment: {title}',
+        '无效的主题过滤器名称：{hook}' => 'Invalid theme filter name: {hook}',
+        '无效的主题钩子名称：{hook}' => 'Invalid theme hook name: {hook}',
+        '无法创建备份目录 {file}' => 'Could not create the backup directory {file}',
+        '无法创建更新临时目录。' => 'Could not create the temporary update directory.',
+        '无法创建更新包。' => 'Could not create the update package.',
+        '无法创建目录 {file}' => 'Could not create the directory {file}',
+        '无法备份 {file}' => 'Could not back up {file}',
+        '无法覆盖 {file}' => 'Could not overwrite {file}',
+        '时间轴上的 {count} 篇文章 · 总共写了 {words} 字' => [
+            'one' => '{count} post on the timeline · Characters written: {words}',
+            'other' => '{count} posts on the timeline · Characters written: {words}',
+        ],
+        '暂无更新，当前已是最新版本 {version}。' => 'No updates available. Version {version} is current.',
+        '暂无评论' => 'No comments yet',
+        '更新包下载失败：{error}' => 'Could not download the update package: {error}',
+        '更新包无法解压。' => 'Could not extract the update package.',
+        '更新包版本无效。' => 'The update package version is invalid.',
+        '更新包版本无效或不高于当前版本。' => 'The update package version is invalid or is not newer than the current version.',
+        '更新包结构无效。' => 'The update package structure is invalid.',
+        '更新失败：{error}' => 'Update failed: {error}',
+        '更新密码' => 'Update password',
+        '更新目标不是文件：{file}' => 'The update target is not a file: {file}',
+        '最新 {visible} / 共 {count} 条评论' => [
+            'one' => 'Showing {visible} of {count} comment',
+            'other' => 'Showing the latest {visible} of {count} comments',
+        ],
+        '服务器未启用 ZipArchive，无法解压更新包。' => 'ZipArchive is not enabled on this server, so the update package cannot be extracted.',
+        '服务器未启用 cURL，无法检查更新。' => 'cURL is not enabled on this server, so updates cannot be checked.',
+        '未知' => 'Unknown',
+        '查看全部' => 'View all',
+        '查看回复：{url}' => 'View reply: {url}',
+        '查看详情' => 'View details',
+        '标签 {label} 下的文章' => 'Posts tagged {label}',
+        '标签来自文章内容，共 {count} 个标签。' => [
+            'one' => '{count} tag found in post content.',
+            'other' => '{count} tags found in post content.',
+        ],
+        '检测更新失败：{error}' => 'Update check failed: {error}',
+        '没有匹配的评论。' => 'No comments match your search.',
+        '没有发现有效插件。请将插件放入 {path}。' => 'No valid plugins were found. Place plugins in {path}.',
+        '没有找到这个文章分类。' => 'This post category was not found.',
+        '没有找到这个标签下的文章。' => 'No posts were found with this tag.',
+        '浏览：{count}' => [
+            'one' => '{count} view',
+            'other' => '{count} views',
+        ],
+        '用户名或邮箱' => 'Username or email',
+        '确定更新到 {version} 吗？更新期间请勿关闭页面。' => 'Update to {version}? Do not close this page during the update.',
+        '程序已更新，但内置主题和插件同步失败：{error}' => 'The application was updated, but bundled themes and plugins could not be synchronized: {error}',
+        '立即更新' => 'Update now',
+        "站点：{site}\n文章：{title}\n状态：{status}\n评论人：{author}\n邮箱：{email}\nIP：{ip}\n链接：{link}\n\n评论内容：\n{content}" => "Site: {site}\nPost: {title}\nStatus: {status}\nCommenter: {author}\nEmail: {email}\nIP: {ip}\nLink: {link}\n\nComment:\n{content}",
+        '第 {page} / {pages} 页' => 'Page {page} of {pages}',
+        '第 {page} 页' => 'Page {page}',
+        '终端输入' => 'Terminal input',
+        '继续翻阅，第 {page} 页' => 'Keep reading: page {page}',
+        '继续阅读：{title}' => 'Continue reading: {title}',
+        '网易云音乐' => 'NetEase Cloud Music',
+        '网站（可选）' => 'Website (optional)',
+        '若博客安装在子目录，请把 {entry} 改为包含子目录的入口路径，例如 {example}。' => 'If the blog is installed in a subdirectory, change {entry} to an entry path that includes the subdirectory, such as {example}.',
+        '表演者' => 'Performer',
+        '撰写' => 'Write',
+        '设置博客后台新密码' => 'Set a new blog administrator password',
+        '评论分页' => 'Comment pagination',
+        '评论已关闭' => 'Comments are closed',
+        '请填写用户名或邮箱。' => 'Enter a username or email address.',
+        '豆瓣媒体资料' => 'Douban media details',
+        '豆瓣电影' => 'Douban Movies',
+        '豆瓣评分' => 'Douban rating',
+        '豆瓣评分 {rating} 分' => 'Douban rating: {rating}',
+        '豆瓣评分 {rating} 分，{count} 人评价' => [
+            'one' => 'Douban rating: {rating}, based on {count} rating',
+            'other' => 'Douban rating: {rating}, based on {count} ratings',
+        ],
+        '豆瓣读书' => 'Douban Books',
+        '豆瓣资料' => 'Douban details',
+        '豆瓣音乐' => 'Douban Music',
+        '输入管理员用户名或邮箱，系统会生成一次性重置链接。' => 'Enter the administrator username or email address to generate a one-time reset link.',
+        '还没有分类。' => 'No categories yet.',
+        '还没有已发布的文章。' => 'No posts have been published yet.',
+        '还没有评论' => 'No comments yet',
+        '这个分类下共有 {count} 篇文章。' => [
+            'one' => '{count} post in this category.',
+            'other' => '{count} posts in this category.',
+        ],
+        '这个分类里共有 {count} 篇文章。' => [
+            'one' => '{count} post in this category.',
+            'other' => '{count} posts in this category.',
+        ],
+        '这个标签下共有 {count} 篇文章。' => [
+            'one' => '{count} post with this tag.',
+            'other' => '{count} posts with this tag.',
+        ],
+        '选择 {author} 的评论' => 'Select the comment by {author}',
+        '选择标签 {tag}' => 'Select tag {tag}',
+        '邮箱地址格式不正确。' => 'The email address format is invalid.',
+        '重置 {site} 管理员密码' => 'Reset the administrator password for {site}',
+        '阅读文章：{title}' => 'Read article: {title}',
+        '预览主题 {theme}' => 'Preview theme {theme}',
+        '默认使用项目根目录的 {file}，也可以填写完整图片 URL 或站内绝对路径。' => 'Defaults to {file} in the project root. You can also enter a full image URL or a site-absolute path.',
+        '请先完成 AI 设置。' => 'Configure AI before using this feature.',
+        '服务器缺少 cURL 扩展，无法调用 AI 服务。' => 'The server does not have the cURL extension required to call the AI service.',
+        'AI 地址必须使用 HTTPS 并解析到公网地址。' => 'The AI endpoint must use HTTPS and resolve to a public IP address.',
+        '无法创建 AI 请求。' => 'Could not create the AI request.',
+        'AI 服务连接失败：{error}' => 'Could not connect to the AI service: {error}',
+        'AI 服务返回异常（HTTP {status}）。' => 'The AI service returned an error (HTTP {status}).',
+        '仅支持 POST 请求。' => 'Only POST requests are supported.',
+        '内容过长，请控制在 50000 字以内。' => 'The content is too long. Limit it to 50,000 characters.',
+        '请先填写文章标题。' => 'Enter the post title first.',
+        '请先填写文章正文。' => 'Enter the post content first.',
+        '请填写润色或生成要求。' => 'Enter instructions for polishing or generating the content.',
+        '未知的 AI 操作。' => 'Unknown AI action.',
     ];
 }
 
@@ -671,280 +962,54 @@ function sblog_english_client_translations(): array
         'ai_processing_content' => 'AI is processing the content...',
         'cancel_reply_to' => 'Cancel reply to @{author}',
         'cancel_reply' => 'Cancel reply',
+        'file_preview_label' => 'FILE',
+        'terminal_themes_available' => 'themes: phosphor, amber, cyan',
+        'terminal_theme_switched' => 'theme: switched to {name}',
+        'terminal_crt_scanlines_disabled' => 'CRT scanlines: disabled',
+        'terminal_crt_scanlines_enabled' => 'CRT scanlines: enabled',
+        'terminal_use_cd' => 'Use: cd tags',
+        'terminal_use_cat' => 'Use: open an article link from ls',
+        'terminal_commands_heading' => 'COMMANDS',
+        'terminal_help_ls' => '  ls                         list posts and sections',
+        'terminal_help_navigation' => '  home|tags|links|archives   navigate site',
+        'terminal_help_utilities' => '  clear|history|pwd          shell utilities',
+        'terminal_help_theme' => '  theme <name>               phosphor, amber, cyan',
+        'terminal_help_display' => '  crt|date                    display controls',
+        'terminal_command_not_found' => '{command}: command not found. Type "help".',
         'theme_activate_failed' => 'Could not switch themes. Try again.',
     ];
 }
 
-function sblog_english_count(int $number, string $singular, string $plural): string
-{
-    return $number . ' ' . ($number === 1 ? $singular : $plural);
-}
-
-function sblog_english_translate_phrase(string $phrase): string
-{
-    $translations = sblog_english_language_map();
-    if (isset($translations[$phrase])) {
-        return (string)$translations[$phrase];
-    }
-
-    if (preg_match('/^(.+)链接格式不正确。$/u', $phrase, $linkParts)) {
-        $label = (string)($translations[$linkParts[1]] ?? $linkParts[1]);
-        return 'The ' . $label . ' link is invalid.';
-    }
-
-    if (preg_match('/^\[(.+)]$/u', $phrase, $bracketParts)) {
-        $label = (string)$bracketParts[1];
-        if (isset($translations[$label])) {
-            return '[' . (string)$translations[$label] . ']';
-        }
-    }
-    if (preg_match('/^\$ cat (.+)\.md$/u', $phrase, $commandParts)) {
-        $label = (string)$commandParts[1];
-        if (isset($translations[$label])) {
-            return '$ cat ' . str_lower_u(str_replace(' ', '-', (string)$translations[$label])) . '.md';
-        }
-    }
-    if (preg_match('/^分类：(.+)$/u', $phrase, $categoryParts)) {
-        $label = (string)($translations[$categoryParts[1]] ?? $categoryParts[1]);
-        return 'Category: ' . $label;
-    }
-    if (preg_match('/^标签 (.+) 下的文章$/u', $phrase, $tagParts)) {
-        return 'Posts tagged ' . $tagParts[1];
-    }
-    if (preg_match('/^(\d+)月\s+(\d+),\s+(\d{4})$/u', $phrase, $dateParts)) {
-        $months = [1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        $month = $months[(int)$dateParts[1]] ?? $dateParts[1];
-        return $month . ' ' . $dateParts[2] . ', ' . $dateParts[3];
-    }
-    if (preg_match('/^(\d+)月$/u', $phrase, $monthParts)) {
-        $months = [1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        return $months[(int)$monthParts[1]] ?? $phrase;
-    }
-    if (preg_match('/^(\d{4})\s*年\s*(\d{1,2})\s*月$/u', $phrase, $monthParts)) {
-        $months = [1 => 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-        $month = $months[(int)$monthParts[2]] ?? $monthParts[2];
-        return $month . ' ' . $monthParts[1];
-    }
-    if (preg_match('/^(\d+)\s*篇文章$/u', $phrase, $countParts) || preg_match('/^(\d+)\s*篇$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'post', 'posts');
-    }
-    if (preg_match('/^·\s*(\d+)\s*篇$/u', $phrase, $countParts)) {
-        return '· ' . sblog_english_count((int)$countParts[1], 'post', 'posts');
-    }
-    if (preg_match('/^(\d+)\s*条$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'comment', 'comments');
-    }
-    if (preg_match('/^共(?:有)?\s*(\d+)\s*篇文章(?:\s*·\s*(.+))?$/u', $phrase, $countParts)) {
-        $result = sblog_english_count((int)$countParts[1], 'post', 'posts');
-        if (isset($countParts[2]) && trim((string)$countParts[2]) !== '') {
-            $description = trim((string)$countParts[2]);
-            $result .= ' · ' . (string)($translations[$description] ?? $description);
-        }
-        return $result;
-    }
-    if (preg_match('/^共收好\s*(\d+)\s*篇文章，按时间整齐放置。$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'post filed', 'posts filed') . ' neatly by date.';
-    }
-    if (preg_match('/^(\d+)\s*枚索引，帮你快速找回感兴趣的内容。$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'tag', 'tags') . ' to help you find what interests you.';
-    }
-    if (preg_match('/^为你找到\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'post found', 'posts found') . '.';
-    }
-    if (preg_match('/^这个(?:标签|分类)(?:下|里)共有\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'post', 'posts') . ' in this collection.';
-    }
-    if (preg_match('/^按时间回看写过的\s*(\d+)\s*篇文章。$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'post', 'posts') . ', organized by date.';
-    }
-    if (preg_match('/^(\d+)\s*个主题，找到你感兴趣的内容。$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'topic', 'topics') . ' to explore.';
-    }
-    if (preg_match('/^时间轴上的\s*(\d+)\s*篇文章\s*·\s*总共写了\s*(\d+)\s*字$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'post', 'posts') . ' on the timeline · ' . $countParts[2] . ' characters written';
-    }
-    if (preg_match('/^(\d+)\s*个标签，(\d+)\s*篇文章\s*·\s*每一枚标签，都是一颗星$/u', $phrase, $countParts)) {
-        return sblog_english_count((int)$countParts[1], 'tag', 'tags') . ', ' . sblog_english_count((int)$countParts[2], 'post', 'posts') . ' · Every tag is a star';
-    }
-    if (preg_match('/^继续翻阅，第\s*(\d+)\s*页$/u', $phrase, $pageParts)) {
-        return 'Keep reading, page ' . $pageParts[1];
-    }
-    if (preg_match('/^作者:\s*(.+)$/u', $phrase, $authorParts)) {
-        return 'Author: ' . $authorParts[1];
-    }
-    if (preg_match('/^浏览:\s*(\d+)$/u', $phrase, $viewParts)) {
-        return 'Views: ' . $viewParts[1];
-    }
-    if (preg_match('/^回复给 @(.+)$/u', $phrase, $replyParts)) {
-        return 'Reply to @' . $replyParts[1];
-    }
-
-    if (preg_match('/^([\s\S]+?)\s*·\s*([\s\S]+)$/u', $phrase, $titleParts)) {
-        $label = trim((string)$titleParts[1]);
-        if (isset($translations[$label])) {
-            return (string)$translations[$label] . ' · ' . trim((string)$titleParts[2]);
-        }
-    }
-    if (preg_match('/^([\s\S]+?)\s*·$/u', $phrase, $titleParts)) {
-        $label = trim((string)$titleParts[1]);
-        if (isset($translations[$label])) {
-            return (string)$translations[$label] . ' ·';
-        }
-    }
-    if (preg_match('/^(.+)，(\d+) 条未读评论$/u', $phrase, $labelParts)) {
-        $label = (string)($translations[$labelParts[1]] ?? $labelParts[1]);
-        return $label . ', ' . $labelParts[2] . ' unread comments';
-    }
-    if (preg_match('/^预览主题 (.+)$/u', $phrase, $previewParts)) {
-        $theme = (string)($translations[$previewParts[1]] ?? $previewParts[1]);
-        return 'Preview theme ' . $theme;
-    }
-
-    $patterns = [
-        '/^选择 (.+) 的评论$/u' => 'Select $1\'s comment',
-        '/^回复 @(.+)$/u' => 'Reply to @$1',
-        '/^(.+)（当前）$/u' => '$1 (current)',
-        '/^(\d+) 字符$/u' => '$1 characters',
-        '/^当前筛选 (\d+) 条，审核状态与未读通知独立管理。$/u' => '$1 results in this filter. Moderation status and unread alerts are managed separately.',
-        '/^标签来自文章内容，共 (\d+) 个。$/u' => '$1 tags found in post content.',
-        '/^确定更新到 (.+) 吗？更新期间请勿关闭页面。$/u' => 'Update to $1? Do not close this page during the update.',
-        '/^(\d+)\s*条未读评论$/u' => '$1 unread comments',
-        '/^(\d+)\s*条评论$/u' => '$1 comments',
-        '/^(\d+)\s*个主题$/u' => '$1 themes',
-        '/^作者：(.+)$/u' => 'By $1',
-        '/^第\s*(\d+)\s*页$/u' => 'Page $1',
-        '/^(\d{4})年(\d{1,2})月(\d{1,2})日$/u' => '$1-$2-$3',
-        '/^(\d{4})年(\d{1,2})月$/u' => '$1-$2',
-        '/^阅读《(.+)》$/u' => 'Read "$1"',
-        '/^继续阅读《(.+)》$/u' => 'Continue reading "$1"',
-        '/^打开用户菜单：(.+)$/u' => 'Open user menu: $1',
-        '/^登录 · (.+)$/u' => 'Sign in · $1',
-        '/^找回密码 · (.+)$/u' => 'Forgot password · $1',
-        '/^设置新密码 · (.+)$/u' => 'Set new password · $1',
-        '/^选择 (.+)$/u' => 'Select $1',
-        '/^已删除 (\d+) 条评论。$/u' => 'Deleted $1 comments.',
-        '/^已将 (\d+) 条评论标为已读。$/u' => 'Marked $1 comments as read.',
-        '/^已通过 (\d+) 条评论。$/u' => 'Approved $1 comments.',
-        '/^已将 (\d+) 条评论标记为垃圾。$/u' => 'Marked $1 comments as spam.',
-        '/^已将 (\d+) 条评论转为待审核。$/u' => 'Moved $1 comments to pending.',
-        '/^已更新到 (.+)，并已同步内置主题和插件。$/u' => 'Updated to $1, with bundled themes and plugins synchronized.',
-        '/^程序已更新，但内置主题和插件同步失败：(.+)$/u' => 'The application was updated, but bundled theme and plugin synchronization failed: $1',
-        '/^连接 S3 失败：(.+)$/u' => 'Could not connect to S3: $1',
-        '/^S3 删除对象失败（HTTP (\d+)）。$/u' => 'Failed to delete the S3 object (HTTP $1).',
-        '/^S3 返回异常（HTTP (\d+)）。(.*)$/u' => 'S3 returned an error (HTTP $1).$2',
-    ];
-    foreach ($patterns as $pattern => $replacement) {
-        if (preg_match($pattern, $phrase)) {
-            return (string)preg_replace($pattern, $replacement, $phrase);
-        }
-    }
-    return $phrase;
-}
-
-function sblog_english_translate_text_node(string $text): string
-{
-    if (!preg_match('/[\x{4e00}-\x{9fff}]/u', $text)) {
-        return $text;
-    }
-    if (!preg_match('/^(\s*)(.*?)(\s*)$/su', $text, $parts)) {
-        return $text;
-    }
-    return $parts[1] . sblog_english_translate_phrase($parts[2]) . $parts[3];
-}
-
-function sblog_english_translate_tag(string $tag): string
-{
-    if (!preg_match('/[\x{4e00}-\x{9fff}]/u', $tag)) {
-        return $tag;
-    }
-    $tag = preg_replace_callback(
-        '/\b(aria-label|title|placeholder|data-confirm|content)=("|\')(.*?)\2/su',
-        static function (array $matches): string {
-            $value = html_entity_decode((string)$matches[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $translated = sblog_english_translate_phrase($value);
-            if ($translated === $value) {
-                return (string)$matches[0];
-            }
-            return $matches[1] . '=' . $matches[2] . htmlspecialchars($translated, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . $matches[2];
-        },
-        $tag
-    ) ?? $tag;
-
-    return preg_replace_callback(
-        '/\b(onclick|onsubmit)=("|\')(.*?)\2/su',
-        static function (array $matches): string {
-            $code = html_entity_decode((string)$matches[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $translated = preg_replace_callback(
-                '/\bconfirm\(("|\')(.*?)\1\)/su',
-                static function (array $confirmMatches): string {
-                    $message = sblog_english_translate_phrase((string)$confirmMatches[2]);
-                    return 'confirm(' . $confirmMatches[1] . $message . $confirmMatches[1] . ')';
-                },
-                $code
-            ) ?? $code;
-            if ($translated === $code) {
-                return (string)$matches[0];
-            }
-            return $matches[1] . '=' . $matches[2] . htmlspecialchars($translated, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . $matches[2];
-        },
-        $tag
-    ) ?? $tag;
-}
-
-function sblog_english_translate_json_value(mixed $value): mixed
-{
-    if (is_string($value)) {
-        return sblog_english_translate_phrase($value);
-    }
-    if (is_array($value)) {
-        foreach ($value as $key => $item) {
-            $value[$key] = sblog_english_translate_json_value($item);
-        }
-    }
-    return $value;
-}
-
-add_plugin_filter('output_html', static function (string $html, array $context): string {
-    if (stripos($html, '<html') === false) {
-        if ((string)($context['action'] ?? '') === 'upload_attachment') {
-            $payload = json_decode($html, true);
-            if (is_array($payload)) {
-                $translated = json_encode(sblog_english_translate_json_value($payload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-                return is_string($translated) ? $translated : $html;
-            }
-        }
-        return $html;
-    }
-
-    $html = str_replace(['lang="zh-CN"', "lang='zh-CN'"], ['lang="en"', "lang='en'"], $html);
-    $clientTranslations = json_encode(
-        sblog_english_client_translations(),
-        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
-    );
-    if (is_string($clientTranslations)) {
-        $script = '<script>window.sblogI18n=Object.assign({},window.sblogI18n||{},' . $clientTranslations . ');</script>';
-        $html = preg_replace('/<\/head>/i', $script . '</head>', $html, 1) ?? $html;
-    }
-    $tokens = preg_split('/(<[^>]+>)/s', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
-    if (is_array($tokens)) {
-        $rawElement = '';
-        foreach ($tokens as $index => $token) {
-            if (str_starts_with($token, '<')) {
-                if (preg_match('/^<(script|style|textarea)\b/i', $token, $matches)) {
-                    $rawElement = strtolower((string)$matches[1]);
-                } elseif ($rawElement !== '' && preg_match('#^</' . preg_quote($rawElement, '#') . '\s*>#i', $token)) {
-                    $rawElement = '';
-                }
-                $tokens[$index] = sblog_english_translate_tag($token);
-            } elseif ($rawElement === '') {
-                $tokens[$index] = sblog_english_translate_text_node($token);
-            }
-        }
-        $html = implode('', $tokens);
-    }
-
-    if (!headers_sent()) {
-        header('Content-Language: en');
-    }
-    return $html;
-}, 10);
+sblog_i18n_register('en', array_merge(
+    sblog_english_language_map(),
+    [
+        'post_navigation.previous' => 'Previous post',
+        'post_navigation.next' => 'Next post',
+        'post_navigation.previous_label' => 'Previous post: {title}',
+        'post_navigation.next_label' => 'Next post: {title}',
+        'plugin.ai-assistant.name' => 'AI Assistant',
+        'plugin.ai-assistant.description' => 'Adds AI slug generation, summaries, and content polishing.',
+        'plugin.email-notifications.name' => 'Email Notifications',
+        'plugin.email-notifications.description' => 'Sends password reset and comment notification emails through SMTP or PHP mail.',
+        'plugin.english-language.name' => 'English Language',
+        'plugin.english-language.description' => 'Translates the public site, sign-in screens, and administration interface into English.',
+        'plugin.russian-language.name' => 'Russian Language',
+        'plugin.russian-language.description' => 'Translates the public site, sign-in screens, and administration interface into Russian.',
+        'plugin.s3-storage.name' => 'S3 Storage',
+        'plugin.s3-storage.description' => 'Uploads new editor attachments to Amazon S3 or compatible object storage.',
+        'theme.default.name' => 'Built-in Terminal Theme',
+        'theme.default.description' => 'The built-in terminal-style frontend theme.',
+        'theme.hammeros.name' => 'HammerOS',
+        'theme.hammeros.description' => 'A personable content theme with a porcelain-white shell, tactile controls, a system companion, and a quiet reading workspace.',
+        'theme.liquid-glass.name' => 'Aqua Glass',
+        'theme.liquid-glass.description' => 'A bright, translucent Apple-inspired reading theme with light and dark modes, responsive navigation, post covers, glass controls, and complete content pages.',
+        'theme.nebula.name' => 'Nebula',
+        'theme.nebula.description' => 'Deep-space aurora, glassmorphism, and dark-first styling with a starfield, cover cards, timeline archives, tag clouds, and light/dark modes.',
+        'theme.starter.name' => 'Starter Contrast',
+        'theme.starter.description' => 'A starter theme demonstrating style overrides, the head action, and the body_class filter.',
+        'theme.ying.name' => 'Ying',
+        'theme.ying.description' => 'A minimal white content theme adapted from Halo Theme Ying for posts, comments, archives, tags, and links.',
+    ]
+));
+sblog_i18n_register_client('en', sblog_english_client_translations());
+sblog_i18n_set_locale('en');

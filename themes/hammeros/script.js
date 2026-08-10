@@ -58,7 +58,7 @@
   var clock = document.querySelector("[data-hammer-clock]");
   function updateClock() {
     if (!clock) return;
-    clock.textContent = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+    clock.textContent = new Intl.DateTimeFormat(root.lang || undefined, { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
   }
   updateClock();
   window.setInterval(updateClock, 30000);

@@ -1,6 +1,6 @@
 {
   "name": "AI 助手",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Simple PHP Blog",
   "url": "https://github.com/jkjoy/Simple-PHP-Blog",
   "description": "为文章提供 Slug 生成、摘要生成和正文润色功能。",

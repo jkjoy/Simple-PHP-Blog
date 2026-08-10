@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.6.1';
+const APP_VERSION = 'v1.7.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -509,7 +509,7 @@ function db(): PDO
         return $db;
     }
 
-    if (DB_FILE === '') { throw new RuntimeException('博客尚未安装或数据库配置无效。'); }
+    if (DB_FILE === '') { throw new RuntimeException(sblog_t('博客尚未安装或数据库配置无效。')); }
     ensure_runtime_dirs();
 
     $db = new PDO('sqlite:' . DB_FILE, null, null, [
@@ -754,6 +754,263 @@ function save_active_plugins(array $slugs): void
     save_settings(['active_plugins' => json_encode($valid, JSON_UNESCAPED_SLASHES)]);
 }
 
+function sblog_default_translations(): array
+{
+    return [
+        'post_navigation.previous' => '上一篇',
+        'post_navigation.next' => '下一篇',
+        'post_navigation.previous_label' => '上一篇：{title}',
+        'post_navigation.next_label' => '下一篇：{title}',
+        'plugin.ai-assistant.name' => 'AI 助手',
+        'plugin.ai-assistant.description' => '为文章提供 Slug 生成、摘要生成和正文润色功能。',
+        'plugin.email-notifications.name' => '邮件通知',
+        'plugin.email-notifications.description' => '通过 SMTP 或 PHP mail 发送密码重置和评论通知邮件。',
+        'plugin.english-language.name' => '英文语言包',
+        'plugin.english-language.description' => '将博客前台、登录页面和后台管理界面翻译为英文。',
+        'plugin.russian-language.name' => '俄语语言包',
+        'plugin.russian-language.description' => '将博客前台、登录页面和后台管理界面翻译为俄语。',
+        'plugin.s3-storage.name' => 'S3 存储',
+        'plugin.s3-storage.description' => '将编辑器新上传的附件保存到 Amazon S3 或兼容的对象存储。',
+        'theme.default.name' => '内置终端主题',
+        'theme.default.description' => '程序自带的终端风格前台主题。',
+        'theme.hammeros.name' => 'HammerOS 锤伴',
+        'theme.hammeros.description' => '拟人化内容主题：瓷白机身、实体键感、系统管家与安静的阅读工作台。',
+        'theme.liquid-glass.name' => 'Aqua Glass 液态玻璃',
+        'theme.liquid-glass.description' => '明亮、通透的苹果风格阅读主题。支持深浅模式、响应式导航、文章封面、玻璃质感控件与完整内容页面。',
+        'theme.nebula.name' => 'Nebula 星云',
+        'theme.nebula.description' => '深空极光 · 玻璃拟态 · 暗色优先。星空粒子背景、渐变封面卡片、时间轴归档与标签云，支持亮暗主题切换。',
+        'theme.starter.name' => 'Starter Contrast',
+        'theme.starter.description' => '演示样式覆盖、head action 与 body_class filter 的入门主题。',
+        'theme.ying.name' => 'Ying',
+        'theme.ying.description' => '移植自 Halo Theme Ying 的白色极简内容主题，适配当前博客的文章、评论、归档、标签与友链。',
+    ];
+}
+
+function sblog_i18n_register(string $locale, array $messages): void
+{
+    if (!preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale)) {
+        throw new InvalidArgumentException('无效的语言代码：' . $locale);
+    }
+
+    $catalog = [];
+    foreach ($messages as $key => $message) {
+        if (!is_string($key) || $key === '' || (!is_string($message) && !is_array($message))) {
+            throw new InvalidArgumentException('语言目录只能包含有效的翻译键和值。');
+        }
+        if (is_array($message)) {
+            foreach ($message as $form => $translation) {
+                if (!in_array($form, ['zero', 'one', 'two', 'few', 'many', 'other'], true) || !is_string($translation)) {
+                    throw new InvalidArgumentException('复数翻译必须使用有效形式和字符串值。');
+                }
+            }
+        }
+        $catalog[$key] = $message;
+    }
+
+    $existing = $GLOBALS['sblog_i18n_catalogs'][$locale] ?? [];
+    $GLOBALS['sblog_i18n_catalogs'][$locale] = array_replace(is_array($existing) ? $existing : [], $catalog);
+}
+
+function sblog_i18n_set_locale(string $locale): void
+{
+    if (!preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale)) {
+        throw new InvalidArgumentException('无效的语言代码：' . $locale);
+    }
+    $GLOBALS['sblog_i18n_locale'] = $locale;
+}
+
+function sblog_i18n_locale(): string
+{
+    $locale = (string)($GLOBALS['sblog_i18n_locale'] ?? 'zh-CN');
+    return preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale) ? $locale : 'zh-CN';
+}
+
+function sblog_i18n_message(string $key): string|array|null
+{
+    $catalogs = $GLOBALS['sblog_i18n_catalogs'] ?? [];
+    $locale = sblog_i18n_locale();
+    $locales = [$locale];
+    if (str_contains($locale, '-')) {
+        $locales[] = explode('-', $locale, 2)[0];
+    }
+    $locales[] = 'zh-CN';
+
+    foreach (array_unique($locales) as $candidate) {
+        $catalog = is_array($catalogs[$candidate] ?? null) ? $catalogs[$candidate] : [];
+        if (isset($catalog[$key]) && (is_string($catalog[$key]) || is_array($catalog[$key]))) {
+            return $catalog[$key];
+        }
+    }
+
+    $defaults = sblog_default_translations();
+    return $defaults[$key] ?? null;
+}
+
+function sblog_i18n_format(string $message, array $parameters): string
+{
+    if ($parameters === []) {
+        return $message;
+    }
+
+    $replacements = [];
+    foreach ($parameters as $name => $value) {
+        if (!is_string($name) || !preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', $name)) {
+            throw new InvalidArgumentException('无效的翻译参数名称。');
+        }
+        if ($value !== null && !is_scalar($value) && !($value instanceof Stringable)) {
+            throw new InvalidArgumentException('翻译参数必须是标量、字符串对象或 null。');
+        }
+        $replacements['{' . $name . '}'] = $value === null ? '' : (string)$value;
+    }
+
+    return strtr($message, $replacements);
+}
+
+function sblog_t(string $key, array $parameters = []): string
+{
+    $message = sblog_i18n_message($key);
+    if (is_array($message)) {
+        $message = (string)($message['other'] ?? reset($message) ?: $key);
+    }
+    return sblog_i18n_format(is_string($message) ? $message : $key, $parameters);
+}
+
+function sblog_i18n_plural_form(int $count, ?string $locale = null): string
+{
+    $language = strtolower(explode('-', $locale ?? sblog_i18n_locale(), 2)[0]);
+    if ($language === 'ru') {
+        $mod10 = abs($count) % 10;
+        $mod100 = abs($count) % 100;
+        if ($mod10 === 1 && $mod100 !== 11) {
+            return 'one';
+        }
+        if ($mod10 >= 2 && $mod10 <= 4 && ($mod100 < 12 || $mod100 > 14)) {
+            return 'few';
+        }
+        return 'many';
+    }
+    return $count === 1 ? 'one' : 'other';
+}
+
+function sblog_tn(string $key, int $count, array $parameters = []): string
+{
+    $message = sblog_i18n_message($key);
+    if (is_array($message)) {
+        $form = sblog_i18n_plural_form($count);
+        $message = (string)($message[$form] ?? $message['other'] ?? reset($message) ?: $key);
+    }
+    $parameters['count'] = $count;
+    return sblog_i18n_format(is_string($message) ? $message : $key, $parameters);
+}
+
+function plugin_display_metadata(string $slug, array $manifest): array
+{
+    $translated = match ($slug) {
+        'ai-assistant' => [
+            'name' => sblog_t('plugin.ai-assistant.name'),
+            'description' => sblog_t('plugin.ai-assistant.description'),
+        ],
+        'email-notifications' => [
+            'name' => sblog_t('plugin.email-notifications.name'),
+            'description' => sblog_t('plugin.email-notifications.description'),
+        ],
+        'english-language' => [
+            'name' => sblog_t('plugin.english-language.name'),
+            'description' => sblog_t('plugin.english-language.description'),
+        ],
+        'russian-language' => [
+            'name' => sblog_t('plugin.russian-language.name'),
+            'description' => sblog_t('plugin.russian-language.description'),
+        ],
+        's3-storage' => [
+            'name' => sblog_t('plugin.s3-storage.name'),
+            'description' => sblog_t('plugin.s3-storage.description'),
+        ],
+        default => null,
+    };
+
+    return $translated ?? [
+        'name' => (string)($manifest['name'] ?? ''),
+        'description' => (string)($manifest['description'] ?? ''),
+    ];
+}
+
+function theme_display_metadata(string $slug, array $manifest): array
+{
+    $translated = match ($slug) {
+        'default' => [
+            'name' => sblog_t('theme.default.name'),
+            'description' => sblog_t('theme.default.description'),
+        ],
+        'hammeros' => [
+            'name' => sblog_t('theme.hammeros.name'),
+            'description' => sblog_t('theme.hammeros.description'),
+        ],
+        'liquid-glass' => [
+            'name' => sblog_t('theme.liquid-glass.name'),
+            'description' => sblog_t('theme.liquid-glass.description'),
+        ],
+        'nebula' => [
+            'name' => sblog_t('theme.nebula.name'),
+            'description' => sblog_t('theme.nebula.description'),
+        ],
+        'starter' => [
+            'name' => sblog_t('theme.starter.name'),
+            'description' => sblog_t('theme.starter.description'),
+        ],
+        'ying' => [
+            'name' => sblog_t('theme.ying.name'),
+            'description' => sblog_t('theme.ying.description'),
+        ],
+        default => null,
+    };
+
+    return $translated ?? [
+        'name' => (string)($manifest['name'] ?? ''),
+        'description' => (string)($manifest['description'] ?? ''),
+    ];
+}
+
+function sblog_i18n_register_client(string $locale, array $messages): void
+{
+    if (!preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale)) {
+        throw new InvalidArgumentException('无效的语言代码：' . $locale);
+    }
+    foreach ($messages as $key => $message) {
+        if (!is_string($key) || $key === '' || !is_string($message)) {
+            throw new InvalidArgumentException('客户端语言目录只能包含字符串翻译键和值。');
+        }
+    }
+    $existing = $GLOBALS['sblog_i18n_client_catalogs'][$locale] ?? [];
+    $GLOBALS['sblog_i18n_client_catalogs'][$locale] = array_replace(is_array($existing) ? $existing : [], $messages);
+}
+
+function sblog_i18n_client_messages(): array
+{
+    $catalogs = $GLOBALS['sblog_i18n_client_catalogs'] ?? [];
+    $locale = sblog_i18n_locale();
+    $messages = [];
+    $candidates = str_contains($locale, '-') ? [explode('-', $locale, 2)[0], $locale] : [$locale];
+    foreach ($candidates as $candidate) {
+        if (is_array($catalogs[$candidate] ?? null)) {
+            $messages = array_replace($messages, $catalogs[$candidate]);
+        }
+    }
+    return $messages;
+}
+
+function sblog_i18n_head(): string
+{
+    $messages = json_encode(
+        sblog_i18n_client_messages(),
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+    );
+    if (!is_string($messages)) {
+        return '';
+    }
+    return '<script>window.sblogI18n=Object.assign({},window.sblogI18n||{},' . $messages . ');</script>';
+}
+
 function add_plugin_action(string $hook, callable $callback, int $priority = 10): void
 {
     if (!preg_match('/^[a-z][a-z0-9_.-]*$/', $hook)) {
@@ -836,12 +1093,18 @@ function load_active_plugins(): void
         }
         $actionsBefore = $GLOBALS['sblog_plugin_actions'] ?? [];
         $filtersBefore = $GLOBALS['sblog_plugin_filters'] ?? [];
+        $catalogsBefore = $GLOBALS['sblog_i18n_catalogs'] ?? [];
+        $clientCatalogsBefore = $GLOBALS['sblog_i18n_client_catalogs'] ?? [];
+        $localeBefore = $GLOBALS['sblog_i18n_locale'] ?? 'zh-CN';
         try {
             require (string)$manifest['entry'];
             $GLOBALS['sblog_loaded_plugins'][] = $slug;
         } catch (Throwable $exception) {
             $GLOBALS['sblog_plugin_actions'] = $actionsBefore;
             $GLOBALS['sblog_plugin_filters'] = $filtersBefore;
+            $GLOBALS['sblog_i18n_catalogs'] = $catalogsBefore;
+            $GLOBALS['sblog_i18n_client_catalogs'] = $clientCatalogsBefore;
+            $GLOBALS['sblog_i18n_locale'] = $localeBefore;
             $GLOBALS['sblog_plugin_errors'][$slug] = $exception->getMessage();
             error_log('Plugin ' . $slug . ' failed: ' . $exception->getMessage());
         }
@@ -880,7 +1143,7 @@ function verify_csrf(): void
     $sessionToken = (string)($_SESSION['csrf_token'] ?? '');
 
     if ($sessionToken === '' || !hash_equals($sessionToken, $token)) {
-        simple_error_page('请求已失效', '请刷新页面后重试。', 422);
+        simple_error_page(sblog_t('请求已失效'), sblog_t('请刷新页面后重试。'), 422);
     }
 }
 
@@ -950,7 +1213,7 @@ function github_update_info(bool $refresh = false): array
     }
     $result = ['available' => false, 'repair' => false, 'current' => APP_VERSION, 'latest' => '', 'download_url' => '', 'error' => ''];
     if (!function_exists('curl_init')) {
-        $result['error'] = '服务器未启用 cURL，无法检查更新。';
+        $result['error'] = sblog_t('服务器未启用 cURL，无法检查更新。');
         return $result;
     }
     $curl = curl_init('https://api.github.com/repos/' . UPDATE_REPOSITORY . '/releases/latest');
@@ -968,7 +1231,7 @@ function github_update_info(bool $refresh = false): array
     curl_close($curl);
     $release = is_string($body) ? json_decode($body, true) : null;
     if ($status !== 200 || !is_array($release)) {
-        $result['error'] = $curlError !== '' ? $curlError : 'GitHub 暂时无法访问。';
+        $result['error'] = $curlError !== '' ? $curlError : sblog_t('GitHub 暂时无法访问。');
     } else {
         $latest = trim((string)($release['tag_name'] ?? ''));
         $download = (string)($release['zipball_url'] ?? '');
@@ -1013,21 +1276,21 @@ function install_release_files(string $source, string $targetRoot, string $backu
             $target = $targetRoot . '/' . $file;
             $targetDirectory = dirname($target);
             if (!is_dir($targetDirectory)) {
-                if (!mkdir($targetDirectory, 0755, true) && !is_dir($targetDirectory)) { throw new RuntimeException('无法创建目录 ' . $file); }
+                if (!mkdir($targetDirectory, 0755, true) && !is_dir($targetDirectory)) { throw new RuntimeException(sblog_t('无法创建目录 {file}', ['file' => $file])); }
                 $createdDirectories[] = $targetDirectory;
             }
             if (is_file($target)) {
                 $saved = $backup . '/' . $file;
                 $savedDirectory = dirname($saved);
-                if (!is_dir($savedDirectory) && !mkdir($savedDirectory, 0755, true) && !is_dir($savedDirectory)) { throw new RuntimeException('无法创建备份目录 ' . $file); }
-                if (!copy($target, $saved)) { throw new RuntimeException('无法备份 ' . $file); }
+                if (!is_dir($savedDirectory) && !mkdir($savedDirectory, 0755, true) && !is_dir($savedDirectory)) { throw new RuntimeException(sblog_t('无法创建备份目录 {file}', ['file' => $file])); }
+                if (!copy($target, $saved)) { throw new RuntimeException(sblog_t('无法备份 {file}', ['file' => $file])); }
                 $replaced[] = $file;
             } elseif (file_exists($target)) {
-                throw new RuntimeException('更新目标不是文件：' . $file);
+                throw new RuntimeException(sblog_t('更新目标不是文件：{file}', ['file' => $file]));
             } else {
                 $created[] = $file;
             }
-            if (!copy($from, $target)) { throw new RuntimeException('无法覆盖 ' . $file); }
+            if (!copy($from, $target)) { throw new RuntimeException(sblog_t('无法覆盖 {file}', ['file' => $file])); }
         }
     } catch (Throwable $exception) {
         foreach (array_reverse($created) as $file) { @unlink($targetRoot . '/' . $file); }
@@ -1048,15 +1311,15 @@ function install_release_files(string $source, string $targetRoot, string $backu
 function install_github_update(array $update): string
 {
     $isRepair = !empty($update['repair']);
-    if ((empty($update['available']) && !$isRepair) || !filter_var((string)($update['download_url'] ?? ''), FILTER_VALIDATE_URL)) { throw new RuntimeException('当前没有可安装的更新。'); }
-    if (!class_exists('ZipArchive')) { throw new RuntimeException('服务器未启用 ZipArchive，无法解压更新包。'); }
+    if ((empty($update['available']) && !$isRepair) || !filter_var((string)($update['download_url'] ?? ''), FILTER_VALIDATE_URL)) { throw new RuntimeException(sblog_t('当前没有可安装的更新。')); }
+    if (!class_exists('ZipArchive')) { throw new RuntimeException(sblog_t('服务器未启用 ZipArchive，无法解压更新包。')); }
     ensure_runtime_dirs();
     $workDir = CACHE_DIR . '/update-' . bin2hex(random_bytes(6));
     $zipFile = $workDir . '/release.zip';
-    if (!mkdir($workDir, 0755, true) && !is_dir($workDir)) { throw new RuntimeException('无法创建更新临时目录。'); }
+    if (!mkdir($workDir, 0755, true) && !is_dir($workDir)) { throw new RuntimeException(sblog_t('无法创建更新临时目录。')); }
     try {
         $handle = fopen($zipFile, 'wb');
-        if ($handle === false) { throw new RuntimeException('无法创建更新包。'); }
+        if ($handle === false) { throw new RuntimeException(sblog_t('无法创建更新包。')); }
         $curl = curl_init((string)$update['download_url']);
         curl_setopt_array($curl, array_replace([
             CURLOPT_FILE => $handle,
@@ -1070,21 +1333,21 @@ function install_github_update(array $update): string
         $error = curl_error($curl);
         curl_close($curl);
         fclose($handle);
-        if (!$ok || $status !== 200) { throw new RuntimeException('更新包下载失败：' . ($error ?: 'HTTP ' . $status)); }
+        if (!$ok || $status !== 200) { throw new RuntimeException(sblog_t('更新包下载失败：{error}', ['error' => $error ?: 'HTTP ' . $status])); }
         $zip = new ZipArchive();
-        if ($zip->open($zipFile) !== true || !$zip->extractTo($workDir . '/source')) { throw new RuntimeException('更新包无法解压。'); }
+        if ($zip->open($zipFile) !== true || !$zip->extractTo($workDir . '/source')) { throw new RuntimeException(sblog_t('更新包无法解压。')); }
         $zip->close();
         $roots = glob($workDir . '/source/*', GLOB_ONLYDIR) ?: [];
         $source = (string)($roots[0] ?? '');
         $newIndex = $source . '/index.php';
-        if (!is_file($newIndex)) { throw new RuntimeException('更新包结构无效。'); }
+        if (!is_file($newIndex)) { throw new RuntimeException(sblog_t('更新包结构无效。')); }
         $code = (string)file_get_contents($newIndex);
-        if (!preg_match("/const APP_VERSION = '([^']+)'/", $code, $match)) { throw new RuntimeException('更新包版本无效。'); }
+        if (!preg_match("/const APP_VERSION = '([^']+)'/", $code, $match)) { throw new RuntimeException(sblog_t('更新包版本无效。')); }
         $packageVersion = (string)$match[1];
         $versionIsValid = $isRepair
             ? normalize_version($packageVersion) === normalize_version(APP_VERSION)
             : update_available_for($packageVersion);
-        if (!$versionIsValid) { throw new RuntimeException('更新包版本无效或不高于当前版本。'); }
+        if (!$versionIsValid) { throw new RuntimeException(sblog_t('更新包版本无效或不高于当前版本。')); }
         $backup = CACHE_DIR . '/update-backup-' . date('Ymd-His');
         mkdir($backup, 0755, true);
         install_release_files($source, __DIR__, $backup);
@@ -1166,6 +1429,9 @@ function public_ip_address(string $ip): bool
 function json_response(array $payload, int $status = 200): void
 {
     http_response_code($status);
+    if (!headers_sent()) {
+        header('Content-Language: ' . sblog_i18n_locale());
+    }
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -1193,13 +1459,13 @@ function ensure_upload_year_dir(): array
 function upload_error_message(int $code): string
 {
     return match ($code) {
-        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => '文件超过服务器允许的大小。',
-        UPLOAD_ERR_PARTIAL => '文件只上传了一部分。',
-        UPLOAD_ERR_NO_FILE => '没有选择文件。',
-        UPLOAD_ERR_NO_TMP_DIR => '服务器缺少临时目录。',
-        UPLOAD_ERR_CANT_WRITE => '服务器无法写入文件。',
-        UPLOAD_ERR_EXTENSION => '上传被服务器扩展拦截。',
-        default => '上传失败。',
+        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => sblog_t('文件超过服务器允许的大小。'),
+        UPLOAD_ERR_PARTIAL => sblog_t('文件只上传了一部分。'),
+        UPLOAD_ERR_NO_FILE => sblog_t('没有选择文件。'),
+        UPLOAD_ERR_NO_TMP_DIR => sblog_t('服务器缺少临时目录。'),
+        UPLOAD_ERR_CANT_WRITE => sblog_t('服务器无法写入文件。'),
+        UPLOAD_ERR_EXTENSION => sblog_t('上传被服务器扩展拦截。'),
+        default => sblog_t('上传失败。'),
     };
 }
 
@@ -1250,21 +1516,21 @@ function delete_media_storage(array $media): array
     } else {
         $result = plugin_filter('attachment_delete', [
             'ok' => false,
-            'error' => '当前存储插件不可用，无法删除远端文件。',
+            'error' => sblog_t('当前存储插件不可用，无法删除远端文件。'),
         ], ['media' => $media, 'storage_driver' => $driver, 'storage_key' => (string)($media['storage_key'] ?? '')]);
     }
     if (!is_array($result) || empty($result['ok'])) {
-        return ['ok' => false, 'error' => trim((string)($result['error'] ?? '删除存储文件失败。')) ?: '删除存储文件失败。'];
+        return ['ok' => false, 'error' => trim((string)($result['error'] ?? sblog_t('删除存储文件失败。'))) ?: sblog_t('删除存储文件失败。')];
     }
 
     $localPath = trim((string)($media['local_path'] ?? ''));
     if ($localPath !== '') {
         $file = media_local_file($localPath);
         if ($file === null) {
-            return ['ok' => false, 'error' => '媒体文件路径无效，已停止删除。'];
+            return ['ok' => false, 'error' => sblog_t('媒体文件路径无效，已停止删除。')];
         }
         if (is_file($file) && !@unlink($file)) {
-            return ['ok' => false, 'error' => '服务器无法删除本地媒体文件。'];
+            return ['ok' => false, 'error' => sblog_t('服务器无法删除本地媒体文件。')];
         }
     }
     return ['ok' => true, 'error' => ''];
@@ -1277,7 +1543,7 @@ function handle_attachment_upload(): void
 
     $files = $_FILES['attachments'] ?? null;
     if (!is_array($files) || !isset($files['name'], $files['tmp_name'], $files['error'], $files['size'])) {
-        json_response(['ok' => false, 'error' => '没有收到附件。'], 400);
+        json_response(['ok' => false, 'error' => sblog_t('没有收到附件。')], 400);
     }
 
     $year = date('Y');
@@ -1307,12 +1573,12 @@ function handle_attachment_upload(): void
         }
 
         if ($size < 1 || $size > $maxSize) {
-            $failed[] = ['name' => $originalName, 'error' => '每个附件最大 30M。'];
+            $failed[] = ['name' => $originalName, 'error' => sblog_t('每个附件最大 30M。')];
             continue;
         }
 
         if (!is_uploaded_file($tmpName)) {
-            $failed[] = ['name' => $originalName, 'error' => '临时文件无效。'];
+            $failed[] = ['name' => $originalName, 'error' => sblog_t('临时文件无效。')];
             continue;
         }
 
@@ -1323,7 +1589,7 @@ function handle_attachment_upload(): void
 
         $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmpName) ?: 'application/octet-stream';
         if (!isset($allowedTypes[$extension]) || !in_array($mime, $allowedTypes[$extension], true)) {
-            $failed[] = ['name' => $originalName, 'error' => '文件类型不在允许列表中。'];
+            $failed[] = ['name' => $originalName, 'error' => sblog_t('文件类型不在允许列表中。')];
             continue;
         }
 
@@ -1335,7 +1601,7 @@ function handle_attachment_upload(): void
         $isImage = is_array($imageInfo);
 
         if (!move_uploaded_file($tmpName, $target)) {
-            $failed[] = ['name' => $originalName, 'error' => '保存附件失败。'];
+            $failed[] = ['name' => $originalName, 'error' => sblog_t('保存附件失败。')];
             continue;
         }
 
@@ -1359,7 +1625,7 @@ function handle_attachment_upload(): void
         if (!is_array($storage) || empty($storage['ok']) || trim((string)($storage['url'] ?? '')) === '') {
             @unlink($target);
             $message = is_array($storage) ? trim((string)($storage['error'] ?? '')) : '';
-            $failed[] = ['name' => $originalName, 'error' => $message !== '' ? $message : '附件存储插件处理失败。'];
+            $failed[] = ['name' => $originalName, 'error' => $message !== '' ? $message : sblog_t('附件存储插件处理失败。')];
             continue;
         }
         $url = trim((string)$storage['url']);
@@ -1393,7 +1659,7 @@ function handle_attachment_upload(): void
                 ]);
             }
             if (is_file($target)) { @unlink($target); }
-            $failed[] = ['name' => $originalName, 'error' => '媒体资料登记失败。'];
+            $failed[] = ['name' => $originalName, 'error' => sblog_t('媒体资料登记失败。')];
             continue;
         }
 
@@ -1584,7 +1850,7 @@ function is_admin(): bool
 function require_admin(): void
 {
     if (!is_admin()) {
-        set_flash('error', '请先登录后台。');
+        set_flash('error', sblog_t('请先登录后台。'));
         redirect_to(url_for('login'));
     }
 }
@@ -1891,7 +2157,7 @@ function theme_asset_url(string $path): string
 function add_theme_action(string $hook, callable $callback, int $priority = 10): void
 {
     if (!preg_match('/^[a-z][a-z0-9_.-]*$/', $hook)) {
-        throw new InvalidArgumentException('无效的主题钩子名称：' . $hook);
+        throw new InvalidArgumentException(sblog_t('无效的主题钩子名称：{hook}', ['hook' => $hook]));
     }
 
     $GLOBALS['sblog_theme_actions'][$hook][$priority][] = $callback;
@@ -1900,7 +2166,7 @@ function add_theme_action(string $hook, callable $callback, int $priority = 10):
 function add_theme_filter(string $hook, callable $callback, int $priority = 10): void
 {
     if (!preg_match('/^[a-z][a-z0-9_.-]*$/', $hook)) {
-        throw new InvalidArgumentException('无效的主题过滤器名称：' . $hook);
+        throw new InvalidArgumentException(sblog_t('无效的主题过滤器名称：{hook}', ['hook' => $hook]));
     }
 
     $GLOBALS['sblog_theme_filters'][$hook][$priority][] = $callback;
@@ -2112,7 +2378,7 @@ function content_kind(array $row): string
 
 function content_type_label(array $row): string
 {
-    return content_kind($row) === 'page' ? '页面' : '文章';
+    return content_kind($row) === 'page' ? sblog_t('页面') : sblog_t('文章');
 }
 
 function content_permalink(array $row): string
@@ -2273,12 +2539,12 @@ function social_profile_definitions(): array
     return [
         'github' => ['column' => 'github_url', 'label' => 'GitHub', 'icon' => 'ri-github-fill', 'placeholder' => 'https://github.com/...'],
         'qq' => ['column' => 'qq_url', 'label' => 'QQ', 'icon' => 'ri-qq-fill', 'placeholder' => 'https://qm.qq.com/q/...'],
-        'wechat' => ['column' => 'wechat_url', 'label' => '微信', 'icon' => 'ri-wechat-fill', 'placeholder' => 'https://example.com/wechat'],
-        'weibo' => ['column' => 'weibo_url', 'label' => '微博', 'icon' => 'ri-weibo-fill', 'placeholder' => 'https://weibo.com/...'],
+        'wechat' => ['column' => 'wechat_url', 'label' => sblog_t('微信'), 'source_label' => '微信', 'icon' => 'ri-wechat-fill', 'placeholder' => 'https://example.com/wechat'],
+        'weibo' => ['column' => 'weibo_url', 'label' => sblog_t('微博'), 'source_label' => '微博', 'icon' => 'ri-weibo-fill', 'placeholder' => 'https://weibo.com/...'],
         'x' => ['column' => 'x_url', 'label' => 'X', 'icon' => 'ri-twitter-x-fill', 'placeholder' => 'https://x.com/...'],
         'telegram' => ['column' => 'telegram_url', 'label' => 'Telegram', 'icon' => 'ri-telegram-fill', 'placeholder' => 'https://t.me/...'],
         'mastodon' => ['column' => 'mastodon_url', 'label' => 'Mastodon', 'icon' => 'ri-mastodon-fill', 'placeholder' => 'https://mastodon.social/@...'],
-        'bilibili' => ['column' => 'bilibili_url', 'label' => '哔哩哔哩', 'icon' => 'ri-bilibili-fill', 'placeholder' => 'https://space.bilibili.com/...'],
+        'bilibili' => ['column' => 'bilibili_url', 'label' => sblog_t('哔哩哔哩'), 'source_label' => '哔哩哔哩', 'icon' => 'ri-bilibili-fill', 'placeholder' => 'https://space.bilibili.com/...'],
         'instagram' => ['column' => 'instagram_url', 'label' => 'Instagram', 'icon' => 'ri-instagram-fill', 'placeholder' => 'https://instagram.com/...'],
         'tiktok' => ['column' => 'tiktok_url', 'label' => 'TikTok', 'icon' => 'ri-tiktok-fill', 'placeholder' => 'https://tiktok.com/@...'],
     ];
@@ -2696,8 +2962,13 @@ function douban_media_card_html(string $url, string $host, string $type, string 
 {
     $subject = $type !== '' ? douban_subject_data($type, $id) : [];
     $detailed = $subject !== [];
-    $label = $detailed ? (string)$subject['label'] : '豆瓣资料';
-    $title = $detailed ? (string)$subject['title'] : '豆瓣媒体资料';
+    $label = match ($type) {
+        'movie' => sblog_t('豆瓣电影'),
+        'book' => sblog_t('豆瓣读书'),
+        'music' => sblog_t('豆瓣音乐'),
+        default => sblog_t('豆瓣资料'),
+    };
+    $title = $detailed ? (string)$subject['title'] : sblog_t('豆瓣媒体资料');
     $class = 'media-link-card media-link-card--douban' . ($detailed ? ' media-link-card--detailed media-link-card--' . h($type) : '');
     $cover = '<span class="media-link-card__cover" aria-hidden="true"><span class="media-link-card__cover-fallback">豆</span>';
     if ($detailed && (string)$subject['cover'] !== '') {
@@ -2714,17 +2985,26 @@ function douban_media_card_html(string $url, string $host, string $type, string 
         $facts .= '<span>' . h((string)$fact) . '</span>';
     }
     $credits = '';
+    $creditLabels = [
+        '导演' => sblog_t('导演'),
+        '主演' => sblog_t('主演'),
+        '作者' => sblog_t('作者'),
+        '出版' => sblog_t('出版'),
+        '表演者' => sblog_t('表演者'),
+        '发行' => sblog_t('发行'),
+    ];
     foreach (($detailed ? $subject['credits'] : []) as $credit) {
-        $credits .= '<span><b>' . h((string)$credit['label']) . '</b><span>' . h((string)$credit['value']) . '</span></span>';
+        $sourceLabel = (string)$credit['label'];
+        $credits .= '<span><b>' . h($creditLabels[$sourceLabel] ?? $sourceLabel) . '</b><span>' . h((string)$credit['value']) . '</span></span>';
     }
     $rating = '';
     if ($detailed && (string)$subject['rating'] !== '') {
-        $ratingLabel = '豆瓣评分 ' . (string)$subject['rating'] . ' 分';
-        if ((int)$subject['rating_count'] > 0) {
-            $ratingLabel .= '，' . (int)$subject['rating_count'] . ' 人评价';
-        }
+        $ratingCount = (int)$subject['rating_count'];
+        $ratingLabel = $ratingCount > 0
+            ? sblog_tn('豆瓣评分 {rating} 分，{count} 人评价', $ratingCount, ['rating' => (string)$subject['rating']])
+            : sblog_t('豆瓣评分 {rating} 分', ['rating' => (string)$subject['rating']]);
         $rating = '<span class="media-link-card__rating" aria-label="' . h($ratingLabel) . '"><b>'
-            . h((string)$subject['rating']) . '</b><small>豆瓣评分</small></span>';
+            . h((string)$subject['rating']) . '</b><small>' . h(sblog_t('豆瓣评分')) . '</small></span>';
     }
 
     return '<aside class="' . $class . '">' . $cover
@@ -2733,7 +3013,7 @@ function douban_media_card_html(string $url, string $host, string $type, string 
         . '<span class="media-link-card__facts">' . $facts . '</span>'
         . ($credits !== '' ? '<span class="media-link-card__credits">' . $credits . '</span>' : '') . '</span>'
         . '<span class="media-link-card__side">' . $rating
-        . '<a class="media-link-card__action" href="' . h($url) . '" target="_blank" rel="noopener noreferrer">查看详情<span aria-hidden="true"> →</span></a>'
+        . '<a class="media-link-card__action" href="' . h($url) . '" target="_blank" rel="noopener noreferrer">' . h(sblog_t('查看详情')) . '<span aria-hidden="true"> →</span></a>'
         . '</span></aside>';
 }
 
@@ -2774,7 +3054,7 @@ function media_embed_html(string $url): string
             $config = $types[$route];
             $src = 'https://music.163.com/outchain/player?type=' . $config['type'] . '&id=' . rawurlencode($id)
                 . '&auto=0&height=' . ($config['height'] - 20);
-            return media_iframe_html('网易云音乐', $src, 'audio', $config['height']);
+            return media_iframe_html(sblog_t('网易云音乐'), $src, 'audio', $config['height']);
         }
     }
 
@@ -2785,7 +3065,7 @@ function media_embed_html(string $url): string
             : 'aid=' . rawurlencode($matches[2]);
         $page = isset($query['p']) && is_ascii_digits((string)$query['p']) ? '&page=' . (int)$query['p'] : '';
         return media_iframe_html(
-            '哔哩哔哩视频',
+            sblog_t('哔哩哔哩视频'),
             'https://player.bilibili.com/player.html?' . $parameter . $page . '&high_quality=1&danmaku=0&as_wide=1'
         );
     }
@@ -2802,7 +3082,7 @@ function media_embed_html(string $url): string
 
         if (preg_match('/^[0-9A-Za-z_-]{6,15}$/', $videoId)) {
             return media_iframe_html(
-                'YouTube 视频',
+                sblog_t('YouTube 视频'),
                 'https://www.youtube-nocookie.com/embed/' . rawurlencode($videoId)
             );
         }
@@ -2876,7 +3156,7 @@ function markdown_to_html(string $markdown): string
     $markdown = trim(str_replace(["\r\n", "\r"], "\n", $markdown));
 
     if ($markdown === '') {
-        return '<p>暂无内容。</p>';
+        return '<p>' . h(sblog_t('暂无内容。')) . '</p>';
     }
 
     $lines = explode("\n", $markdown);
@@ -3068,14 +3348,14 @@ function markdown_to_html(string $markdown): string
 function post_state(array $post): array
 {
     if ((string)$post['status'] !== 'published') {
-        return ['label' => '草稿', 'class' => 'draft'];
+        return ['label' => sblog_t('草稿'), 'class' => 'draft'];
     }
 
     if ((int)$post['published_at'] > time()) {
-        return ['label' => '定时', 'class' => 'scheduled'];
+        return ['label' => sblog_t('定时'), 'class' => 'scheduled'];
     }
 
-    return ['label' => '已发布', 'class' => 'published'];
+    return ['label' => sblog_t('已发布'), 'class' => 'published'];
 }
 
 function is_live_content(array $post): bool
@@ -3236,7 +3516,10 @@ function archive_groups(): array
     $groups = [];
 
     foreach (fetch_archive_posts() as $post) {
-        $label = date('Y 年 m 月', (int)$post['published_at']);
+        $label = sblog_t('{year} 年 {month} 月', [
+            'year' => date('Y', (int)$post['published_at']),
+            'month' => date('m', (int)$post['published_at']),
+        ]);
         $groups[$label][] = $post;
     }
 
@@ -3271,7 +3554,7 @@ function render_public_post_list(array $posts): string
       <div class="posts">
         <div class="post">
           <div class="time"><?= h(date('F j, Y', (int)$post['published_at'])) ?></div>
-          <a href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>"><?php if (!empty($post['is_pinned'])): ?><span class="pinned-badge">置顶</span><?php endif; ?><?= h((string)$post['title']) ?></a>
+          <a href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>"><?php if (!empty($post['is_pinned'])): ?><span class="pinned-badge"><?= h(sblog_t('置顶')) ?></span><?php endif; ?><?= h((string)$post['title']) ?></a>
         </div>
       </div>
     <?php endforeach; ?>
@@ -3317,9 +3600,9 @@ function admin_metrics(): array
 function comment_status_meta(string $status): array
 {
     return match ($status) {
-        'approved' => ['label' => '已通过', 'class' => 'approved'],
-        'spam' => ['label' => '垃圾评论', 'class' => 'spam'],
-        default => ['label' => '待审核', 'class' => 'pending'],
+        'approved' => ['label' => sblog_t('已通过'), 'class' => 'approved'],
+        'spam' => ['label' => sblog_t('垃圾评论'), 'class' => 'spam'],
+        default => ['label' => sblog_t('待审核'), 'class' => 'pending'],
     };
 }
 
@@ -3586,10 +3869,17 @@ function send_comment_reply_notice(int $commentId): void
 
     $siteName = setting('site_name', default_settings()['site_name']);
     $url = absolute_url(content_permalink(['kind' => (string)$reply['post_kind'], 'slug' => (string)$reply['post_slug']])) . '#comment-' . $commentId;
-    $subject = '[' . $siteName . '] ' . (string)$reply['author_name'] . ' 回复了你的评论';
-    $body = (string)$reply['recipient_name'] . "，你好：\n\n"
-        . (string)$reply['author_name'] . ' 在《' . (string)$reply['post_title'] . "》中回复了你：\n\n"
-        . (string)$reply['content'] . "\n\n查看回复：" . $url;
+    $subject = sblog_t('[{site}] {author} 回复了你的评论', [
+        'site' => $siteName,
+        'author' => (string)$reply['author_name'],
+    ]);
+    $body = sblog_t('{recipient}，你好：', ['recipient' => (string)$reply['recipient_name']]) . "\n\n"
+        . sblog_t('{author} 在《{post}》中回复了你：', [
+            'author' => (string)$reply['author_name'],
+            'post' => (string)$reply['post_title'],
+        ]) . "\n\n"
+        . (string)$reply['content'] . "\n\n"
+        . sblog_t('查看回复：{url}', ['url' => $url]);
 
     if (send_site_mail($recipient, $subject, $body)) {
         q('UPDATE comments SET reply_notified_at = ? WHERE id = ? AND reply_notified_at = 0', [time(), $commentId]);
@@ -3957,6 +4247,25 @@ function validate_post_input(array $input, ?array $existing = null): array
     }
 
     $seed = trim((string)($input['slug'] ?? ''));
+    if ($errors === [] && ($seed === '' || $excerpt === '')) {
+        $defaultFields = plugin_filter('post_fields_before_defaults', [
+            'slug' => $seed,
+            'excerpt' => $excerpt,
+        ], [
+            'title' => $title,
+            'content' => $content,
+            'kind' => $kind,
+            'post_id' => $existing ? (int)$existing['id'] : null,
+        ]);
+        if (is_array($defaultFields)) {
+            if ($seed === '' && is_string($defaultFields['slug'] ?? null)) {
+                $seed = trim($defaultFields['slug']);
+            }
+            if ($excerpt === '' && is_string($defaultFields['excerpt'] ?? null)) {
+                $excerpt = trim($defaultFields['excerpt']);
+            }
+        }
+    }
     $slug = unique_slug($seed !== '' ? $seed : $title, $existing ? (int)$existing['id'] : null);
     $excerpt = $excerpt !== '' ? $excerpt : derive_excerpt($content);
     $tags = encode_tags(parse_tags_input($tagsInput));
@@ -4087,6 +4396,9 @@ function render_layout(string $title, string $content, array $options = []): voi
     }
 
     http_response_code($status);
+    if (!headers_sent()) {
+        header('Content-Language: ' . sblog_i18n_locale());
+    }
 
     $themeLayout = $mode === 'public' ? active_theme_file('layout.php') : '';
     if ($themeLayout !== '') {
@@ -4102,7 +4414,7 @@ function render_layout(string $title, string $content, array $options = []): voi
     }
     ?>
 <!doctype html>
-<html lang="zh-CN">
+<html lang="<?= h(sblog_i18n_locale()) ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -4125,6 +4437,7 @@ function render_layout(string $title, string $content, array $options = []): voi
     })();
   </script>
   <?php endif; ?>
+  <?= sblog_i18n_head() ?>
   <link rel="icon" href="<?= h(theme_favicon_url()) ?>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4145,22 +4458,22 @@ function render_layout(string $title, string $content, array $options = []): voi
       <?php theme_action('header_after', $themeContext); ?>
       <main class="output" id="output" aria-live="polite">
         <div class="boot-banner"><b><?= h($siteName) ?> <?= h(APP_VERSION) ?> — <?= h(public_quote()) ?></b><br><span>type "help" to begin · type "ls" to look around</span></div>
-        <nav class="terminal-menu" aria-label="主菜单">
+        <nav class="terminal-menu" aria-label="<?= h(sblog_t('主菜单')) ?>">
           <span class="terminal-menu__label">menu:</span>
-          <a class="<?= $active === 'home' ? 'is-active' : '' ?>" href="<?= h(url_for('home')) ?>">[首页]</a>
-          <a class="<?= $active === 'tags' ? 'is-active' : '' ?>" href="<?= h(url_for('tags')) ?>">[标签]</a>
-          <a class="<?= $active === 'archives' ? 'is-active' : '' ?>" href="<?= h(url_for('archives')) ?>">[归档]</a>
-          <a class="<?= $active === 'links' ? 'is-active' : '' ?>" href="<?= h(url_for('links')) ?>">[链接]</a>
+          <a class="<?= $active === 'home' ? 'is-active' : '' ?>" href="<?= h(url_for('home')) ?>">[<?= h(sblog_t('首页')) ?>]</a>
+          <a class="<?= $active === 'tags' ? 'is-active' : '' ?>" href="<?= h(url_for('tags')) ?>">[<?= h(sblog_t('标签')) ?>]</a>
+          <a class="<?= $active === 'archives' ? 'is-active' : '' ?>" href="<?= h(url_for('archives')) ?>">[<?= h(sblog_t('归档')) ?>]</a>
+          <a class="<?= $active === 'links' ? 'is-active' : '' ?>" href="<?= h(url_for('links')) ?>">[<?= h(sblog_t('链接')) ?>]</a>
           <?php $adminLinkRendered = false; ?>
           <?php foreach ($navPages as $page): ?>
             <a class="<?= $active === 'page:' . $page['slug'] ? 'is-active' : '' ?>" href="<?= h(content_permalink($page)) ?>">[<?= h($page['title']) ?>]</a>
             <?php if ($admin && !$adminLinkRendered && (strtolower((string)$page['slug']) === 'about' || trim((string)$page['title']) === '关于')): ?>
-              <a class="<?= $active === 'admin' ? 'is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">[管理]</a>
+              <a class="<?= $active === 'admin' ? 'is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">[<?= h(sblog_t('管理')) ?>]</a>
               <?php $adminLinkRendered = true; ?>
             <?php endif; ?>
           <?php endforeach; ?>
           <?php if ($admin && !$adminLinkRendered): ?>
-            <a class="<?= $active === 'admin' ? 'is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">[管理]</a>
+            <a class="<?= $active === 'admin' ? 'is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">[<?= h(sblog_t('管理')) ?>]</a>
           <?php endif; ?>
         </nav>
         <div class="cmd-echo"><span class="prompt-part">visitor@<?= h($siteName) ?></span><span class="path-part">:~</span>$ cat <?= h(strtolower(str_replace(' ', '-', $title))) ?>.md</div>
@@ -4178,13 +4491,13 @@ function render_layout(string $title, string $content, array $options = []): voi
             <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer"><?= h($beian) ?></a>
           <?php endif; ?>
           <span class="terminal-footer__separator">·</span>
-          <a href="<?= h(url_for('rss')) ?>">RSS</a>
+          <a href="<?= h(url_for('rss')) ?>"><?= h(sblog_t('RSS')) ?></a>
           <span class="terminal-footer__separator">·</span>
-          <a href="<?= h(url_for('sitemap')) ?>">Sitemap</a>
+          <a href="<?= h(url_for('sitemap')) ?>"><?= h(sblog_t('Sitemap')) ?></a>
         </footer>
         <?php theme_action('footer_after', $themeContext); ?>
       </main>
-      <footer class="prompt-line"><span class="prompt"><span>visitor@<?= h($siteName) ?></span><span class="path" id="prompt-path">:~</span><span class="symbol">$</span>&nbsp;</span><span class="input-text" id="input-text"></span><span class="cursor"></span><span class="ghost-text" id="ghost-text"></span><input id="input" type="text" autofocus autocomplete="off" spellcheck="false" aria-label="Terminal input"></footer>
+      <footer class="prompt-line"><span class="prompt"><span>visitor@<?= h($siteName) ?></span><span class="path" id="prompt-path">:~</span><span class="symbol">$</span>&nbsp;</span><span class="input-text" id="input-text"></span><span class="cursor"></span><span class="ghost-text" id="ghost-text"></span><input id="input" type="text" autofocus autocomplete="off" spellcheck="false" aria-label="<?= h(sblog_t('终端输入')) ?>"></footer>
     </div>
   <?php else: ?>
     <div class="site-frame">
@@ -4194,16 +4507,16 @@ function render_layout(string $title, string $content, array $options = []): voi
             <img class="site-brand__logo" src="<?= h(theme_logo_url()) ?>" width="44" height="44" alt="<?= h($siteName) ?>">
             <span class="site-brand__copy">
               <strong class="site-brand__title"><?= h($siteName) ?></strong>
-              <span class="site-brand__meta"><?= $admin ? 'Simple-PHP-Blog Admin' : '管理后台' ?></span>
+              <span class="site-brand__meta"><?= h($admin ? sblog_t('Simple-PHP-Blog Admin') : sblog_t('管理后台')) ?></span>
             </span>
           </a>
           <?php if ($admin): ?>
-            <nav class="site-nav site-nav--admin" aria-label="Primary">
-              <a class="nav-link<?= $active === 'admin' ? ' is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">管理后台</a>
-              <a class="nav-link nav-link--pill<?= in_array($active, ['write', 'edit'], true) ? ' is-active' : '' ?>" href="<?= h(url_for('write')) ?>">撰写文章</a>
+            <nav class="site-nav site-nav--admin" aria-label="<?= h(sblog_t('主导航')) ?>">
+              <a class="nav-link<?= $active === 'admin' ? ' is-active' : '' ?>" href="<?= h(url_for('admin')) ?>"><?= h(sblog_t('管理后台')) ?></a>
+              <a class="nav-link nav-link--pill<?= in_array($active, ['write', 'edit'], true) ? ' is-active' : '' ?>" href="<?= h(url_for('write')) ?>"><?= h(sblog_t('撰写文章')) ?></a>
               <form class="nav-logout-form" method="post" action="<?= h(url_for('logout')) ?>">
                 <?= csrf_field() ?>
-                <button class="nav-link" type="submit">退出</button>
+                <button class="nav-link" type="submit"><?= h(sblog_t('退出')) ?></button>
               </form>
             </nav>
           <?php else: ?>
@@ -4235,7 +4548,7 @@ function render_layout(string $title, string $content, array $options = []): voi
       <footer class="site-footer">
         <div class="site-footer__inner">
           <span><?= h(site_footer_text()) ?></span>
-          <span class="site-footer__meta">Powered by Simple PHP Blog <?= h(APP_VERSION) ?></span>
+          <span class="site-footer__meta"><?= h(sblog_t('Powered by Simple PHP Blog {version}', ['version' => APP_VERSION])) ?></span>
         </div>
       </footer>
     </div>
@@ -4289,7 +4602,8 @@ function admin_icon(string $name): string
 
 function render_admin_theme_toggle(): string
 {
-    return '<button class="admin-icon-btn admin-theme-toggle" type="button" data-admin-theme-toggle aria-label="切换到深色模式" title="切换到深色模式">'
+    $label = h(sblog_t('切换到深色模式'));
+    return '<button class="admin-icon-btn admin-theme-toggle" type="button" data-admin-theme-toggle aria-label="' . $label . '" title="' . $label . '">'
         . '<span class="admin-theme-toggle__icons" aria-hidden="true">'
         . '<span class="admin-theme-toggle__icon admin-theme-toggle__icon--moon">' . admin_icon('moon') . '</span>'
         . '<span class="admin-theme-toggle__icon admin-theme-toggle__icon--sun">' . admin_icon('sun') . '</span>'
@@ -4393,8 +4707,8 @@ function render_admin_sidebar(string $active, array $summary = []): string
     ob_start();
     ?>
     <button class="admin-side-backdrop" type="button" data-admin-nav-close tabindex="-1" aria-hidden="true"></button>
-    <aside class="admin-side admin-animate admin-animate--1" id="admin-sidebar" aria-label="后台导航">
-      <button class="admin-icon-btn admin-side__close" type="button" data-admin-nav-close aria-label="关闭后台菜单" title="关闭后台菜单">
+    <aside class="admin-side admin-animate admin-animate--1" id="admin-sidebar" aria-label="<?= h(sblog_t('后台导航')) ?>">
+      <button class="admin-icon-btn admin-side__close" type="button" data-admin-nav-close aria-label="<?= h(sblog_t('关闭后台菜单')) ?>" title="<?= h(sblog_t('关闭后台菜单')) ?>">
         <?= admin_icon('close') ?>
       </button>
       <a class="admin-side__brand" href="<?= h(url_for('admin')) ?>" title="<?= h($siteName) ?>" aria-label="<?= h($siteName) ?>">
@@ -4403,15 +4717,45 @@ function render_admin_sidebar(string $active, array $summary = []): string
       </a>
 
       <section class="admin-side__panel admin-side__panel--nav">
-        <p class="admin-side__eyebrow">管理导航</p>
-        <nav class="admin-side__nav" aria-label="Admin">
+        <p class="admin-side__eyebrow"><?= h(sblog_t('管理导航')) ?></p>
+        <nav class="admin-side__nav" aria-label="<?= h(sblog_t('后台导航')) ?>">
           <?php foreach ($links as $link): ?>
             <?php $linkBadge = (int)($link['badge'] ?? 0); ?>
-            <?php $linkLabel = (string)$link['label'] . ($linkBadge > 0 ? '，' . $linkBadge . ' 条未读评论' : ''); ?>
-            <a class="admin-side__link<?= $link['active'] ? ' is-active' : '' ?>" href="<?= h((string)$link['href']) ?>" title="<?= h((string)$link['label']) ?>" aria-label="<?= h($linkLabel) ?>"<?= $link['active'] ? ' aria-current="page"' : '' ?>>
+            <?php $linkDisplayLabel = match ((string)$link['label']) {
+                '博客概览' => sblog_t('博客概览'),
+                '撰写文章' => sblog_t('撰写文章'),
+                '媒体库' => sblog_t('媒体库'),
+                '文章管理' => sblog_t('文章管理'),
+                '评论管理' => sblog_t('评论管理'),
+                '分类管理' => sblog_t('分类管理'),
+                '标签管理' => sblog_t('标签管理'),
+                '友情链接' => sblog_t('友情链接'),
+                '主题管理' => sblog_t('主题管理'),
+                '插件管理' => sblog_t('插件管理'),
+                '站点设置' => sblog_t('站点设置'),
+                default => (string)$link['label'],
+            }; ?>
+            <?php $linkDisplayNote = match ((string)$link['note']) {
+                '浏览与统计' => sblog_t('浏览与统计'),
+                '发布文章或页面' => sblog_t('发布文章或页面'),
+                '上传与文件管理' => sblog_t('上传与文件管理'),
+                '列表与发布' => sblog_t('列表与发布'),
+                '审核与通知' => sblog_t('审核与通知'),
+                '分类与排序' => sblog_t('分类与排序'),
+                '重命名与清理' => sblog_t('重命名与清理'),
+                '添加、排序与维护' => sblog_t('添加、排序与维护'),
+                '预览与切换' => sblog_t('预览与切换'),
+                '扩展与语言包' => sblog_t('扩展与语言包'),
+                '基础配置' => sblog_t('基础配置'),
+                default => (string)$link['note'],
+            }; ?>
+            <?php $linkLabel = $linkBadge > 0
+                ? sblog_tn('{label}，{count} 条未读评论', $linkBadge, ['label' => $linkDisplayLabel])
+                : $linkDisplayLabel; ?>
+            <a class="admin-side__link<?= $link['active'] ? ' is-active' : '' ?>" href="<?= h((string)$link['href']) ?>" title="<?= h($linkDisplayLabel) ?>" aria-label="<?= h($linkLabel) ?>"<?= $link['active'] ? ' aria-current="page"' : '' ?>>
               <?= admin_icon((string)$link['icon']) ?>
-              <strong><?= h((string)$link['label']) ?></strong>
-              <span><?= h((string)$link['note']) ?></span>
+              <strong><?= h($linkDisplayLabel) ?></strong>
+              <span><?= h($linkDisplayNote) ?></span>
               <?php if ($linkBadge > 0): ?>
                 <small class="admin-count-badge" aria-hidden="true"><?= h((string)min(99, $linkBadge)) ?><?= $linkBadge > 99 ? '+' : '' ?></small>
               <?php endif; ?>
@@ -4422,7 +4766,7 @@ function render_admin_sidebar(string $active, array $summary = []): string
 
       <?php if ($summary !== []): ?>
         <section class="admin-side__panel admin-side__panel--subtle">
-          <p class="admin-side__eyebrow"><?= h((string)($summary['title'] ?? '说明')) ?></p>
+          <p class="admin-side__eyebrow"><?= h((string)($summary['title'] ?? sblog_t('说明'))) ?></p>
 
           <?php if (!empty($summary['stats']) && is_array($summary['stats'])): ?>
             <dl class="admin-side__stats">
@@ -4446,7 +4790,7 @@ function render_admin_sidebar(string $active, array $summary = []): string
 
       <div class="admin-side__footer">
         <details class="admin-side__account" data-admin-account>
-          <summary class="admin-side__account-toggle" aria-label="打开用户菜单：<?= h($adminName) ?>">
+          <summary class="admin-side__account-toggle" aria-label="<?= h(sblog_t('打开用户菜单：{name}', ['name' => $adminName])) ?>">
             <span class="admin-side__avatar">
               <span aria-hidden="true"><?= h($adminInitial) ?></span>
               <?php if ($adminAvatarUrl !== ''): ?>
@@ -4459,13 +4803,13 @@ function render_admin_sidebar(string $active, array $summary = []): string
           <div class="admin-side__account-menu" role="menu">
             <a class="admin-side__account-item" role="menuitem" href="<?= h($userSettingsUrl) ?>">
               <?= admin_icon('users') ?>
-              <span>用户设置</span>
+              <span><?= h(sblog_t('用户设置')) ?></span>
             </a>
             <form class="admin-side__logout-form" method="post" action="<?= h(url_for('logout')) ?>">
               <?= csrf_field() ?>
               <button class="admin-side__account-item admin-side__account-item--danger" role="menuitem" type="submit">
                 <?= admin_icon('logout') ?>
-                <span>退出登录</span>
+                <span><?= h(sblog_t('退出登录')) ?></span>
               </button>
             </form>
           </div>
@@ -4482,29 +4826,45 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
     $unreadComments = unread_comment_count();
     $notificationUrl = $unreadComments > 0 ? admin_comments_url('unread') : url_for('admin_comments');
     $flash = pull_flash();
+    $displayTitle = match ($title) {
+        '博客数据预览' => sblog_t('博客数据预览'),
+        '文章管理' => sblog_t('文章管理'),
+        '评论管理' => sblog_t('评论管理'),
+        '分类管理' => sblog_t('分类管理'),
+        '友情链接' => sblog_t('友情链接'),
+        '标签管理' => sblog_t('标签管理'),
+        '用户设置' => sblog_t('用户设置'),
+        '媒体库' => sblog_t('媒体库'),
+        '插件管理' => sblog_t('插件管理'),
+        '主题管理' => sblog_t('主题管理'),
+        '站点设置' => sblog_t('站点设置'),
+        '编辑内容' => sblog_t('编辑内容'),
+        '撰写文章' => sblog_t('撰写文章'),
+        default => $title,
+    };
     ob_start();
     ?>
     <div class="admin-topbar">
       <div class="admin-topbar__leading">
-        <button class="admin-icon-btn admin-nav-toggle" type="button" data-admin-nav-toggle aria-controls="admin-sidebar" aria-expanded="false" aria-label="打开后台菜单" title="打开后台菜单">
+        <button class="admin-icon-btn admin-nav-toggle" type="button" data-admin-nav-toggle aria-controls="admin-sidebar" aria-expanded="false" aria-label="<?= h(sblog_t('打开后台菜单')) ?>" title="<?= h(sblog_t('打开后台菜单')) ?>">
           <?= admin_icon('menu') ?>
         </button>
-        <div class="admin-crumb"><span>控制台 /</span> <b><?= h($title) ?></b></div>
+        <div class="admin-crumb"><span><?= h(sblog_t('控制台 /')) ?></span> <b><?= h($displayTitle) ?></b></div>
       </div>
       <div class="admin-topbar__actions">
         <?= render_admin_theme_toggle() ?>
         <form class="admin-update-check" method="post" action="<?= h(url_for('check_update')) ?>">
           <?= csrf_field() ?>
-          <button class="button button--secondary button--compact" type="submit" aria-label="检测更新" title="检测更新">
+          <button class="button button--secondary button--compact" type="submit" aria-label="<?= h(sblog_t('检测更新')) ?>" title="<?= h(sblog_t('检测更新')) ?>">
             <?= admin_icon('refresh') ?>
-            <span>检测更新</span>
+            <span><?= h(sblog_t('检测更新')) ?></span>
           </button>
         </form>
-        <a class="admin-icon-btn admin-icon-btn--notifications" href="<?= h($notificationUrl) ?>" title="评论通知" aria-label="<?= $unreadComments > 0 ? h((string)$unreadComments) . ' 条未读评论' : '暂无未读评论' ?>">
+        <a class="admin-icon-btn admin-icon-btn--notifications" href="<?= h($notificationUrl) ?>" title="<?= h(sblog_t('评论通知')) ?>" aria-label="<?= h($unreadComments > 0 ? sblog_tn('{count} 条未读评论', $unreadComments) : sblog_t('暂无未读评论')) ?>">
           <?= admin_icon('bell') ?>
           <?php if ($unreadComments > 0): ?><small class="admin-count-badge"><?= h((string)min(99, $unreadComments)) ?><?= $unreadComments > 99 ? '+' : '' ?></small><?php endif; ?>
         </a>
-        <a class="admin-icon-btn" href="<?= h(url_for('home')) ?>" target="_blank" rel="noopener noreferrer" title="网站首页" aria-label="网站首页">
+        <a class="admin-icon-btn" href="<?= h(url_for('home')) ?>" target="_blank" rel="noopener noreferrer" title="<?= h(sblog_t('网站首页')) ?>" aria-label="<?= h(sblog_t('网站首页')) ?>">
           <?= admin_icon('home') ?>
         </a>
         <?php if ($actionLabel !== '' && $actionUrl !== ''): ?>
@@ -4531,7 +4891,7 @@ function simple_error_page(string $title, string $message, int $status = 400): v
       <h1 class="post-title"><?= h($title) ?></h1>
       <div class="post-content">
         <p><?= h($message) ?></p>
-        <p><a href="<?= h(url_for('home')) ?>">回到首页</a></p>
+        <p><a href="<?= h(url_for('home')) ?>"><?= h(sblog_t('回到首页')) ?></a></p>
       </div>
     </article>
     <?php
@@ -4570,7 +4930,7 @@ function render_home(int $page): void
     $totalPages = max(1, (int)ceil($total / $perPage));
 
     if ($page > $totalPages && $total > 0) {
-        simple_error_page('页面不存在', '分页超出了范围。', 404);
+        simple_error_page(sblog_t('页面不存在'), sblog_t('分页超出了范围。'), 404);
     }
 
     $posts = fetch_published_posts($perPage, ($page - 1) * $perPage);
@@ -4590,21 +4950,21 @@ function render_home(int $page): void
         <ul class="pagination">
           <li class="page-item page-previous">
             <?php if ($page > 1): ?>
-              <a href="<?= h(home_page_url($page - 1)) ?>">上一页</a>
+              <a href="<?= h(home_page_url($page - 1)) ?>"><?= h(sblog_t('上一页')) ?></a>
             <?php endif; ?>
           </li>
           <li class="page-item page-next">
             <?php if ($page < $totalPages): ?>
-              <a href="<?= h(home_page_url($page + 1)) ?>">下一页</a>
+              <a href="<?= h(home_page_url($page + 1)) ?>"><?= h(sblog_t('下一页')) ?></a>
             <?php endif; ?>
           </li>
         </ul>
       <?php endif; ?>
     <?php else: ?>
       <div class="empty-notice">
-        <p>还没有已发布的文章。</p>
+        <p><?= h(sblog_t('还没有已发布的文章。')) ?></p>
         <?php if (is_admin()): ?>
-          <p><a href="<?= h(url_for('write')) ?>">写第一篇文章</a></p>
+          <p><a href="<?= h(url_for('write')) ?>"><?= h(sblog_t('写第一篇文章')) ?></a></p>
         <?php endif; ?>
       </div>
     <?php endif; ?>
@@ -4624,7 +4984,7 @@ function render_archives(): void
 
     ob_start();
     ?>
-    <h1 class="post-title" itemprop="name headline">归档</h1>
+    <h1 class="post-title" itemprop="name headline"><?= h(sblog_t('归档')) ?></h1>
     <?php if ($groups): ?>
       <div class="post-content" itemprop="articleBody">
         <ul>
@@ -4645,16 +5005,16 @@ function render_archives(): void
       </div>
     <?php else: ?>
       <div class="empty-notice">
-        <p>归档还是空的。</p>
+        <p><?= h(sblog_t('归档还是空的。')) ?></p>
       </div>
     <?php endif; ?>
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout('归档', $content, [
+    render_layout(sblog_t('归档'), $content, [
         'active' => 'archives',
         'mode' => 'public',
-        'description' => '已发布文章归档',
+        'description' => sblog_t('已发布文章归档'),
     ]);
 }
 
@@ -4703,12 +5063,38 @@ function render_comments_section(array $post, array $form = [], array $errors = 
         if (str_contains($error, '评论内容') || str_contains($error, '已经提交过')) { $invalidFields['content'] = true; }
     }
 
+    load_active_theme();
+    $defaultLabels = [
+        'title' => 'comments.log',
+        'form_title' => 'new-comment',
+        'submit' => '[' . sblog_t('提交评论') . ']',
+        'cancel_reply' => '[' . sblog_t('取消回复') . ']',
+        'cancel_reply_aria' => sblog_t('取消回复'),
+        'empty' => '// ' . sblog_t('暂无评论'),
+        'closed' => '// ' . sblog_t('评论已关闭'),
+    ];
+    $filteredLabels = theme_filter('comments_labels', $defaultLabels, [
+        'post' => $post,
+        'accepting' => $accepting,
+        'total' => $total,
+    ]);
+    $labels = $defaultLabels;
+    if (is_array($filteredLabels)) {
+        foreach ($defaultLabels as $key => $fallback) {
+            if (isset($filteredLabels[$key]) && (is_string($filteredLabels[$key]) || is_numeric($filteredLabels[$key]))) {
+                $labels[$key] = (string)$filteredLabels[$key];
+            }
+        }
+    }
+
     ob_start();
     ?>
     <section class="comments" id="comments" aria-labelledby="comments-title">
       <header class="comments__head">
-        <h2 class="section-header" id="comments-title">comments.log</h2>
-        <span class="comments__count"><?= $total > count($comments) ? '最新 ' . h((string)count($comments)) . ' / 共 ' : '' ?><?= h((string)$total) ?> 条</span>
+        <h2 class="section-header" id="comments-title"><?= h($labels['title']) ?></h2>
+        <span class="comments__count"><?= h($total > count($comments)
+            ? sblog_tn('最新 {visible} / 共 {count} 条评论', $total, ['visible' => count($comments)])
+            : sblog_tn('{count} 条评论', $total)) ?></span>
       </header>
 
       <?php if ($notice): ?>
@@ -4732,18 +5118,18 @@ function render_comments_section(array $post, array $form = [], array $errors = 
                 <?php endif; ?>
                 <time class="comment-item__time" datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
                 <?php if ($accepting): ?>
-                  <button class="comment-reply-button" type="button" data-comment-reply data-comment-id="<?= h((string)$comment['id']) ?>" data-comment-author="<?= h((string)$comment['author_name']) ?>" aria-controls="comment-form" aria-pressed="<?= $replyTargetId === (int)$comment['id'] ? 'true' : 'false' ?>" aria-label="回复 @<?= h((string)$comment['author_name']) ?>" title="回复 @<?= h((string)$comment['author_name']) ?>">
+                  <button class="comment-reply-button" type="button" data-comment-reply data-comment-id="<?= h((string)$comment['id']) ?>" data-comment-author="<?= h((string)$comment['author_name']) ?>" aria-controls="comment-form" aria-pressed="<?= $replyTargetId === (int)$comment['id'] ? 'true' : 'false' ?>" aria-label="<?= h(sblog_t('回复 @{author}', ['author' => (string)$comment['author_name']])) ?>" title="<?= h(sblog_t('回复 @{author}', ['author' => (string)$comment['author_name']])) ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 17-5-5 5-5"></path><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>
-                    <span>回复</span>
+                    <span><?= h(sblog_t('回复')) ?></span>
                   </button>
                 <?php endif; ?>
               </header>
               <div class="comment-item__body">
                 <?php if ($replyName !== ''): ?>
                   <?php if ($replyAnchorVisible): ?>
-                    <a class="comment-item__reply-target" href="#comment-<?= h((string)$replyParentId) ?>"><span class="sr-only">回复给 @<?= h($replyName) ?></span><span class="comment-item__reply-label" aria-hidden="true">@<?= h($replyName) ?></span></a>
+                    <a class="comment-item__reply-target" href="#comment-<?= h((string)$replyParentId) ?>"><span class="sr-only"><?= h(sblog_t('回复给 @{author}', ['author' => $replyName])) ?></span><span class="comment-item__reply-label" aria-hidden="true">@<?= h($replyName) ?></span></a>
                   <?php else: ?>
-                    <span class="comment-item__reply-target"><span class="sr-only">回复给 @<?= h($replyName) ?></span><span class="comment-item__reply-label" aria-hidden="true">@<?= h($replyName) ?></span></span>
+                    <span class="comment-item__reply-target"><span class="sr-only"><?= h(sblog_t('回复给 @{author}', ['author' => $replyName])) ?></span><span class="comment-item__reply-label" aria-hidden="true">@<?= h($replyName) ?></span></span>
                   <?php endif; ?>
                 <?php endif; ?>
                 <span class="comment-item__content"><?= nl2br(h((string)$comment['content']), false) ?></span>
@@ -4752,7 +5138,7 @@ function render_comments_section(array $post, array $form = [], array $errors = 
           <?php endforeach; ?>
         </ol>
       <?php else: ?>
-        <div class="comments__empty empty-notice">// 暂无评论</div>
+        <div class="comments__empty empty-notice" data-comment-state="empty"><?= h($labels['empty']) ?></div>
       <?php endif; ?>
 
       <?php if ($accepting): ?>
@@ -4766,43 +5152,62 @@ function render_comments_section(array $post, array $form = [], array $errors = 
             <input id="comment-company" name="company" type="text" tabindex="-1" autocomplete="off">
           </div>
 
-          <h3 class="comment-form__title">new-comment</h3>
+          <h3 class="comment-form__title"><?= h($labels['form_title']) ?></h3>
           <div class="comment-reply-state" data-comment-reply-state<?= $replyTargetId > 0 ? '' : ' hidden' ?>>
             <span class="comment-reply-state__text" role="status" aria-live="polite" aria-atomic="true">reply-to: <strong data-comment-reply-name><?= $replyTargetId > 0 ? '@' . h($replyTargetName) : '' ?></strong></span>
-            <button class="comment-reply-cancel" type="button" data-comment-reply-cancel aria-label="取消回复">[取消]</button>
+            <button class="comment-reply-cancel" type="button" data-comment-reply-cancel aria-label="<?= h($labels['cancel_reply_aria']) ?>"><?= h($labels['cancel_reply']) ?></button>
           </div>
           <?php if ($errors): ?>
             <div class="comment-notice comment-notice--error" id="comment-errors" role="alert">
-              <ul><?php foreach ($errors as $error): ?><li><?= h((string)$error) ?></li><?php endforeach; ?></ul>
+              <ul>
+                <?php foreach ($errors as $error): ?>
+                  <?php $displayError = match ((string)$error) {
+                      '回复目标不存在或当前不可用。' => sblog_t('回复目标不存在或当前不可用。'),
+                      '请填写昵称。' => sblog_t('请填写昵称。'),
+                      '昵称不能超过 50 个字符。' => sblog_t('昵称不能超过 50 个字符。'),
+                      '请填写有效的邮箱地址。' => sblog_t('请填写有效的邮箱地址。'),
+                      '网站地址必须是有效的 HTTP 或 HTTPS 链接。' => sblog_t('网站地址必须是有效的 HTTP 或 HTTPS 链接。'),
+                      '请填写评论内容。' => sblog_t('请填写评论内容。'),
+                      '评论内容不能超过 3000 个字符。' => sblog_t('评论内容不能超过 3000 个字符。'),
+                      '这条评论已经提交过了。' => sblog_t('这条评论已经提交过了。'),
+                      '提交过于频繁，请稍后再试。' => sblog_t('提交过于频繁，请稍后再试。'),
+                      '提交过快，请稍后再试。' => sblog_t('提交过快，请稍后再试。'),
+                      '评论表单已失效，请刷新文章后重试。' => sblog_t('评论表单已失效，请刷新文章后重试。'),
+                      '回复目标已不可用，请重新选择。' => sblog_t('回复目标已不可用，请重新选择。'),
+                      default => (string)$error,
+                  }; ?>
+                  <li><?= h($displayError) ?></li>
+                <?php endforeach; ?>
+              </ul>
             </div>
           <?php endif; ?>
 
           <?php if ($authenticatedIdentity === null): ?>
             <div class="comment-form__grid">
               <div class="comment-field">
-                <label for="comment-author">昵称</label>
+                <label for="comment-author"><?= h(sblog_t('昵称')) ?></label>
                 <input id="comment-author" name="author_name" value="<?= h((string)$values['author_name']) ?>" maxlength="50" autocomplete="name"<?= $invalidFields['author_name'] ? ' aria-invalid="true" aria-describedby="comment-errors"' : '' ?> required>
               </div>
               <div class="comment-field">
-                <label for="comment-email">邮箱</label>
+                <label for="comment-email"><?= h(sblog_t('邮箱')) ?></label>
                 <input id="comment-email" name="author_email" type="email" value="<?= h((string)$values['author_email']) ?>" maxlength="160" autocomplete="email"<?= $invalidFields['author_email'] ? ' aria-invalid="true" aria-describedby="comment-errors"' : '' ?> required>
               </div>
               <div class="comment-field comment-field--wide">
-                <label for="comment-url">网站（可选）</label>
+                <label for="comment-url"><?= h(sblog_t('网站（可选）')) ?></label>
                 <input id="comment-url" name="author_url" type="url" value="<?= h((string)$values['author_url']) ?>" maxlength="300" autocomplete="url" placeholder="https://example.com"<?= $invalidFields['author_url'] ? ' aria-invalid="true" aria-describedby="comment-errors"' : '' ?>>
               </div>
             </div>
           <?php endif; ?>
           <div class="comment-field">
-            <label for="comment-content">评论</label>
+            <label for="comment-content"><?= h(sblog_t('评论')) ?></label>
             <textarea id="comment-content" name="content" rows="6" maxlength="3000"<?= $invalidFields['content'] ? ' aria-invalid="true" aria-describedby="comment-errors"' : '' ?> required><?= h((string)$values['content']) ?></textarea>
           </div>
           <div class="comment-form__actions">
-            <button class="terminal-action" type="submit">[提交评论]</button>
+            <button class="terminal-action" type="submit"><?= h($labels['submit']) ?></button>
           </div>
         </form>
       <?php elseif ($total > 0): ?>
-        <div class="comments__empty empty-notice">// 评论已关闭</div>
+        <div class="comments__empty empty-notice" data-comment-state="closed"><?= h($labels['closed']) ?></div>
       <?php endif; ?>
     </section>
     <?php
@@ -4828,7 +5233,9 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
         [(int)$post['id']]
     ) ?? [];
     $author = trim((string)($meta['nickname'] ?? '')) ?: (string)($meta['username'] ?? 'Admin');
-    $categoryName = (string)($meta['category_name'] ?? '未分类');
+    $categoryName = array_key_exists('category_name', $meta) && $meta['category_name'] !== null
+        ? (string)$meta['category_name']
+        : sblog_t('未分类');
     $categorySlug = (string)($meta['category_slug'] ?? '');
     $viewCount = (int)($meta['views'] ?? $post['views'] ?? 0);
     $displayTime = (int)($post['published_at'] ?: $post['updated_at'] ?: $post['created_at']);
@@ -4840,11 +5247,11 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
       <h1 class="post-title" itemprop="name headline"><?= h($post['title']) ?></h1>
       <div class="meta">
         <span><?= h(date('F j, Y', $displayTime)) ?></span>
-        <span>作者: <?= h($author) ?></span>
-        <span>分类: <?php if ($categorySlug !== ''): ?><a href="<?= h(url_for('category', ['slug' => $categorySlug])) ?>"><?= h($categoryName) ?></a><?php else: ?><?= h($categoryName) ?><?php endif; ?></span>
-        <span>浏览: <?= h((string)$viewCount) ?></span>
+        <span><?= h(sblog_t('作者：{author}', ['author' => $author])) ?></span>
+        <span><?= h(sblog_t('分类：')) ?><?php if ($categorySlug !== ''): ?><a href="<?= h(url_for('category', ['slug' => $categorySlug])) ?>"><?= h($categoryName) ?></a><?php else: ?><?= h($categoryName) ?><?php endif; ?></span>
+        <span><?= h(sblog_tn('浏览：{count}', $viewCount)) ?></span>
         <?php if (!is_live_post($post) && is_admin()): ?>
-          <span><?= h($state['label']) ?>预览</span>
+          <span><?= h(sblog_t('{state}预览', ['state' => (string)$state['label']])) ?></span>
         <?php endif; ?>
       </div>
       <div class="post-content" itemprop="articleBody">
@@ -4863,12 +5270,12 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
       <ul class="pagination">
         <li class="page-item page-previous">
           <?php if ($neighbors['newer']): ?>
-            <a href="<?= h(url_for('post', ['slug' => (string)$neighbors['newer']['slug']])) ?>" data-post-title="<?= h((string)$neighbors['newer']['title']) ?>" aria-label="上一篇：<?= h((string)$neighbors['newer']['title']) ?>">上一篇</a>
+            <a href="<?= h(url_for('post', ['slug' => (string)$neighbors['newer']['slug']])) ?>" data-post-title="<?= h((string)$neighbors['newer']['title']) ?>" aria-label="<?= h(sblog_t('post_navigation.previous_label', ['title' => (string)$neighbors['newer']['title']])) ?>"><?= h(sblog_t('post_navigation.previous')) ?></a>
           <?php endif; ?>
         </li>
         <li class="page-item page-next">
           <?php if ($neighbors['older']): ?>
-            <a href="<?= h(url_for('post', ['slug' => (string)$neighbors['older']['slug']])) ?>" data-post-title="<?= h((string)$neighbors['older']['title']) ?>" aria-label="下一篇：<?= h((string)$neighbors['older']['title']) ?>">下一篇</a>
+            <a href="<?= h(url_for('post', ['slug' => (string)$neighbors['older']['slug']])) ?>" data-post-title="<?= h((string)$neighbors['older']['title']) ?>" aria-label="<?= h(sblog_t('post_navigation.next_label', ['title' => (string)$neighbors['older']['title']])) ?>"><?= h(sblog_t('post_navigation.next')) ?></a>
           <?php endif; ?>
         </li>
       </ul>
@@ -4897,7 +5304,7 @@ function render_page_view(array $page): void
       <h1 class="post-title" itemprop="name headline"><?= h($page['title']) ?></h1>
       <?php if (!is_live_content($page) && is_admin()): ?>
         <?php $state = post_state($page); ?>
-        <div class="meta"><span><?= h($state['label']) ?>预览</span></div>
+        <div class="meta"><span><?= h(sblog_t('{state}预览', ['state' => (string)$state['label']])) ?></span></div>
       <?php endif; ?>
       <div class="post-content" itemprop="articleBody">
         <?= markdown_to_html((string)$page['content']) ?>
@@ -4920,7 +5327,7 @@ function render_tags_index(): void
 
     ob_start();
     ?>
-    <h1 class="post-title" itemprop="name headline">标签</h1>
+    <h1 class="post-title" itemprop="name headline"><?= h(sblog_t('标签')) ?></h1>
 
     <?php if ($tags): ?>
       <div class="post-content">
@@ -4935,16 +5342,16 @@ function render_tags_index(): void
       </div>
     <?php else: ?>
       <div class="empty-notice">
-        <p>还没有标签。</p>
+        <p><?= h(sblog_t('还没有标签。')) ?></p>
       </div>
     <?php endif; ?>
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout('标签', $content, [
+    render_layout(sblog_t('标签'), $content, [
         'active' => 'tags',
         'mode' => 'public',
-        'description' => '标签索引',
+        'description' => sblog_t('标签索引'),
     ]);
 }
 
@@ -4954,7 +5361,7 @@ function render_tag_page(string $slug): void
     $posts = fetch_posts_by_tag_slug($slug);
 
     if ($label === null && $posts === []) {
-        simple_error_page('标签不存在', '没有找到这个标签下的文章。', 404);
+        simple_error_page(sblog_t('标签不存在'), sblog_t('没有找到这个标签下的文章。'), 404);
     }
 
     $label = $label ?? $slug;
@@ -4962,18 +5369,18 @@ function render_tag_page(string $slug): void
     ob_start();
     ?>
     <h1 class="post-title" itemprop="name headline">#<?= h($label) ?></h1>
-    <div class="meta"><?= h((string)count($posts)) ?> 篇文章</div>
+    <div class="meta"><?= h(sblog_tn('{count} 篇文章', count($posts))) ?></div>
 
     <?php if ($posts): ?>
       <article>
         <div class="recent-posts section">
-          <h2 class="section-header">文章</h2>
+          <h2 class="section-header"><?= h(sblog_t('文章')) ?></h2>
           <?= render_public_post_list($posts) ?>
         </div>
       </article>
     <?php else: ?>
       <div class="empty-notice">
-        <p>这个标签下还没有文章。</p>
+        <p><?= h(sblog_t('这个标签下还没有文章。')) ?></p>
       </div>
     <?php endif; ?>
     <?php
@@ -4982,14 +5389,14 @@ function render_tag_page(string $slug): void
     render_layout('#' . $label, $content, [
         'active' => 'tags',
         'mode' => 'public',
-        'description' => '标签 ' . $label . ' 下的文章',
+        'description' => sblog_t('标签 {label} 下的文章', ['label' => $label]),
     ]);
 }
 
 function render_category_page(string $slug): void
 {
     $category = one('SELECT * FROM categories WHERE slug = ?', [trim($slug)]);
-    if (!$category) { simple_error_page('分类不存在', '没有找到这个文章分类。', 404); }
+    if (!$category) { simple_error_page(sblog_t('分类不存在'), sblog_t('没有找到这个文章分类。'), 404); }
     $posts = all_rows(
         'SELECT * FROM posts WHERE kind = ? AND category_id = ? AND status = ? AND published_at <= ? ORDER BY is_pinned DESC, published_at DESC, id DESC',
         ['post', (int)$category['id'], 'published', time()]
@@ -4997,9 +5404,9 @@ function render_category_page(string $slug): void
     ob_start(); ?>
     <h1 class="post-title"><?= h((string)$category['name']) ?></h1>
     <?php if (trim((string)$category['description']) !== ''): ?><div class="meta"><?= h((string)$category['description']) ?></div><?php endif; ?>
-    <?php if ($posts): ?><article><div class="recent-posts section"><?= render_public_post_list($posts) ?></div></article><?php else: ?><div class="empty-notice"><p>这个分类下还没有已发布文章。</p></div><?php endif; ?>
+    <?php if ($posts): ?><article><div class="recent-posts section"><?= render_public_post_list($posts) ?></div></article><?php else: ?><div class="empty-notice"><p><?= h(sblog_t('这个分类下还没有已发布文章。')) ?></p></div><?php endif; ?>
     <?php
-    render_layout((string)$category['name'], (string)ob_get_clean(), ['active' => 'home', 'mode' => 'public', 'description' => trim((string)$category['description']) ?: '分类文章']);
+    render_layout((string)$category['name'], (string)ob_get_clean(), ['active' => 'home', 'mode' => 'public', 'description' => trim((string)$category['description']) ?: sblog_t('分类文章')]);
 }
 
 function render_rss_feed(): void
@@ -5010,6 +5417,7 @@ function render_rss_feed(): void
     $items = fetch_feed_posts(20);
 
     header('Content-Type: application/rss+xml; charset=UTF-8');
+    header('Content-Language: ' . sblog_i18n_locale());
     echo "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     ?>
 <rss version="2.0">
@@ -5017,7 +5425,7 @@ function render_rss_feed(): void
     <title><?= x($siteName) ?></title>
     <link><?= x($home) ?></link>
     <description><?= x($description) ?></description>
-    <language>zh-cn</language>
+    <language><?= x(sblog_i18n_locale()) ?></language>
     <lastBuildDate><?= x(date(DATE_RSS)) ?></lastBuildDate>
     <?php foreach ($items as $item): ?>
       <?php $link = absolute_url(content_permalink($item)); ?>
@@ -5049,24 +5457,24 @@ function render_login_page(string $error = '', array $form = []): void
           <form class="form-stack" method="post" action="<?= h(url_for('login')) ?>">
             <?= csrf_field() ?>
             <div class="field">
-              <label for="username">用户名</label>
+              <label for="username"><?= h(sblog_t('用户名')) ?></label>
               <input id="username" name="username" type="text" value="<?= h((string)($form['username'] ?? '')) ?>" autocomplete="username" required autofocus>
             </div>
             <div class="field">
               <div class="auth-field-row">
-                <label for="password">密码</label>
-                <a href="<?= h(url_for('forgot_password')) ?>">忘记密码？</a>
+                <label for="password"><?= h(sblog_t('密码')) ?></label>
+                <a href="<?= h(url_for('forgot_password')) ?>"><?= h(sblog_t('忘记密码？')) ?></a>
               </div>
               <div class="auth-password">
                 <input id="password" name="password" type="password" autocomplete="current-password" required>
-                <button class="auth-password-toggle" type="button" data-password-toggle="password" aria-label="显示密码" aria-pressed="false" title="显示密码">
+                <button class="auth-password-toggle" type="button" data-password-toggle="password" aria-label="<?= h(sblog_t('显示密码')) ?>" aria-pressed="false" title="<?= h(sblog_t('显示密码')) ?>">
                   <span class="auth-password-toggle__icon auth-password-toggle__icon--show"><?= admin_icon('eye') ?></span>
                   <span class="auth-password-toggle__icon auth-password-toggle__icon--hide"><?= admin_icon('eye-off') ?></span>
                 </button>
               </div>
             </div>
             <div class="action-row auth-actions">
-              <button class="button" type="submit">登录后台</button>
+              <button class="button" type="submit"><?= h(sblog_t('登录后台')) ?></button>
             </div>
           </form>
         </div>
@@ -5075,9 +5483,9 @@ function render_login_page(string $error = '', array $form = []): void
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout('登录', $content, [
+    render_layout(sblog_t('登录'), $content, [
         'active' => 'login',
-        'description' => '博客后台登录',
+        'description' => sblog_t('博客后台登录'),
     ]);
 }
 
@@ -5106,8 +5514,11 @@ function send_password_reset_notice(array $user, string $token, int $expiresAt):
 {
     $link = absolute_url(url_with_query(url_for('reset_password'), ['token' => $token]));
     $siteName = setting('site_name', default_settings()['site_name']);
-    $subject = '重置 ' . $siteName . ' 管理员密码';
-    $body = "你正在重置 {$siteName} 的管理员密码。\n\n重置链接：{$link}\n\n链接将在 " . date('Y-m-d H:i:s', $expiresAt) . " 过期。如果不是你本人操作，请忽略这封邮件。";
+    $subject = sblog_t('重置 {site} 管理员密码', ['site' => $siteName]);
+    $body = sblog_t(
+        "你正在重置 {site} 的管理员密码。\n\n重置链接：{link}\n\n链接将在 {expires_at} 过期。如果不是你本人操作，请忽略这封邮件。",
+        ['site' => $siteName, 'link' => $link, 'expires_at' => date('Y-m-d H:i:s', $expiresAt)]
+    );
     $email = trim((string)($user['email'] ?? ''));
     $sent = send_site_mail($email, $subject, $body);
 
@@ -5131,8 +5542,20 @@ function send_comment_notification(array $post, array $comment, string $status):
     }
 
     $siteName = setting('site_name', default_settings()['site_name']);
-    $subject = '新评论：' . (string)$post['title'];
-    $body = "站点：{$siteName}\n文章：" . (string)$post['title'] . "\n状态：" . ($status === 'approved' ? '已发布' : '待审核') . "\n评论人：" . (string)$comment['author_name'] . "\n邮箱：" . (string)$comment['author_email'] . "\nIP：" . (client_ip_address() ?: '未知') . "\n链接：" . absolute_url(content_permalink($post)) . "#comments\n\n评论内容：\n" . (string)$comment['content'];
+    $subject = sblog_t('新评论：{title}', ['title' => (string)$post['title']]);
+    $body = sblog_t(
+        "站点：{site}\n文章：{title}\n状态：{status}\n评论人：{author}\n邮箱：{email}\nIP：{ip}\n链接：{link}\n\n评论内容：\n{content}",
+        [
+            'site' => $siteName,
+            'title' => (string)$post['title'],
+            'status' => $status === 'approved' ? sblog_t('已发布') : sblog_t('待审核'),
+            'author' => (string)$comment['author_name'],
+            'email' => (string)$comment['author_email'],
+            'ip' => client_ip_address() ?: sblog_t('未知'),
+            'link' => absolute_url(content_permalink($post)) . '#comments',
+            'content' => (string)$comment['content'],
+        ]
+    );
 
     return send_site_mail($email, $subject, $body);
 }
@@ -5159,9 +5582,9 @@ function render_forgot_password_page(string $notice = '', string $error = '', ar
       <section class="panel auth-panel admin-animate admin-animate--1">
         <div class="panel__body">
           <header class="auth-heading">
-            <p class="auth-heading__eyebrow">Password reset</p>
-            <h1>找回密码</h1>
-            <p>输入管理员用户名或邮箱，系统会生成一次性重置链接。</p>
+            <p class="auth-heading__eyebrow"><?= h(sblog_t('密码重置')) ?></p>
+            <h1><?= h(sblog_t('找回密码')) ?></h1>
+            <p><?= h(sblog_t('输入管理员用户名或邮箱，系统会生成一次性重置链接。')) ?></p>
           </header>
 
           <?php if ($notice !== ''): ?><div class="flash flash--success" role="status"><?= h($notice) ?></div><?php endif; ?>
@@ -5170,21 +5593,21 @@ function render_forgot_password_page(string $notice = '', string $error = '', ar
           <form class="form-stack" method="post" action="<?= h(url_for('forgot_password')) ?>">
             <?= csrf_field() ?>
             <div class="field">
-              <label for="account">用户名或邮箱</label>
+              <label for="account"><?= h(sblog_t('用户名或邮箱')) ?></label>
               <input id="account" name="account" type="text" value="<?= h((string)($form['account'] ?? '')) ?>" autocomplete="username" required autofocus>
             </div>
             <div class="action-row auth-actions">
-              <button class="button" type="submit">发送重置链接</button>
+              <button class="button" type="submit"><?= h(sblog_t('发送重置链接')) ?></button>
             </div>
-            <p class="auth-link-row"><a href="<?= h(url_for('login')) ?>">返回登录</a></p>
+            <p class="auth-link-row"><a href="<?= h(url_for('login')) ?>"><?= h(sblog_t('返回登录')) ?></a></p>
           </form>
         </div>
       </section>
     </div>
     <?php
-    render_layout('找回密码', (string)ob_get_clean(), [
+    render_layout(sblog_t('找回密码'), (string)ob_get_clean(), [
         'active' => 'login',
-        'description' => '找回博客后台密码',
+        'description' => sblog_t('找回博客后台密码'),
     ]);
 }
 
@@ -5196,9 +5619,9 @@ function render_reset_password_page(string $token, string $error = ''): void
       <section class="panel auth-panel admin-animate admin-animate--1">
         <div class="panel__body">
           <header class="auth-heading">
-            <p class="auth-heading__eyebrow">Password reset</p>
-            <h1>设置新密码</h1>
-            <p>新密码至少需要 8 个字符。</p>
+            <p class="auth-heading__eyebrow"><?= h(sblog_t('密码重置')) ?></p>
+            <h1><?= h(sblog_t('设置新密码')) ?></h1>
+            <p><?= h(sblog_t('新密码至少需要 8 个字符。')) ?></p>
           </header>
 
           <?php if ($error !== ''): ?><div class="flash flash--error" role="alert"><?= h($error) ?></div><?php endif; ?>
@@ -5207,25 +5630,85 @@ function render_reset_password_page(string $token, string $error = ''): void
             <?= csrf_field() ?>
             <input type="hidden" name="token" value="<?= h($token) ?>">
             <div class="field">
-              <label for="password">新密码</label>
+              <label for="password"><?= h(sblog_t('新密码')) ?></label>
               <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required autofocus>
             </div>
             <div class="field">
-              <label for="password_confirm">确认新密码</label>
+              <label for="password_confirm"><?= h(sblog_t('确认新密码')) ?></label>
               <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" minlength="8" required>
             </div>
             <div class="action-row auth-actions">
-              <button class="button" type="submit">更新密码</button>
+              <button class="button" type="submit"><?= h(sblog_t('更新密码')) ?></button>
             </div>
           </form>
         </div>
       </section>
     </div>
     <?php
-    render_layout('设置新密码', (string)ob_get_clean(), [
+    render_layout(sblog_t('设置新密码'), (string)ob_get_clean(), [
         'active' => 'login',
-        'description' => '设置博客后台新密码',
+        'description' => sblog_t('设置博客后台新密码'),
     ]);
+}
+
+function translated_admin_form_errors(array $errors): array
+{
+    $systemMessages = [
+        '分类名称不能为空。' => sblog_t('分类名称不能为空。'),
+        '请填写网站名称。' => sblog_t('请填写网站名称。'),
+        '请填写有效的 HTTP 或 HTTPS 地址。' => sblog_t('请填写有效的 HTTP 或 HTTPS 地址。'),
+        '网站图标地址格式不正确。' => sblog_t('网站图标地址格式不正确。'),
+        '原标签和新标签不能为空。' => sblog_t('原标签和新标签不能为空。'),
+        '新标签不能包含逗号。' => sblog_t('新标签不能包含逗号。'),
+        'Slug 格式不正确。' => sblog_t('Slug 格式不正确。'),
+        'Slug 已被其他标签使用。' => sblog_t('Slug 已被其他标签使用。'),
+        '用户名不能为空。' => sblog_t('用户名不能为空。'),
+        '昵称不能为空。' => sblog_t('昵称不能为空。'),
+        '邮箱地址格式不正确。' => sblog_t('邮箱地址格式不正确。'),
+        '用户名已存在。' => sblog_t('用户名已存在。'),
+        '请输入原密码。' => sblog_t('请输入原密码。'),
+        '原密码不正确。' => sblog_t('原密码不正确。'),
+        '新密码至少需要 8 个字符。' => sblog_t('新密码至少需要 8 个字符。'),
+        '两次输入的密码不一致。' => sblog_t('两次输入的密码不一致。'),
+        '标题不能为空。' => sblog_t('标题不能为空。'),
+        '正文不能为空。' => sblog_t('正文不能为空。'),
+        '文章必须选择一个分类。' => sblog_t('文章必须选择一个分类。'),
+        '发布时间格式不正确。' => sblog_t('发布时间格式不正确。'),
+    ];
+    $formatFields = [
+        '头像地址' => sblog_t('头像地址'),
+        '网站地址' => sblog_t('网站地址'),
+    ];
+    $linkFields = [
+        'GitHub' => sblog_t('GitHub'),
+        'QQ' => sblog_t('QQ'),
+        '微信' => sblog_t('微信'),
+        '微博' => sblog_t('微博'),
+        'X' => sblog_t('X'),
+        'Telegram' => sblog_t('Telegram'),
+        'Mastodon' => sblog_t('Mastodon'),
+        '哔哩哔哩' => sblog_t('哔哩哔哩'),
+        'Instagram' => sblog_t('Instagram'),
+        'TikTok' => sblog_t('TikTok'),
+    ];
+
+    return array_map(static function ($error) use ($systemMessages, $formatFields, $linkFields): string {
+        $message = (string)$error;
+        if (isset($systemMessages[$message])) {
+            return $systemMessages[$message];
+        }
+        foreach ($formatFields as $source => $translated) {
+            if ($message === $source . '格式不正确。') {
+                return sblog_t('{field}格式不正确。', ['field' => $translated]);
+            }
+        }
+        foreach ($linkFields as $source => $translated) {
+            if ($message === $source . '链接格式不正确。') {
+                return sblog_t('{field}链接格式不正确。', ['field' => $translated]);
+            }
+        }
+        return $message;
+    }, $errors);
 }
 
 function render_admin_page(): void
@@ -5243,15 +5726,19 @@ function render_admin_page(): void
       <?= $sidebar ?>
 
       <div class="admin-main">
-        <?= render_admin_topbar('博客数据预览') ?>
+        <?= render_admin_topbar(sblog_t('博客数据预览')) ?>
 
         <div class="admin-grid">
           <?php if (!empty($update['available']) || !empty($update['repair'])): ?>
             <section class="panel update-notice admin-animate">
               <div class="panel__body">
-                <div><strong><?= !empty($update['repair']) ? '发布文件需要补全' : '发现新版本 ' . h((string)$update['latest']) ?></strong><p><?= !empty($update['repair']) ? '当前程序版本完整，但发布包中的内置主题或插件尚未同步。' : '当前版本 ' . h(APP_VERSION) . '。更新会自动备份并覆盖程序、内置主题和内置插件文件，站点数据、上传文件及其他自定义主题和插件不受影响。' ?></p></div>
-                <form method="post" action="<?= h(url_for('install_update')) ?>" onsubmit="return confirm('<?= !empty($update['repair']) ? '确定从当前发布包补全内置主题和插件吗？' : '确定更新到 ' . h((string)$update['latest']) . ' 吗？更新期间请勿关闭页面。' ?>');">
-                  <?= csrf_field() ?><button class="button button--primary" type="submit"><?= !empty($update['repair']) ? '同步发布文件' : '立即更新' ?></button>
+                <div>
+                  <strong><?= h(!empty($update['repair']) ? sblog_t('发布文件需要补全') : sblog_t('发现新版本 {version}', ['version' => (string)$update['latest']])) ?></strong>
+                  <p><?= h(!empty($update['repair']) ? sblog_t('当前程序版本完整，但发布包中的内置主题或插件尚未同步。') : sblog_t('当前版本 {version}。更新会自动备份并覆盖程序、内置主题和内置插件文件，站点数据、上传文件及其他自定义主题和插件不受影响。', ['version' => APP_VERSION])) ?></p>
+                </div>
+                <?php $updateConfirm = !empty($update['repair']) ? sblog_t('确定从当前发布包补全内置主题和插件吗？') : sblog_t('确定更新到 {version} 吗？更新期间请勿关闭页面。', ['version' => (string)$update['latest']]); ?>
+                <form method="post" action="<?= h(url_for('install_update')) ?>" onsubmit="return confirm(<?= h(json_encode($updateConfirm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                  <?= csrf_field() ?><button class="button button--primary" type="submit"><?= h(!empty($update['repair']) ? sblog_t('同步发布文件') : sblog_t('立即更新')) ?></button>
                 </form>
               </div>
             </section>
@@ -5261,10 +5748,10 @@ function render_admin_page(): void
               <div class="panel__header">
                 <div class="admin-head">
                   <div class="admin-head-left">
-                    <h2>评论通知</h2>
-                    <p class="panel__meta"><?= h((string)$metrics['pending_comments']) ?> 条待审核，最近未读如下。</p>
+                    <h2><?= h(sblog_t('评论通知')) ?></h2>
+                    <p class="panel__meta"><?= h(sblog_tn('{count} 条待审核，最近未读如下。', (int)$metrics['pending_comments'])) ?></p>
                   </div>
-                  <a class="button button--secondary" href="<?= h(admin_comments_url('unread')) ?>">查看全部</a>
+                  <a class="button button--secondary" href="<?= h(admin_comments_url('unread')) ?>"><?= h(sblog_t('查看全部')) ?></a>
                 </div>
               </div>
               <div class="panel__body panel__body--flush">
@@ -5274,7 +5761,7 @@ function render_admin_page(): void
                       <div class="comment-notice-item__body">
                         <div class="comment-notice-item__meta">
                           <strong><?= h((string)$notification['author_name']) ?></strong>
-                          <?php if (trim((string)$notification['reply_to_name']) !== ''): ?><span class="comment-notice-item__reply">回复 @<?= h((string)$notification['reply_to_name']) ?></span><?php endif; ?>
+                          <?php if (trim((string)$notification['reply_to_name']) !== ''): ?><span class="comment-notice-item__reply"><?= h(sblog_t('回复 @{name}', ['name' => (string)$notification['reply_to_name']])) ?></span><?php endif; ?>
                           <time datetime="<?= h(date(DATE_ATOM, (int)$notification['created_at'])) ?>"><?= h(pretty_date((int)$notification['created_at'], true)) ?></time>
                         </div>
                         <p class="comment-notice-item__excerpt"><?= h(comment_excerpt((string)$notification['content'], 140)) ?></p>
@@ -5288,40 +5775,40 @@ function render_admin_page(): void
           <?php endif; ?>
           <section class="panel admin-list-panel admin-animate admin-animate--3">
             <div class="panel__header">
-              <h2>博客概览</h2>
-              <p class="panel__meta">只显示访问和内容统计数据。</p>
+              <h2><?= h(sblog_t('博客概览')) ?></h2>
+              <p class="panel__meta"><?= h(sblog_t('只显示访问和内容统计数据。')) ?></p>
             </div>
             <div class="panel__body">
               <div class="metric-grid">
                 <div class="metric-card">
-                  <span class="metric-card__label">总浏览量</span>
+                  <span class="metric-card__label"><?= h(sblog_t('总浏览量')) ?></span>
                   <strong class="metric-card__value"><?= h((string)$metrics['total_views']) ?></strong>
-                  <span class="metric-card__trend">公开文章与页面累计</span>
+                  <span class="metric-card__trend"><?= h(sblog_t('公开文章与页面累计')) ?></span>
                 </div>
                 <div class="metric-card">
-                  <span class="metric-card__label">已发布文章</span>
+                  <span class="metric-card__label"><?= h(sblog_t('已发布文章')) ?></span>
                   <strong class="metric-card__value"><?= h((string)$metrics['published']) ?></strong>
-                  <span class="metric-card__trend">前台可访问内容</span>
+                  <span class="metric-card__trend"><?= h(sblog_t('前台可访问内容')) ?></span>
                 </div>
                 <div class="metric-card">
-                  <span class="metric-card__label">分类数</span>
+                  <span class="metric-card__label"><?= h(sblog_t('分类数')) ?></span>
                   <strong class="metric-card__value"><?= h((string)$metrics['categories']) ?></strong>
-                  <span class="metric-card__trend">文章分类总数</span>
+                  <span class="metric-card__trend"><?= h(sblog_t('文章分类总数')) ?></span>
                 </div>
                 <div class="metric-card">
-                  <span class="metric-card__label">平均浏览</span>
+                  <span class="metric-card__label"><?= h(sblog_t('平均浏览')) ?></span>
                   <strong class="metric-card__value"><?= h((string)$metrics['avg_views']) ?></strong>
-                  <span class="metric-card__trend">按文章数粗略计算</span>
+                  <span class="metric-card__trend"><?= h(sblog_t('按文章数粗略计算')) ?></span>
                 </div>
                 <div class="metric-card">
-                  <span class="metric-card__label">评论总数</span>
+                  <span class="metric-card__label"><?= h(sblog_t('评论总数')) ?></span>
                   <strong class="metric-card__value"><?= h((string)$metrics['comments']) ?></strong>
-                  <span class="metric-card__trend">包含所有审核状态</span>
+                  <span class="metric-card__trend"><?= h(sblog_t('包含所有审核状态')) ?></span>
                 </div>
                 <div class="metric-card">
-                  <span class="metric-card__label">待审核评论</span>
+                  <span class="metric-card__label"><?= h(sblog_t('待审核评论')) ?></span>
                   <strong class="metric-card__value"><?= h((string)$metrics['pending_comments']) ?></strong>
-                  <span class="metric-card__trend">需要管理员处理</span>
+                  <span class="metric-card__trend"><?= h(sblog_t('需要管理员处理')) ?></span>
                 </div>
               </div>
             </div>
@@ -5332,10 +5819,10 @@ function render_admin_page(): void
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout('后台概览', $content, [
+    render_layout(sblog_t('后台概览'), $content, [
         'active' => 'admin',
         'wide' => true,
-        'description' => '博客后台概览',
+        'description' => sblog_t('博客后台概览'),
     ]);
 }
 
@@ -5394,8 +5881,8 @@ function render_links_page(): void
     ob_start();
     ?>
     <article class="links-page">
-      <h1 class="post-title">链接</h1>
-      <p class="meta">一些值得访问的网站与朋友。</p>
+      <h1 class="post-title"><?= h(sblog_t('链接')) ?></h1>
+      <p class="meta"><?= h(sblog_t('一些值得访问的网站与朋友。')) ?></p>
       <?php if ($links): ?>
         <div class="friend-links">
           <?php foreach ($links as $link): ?>
@@ -5408,14 +5895,14 @@ function render_links_page(): void
           <?php endforeach; ?>
         </div>
       <?php else: ?>
-        <div class="empty-notice"><p>还没有添加友情链接。</p></div>
+        <div class="empty-notice"><p><?= h(sblog_t('还没有添加友情链接。')) ?></p></div>
       <?php endif; ?>
     </article>
     <?php
-    render_layout('链接', (string)ob_get_clean(), [
+    render_layout(sblog_t('链接'), (string)ob_get_clean(), [
         'active' => 'links',
         'mode' => 'public',
-        'description' => '友情链接',
+        'description' => sblog_t('友情链接'),
     ]);
 }
 
@@ -5432,14 +5919,14 @@ function render_admin_posts_page(): void
       <?= $sidebar ?>
 
       <div class="admin-main">
-        <?= render_admin_topbar('文章管理') ?>
+        <?= render_admin_topbar(sblog_t('文章管理')) ?>
 
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
             <div class="admin-head">
               <div class="admin-head-left">
-                <h2>文章管理</h2>
-                <p class="panel__meta">管理文章、独立页面、分类、状态和浏览量。</p>
+                <h2><?= h(sblog_t('文章管理')) ?></h2>
+                <p class="panel__meta"><?= h(sblog_t('管理文章、独立页面、分类、状态和浏览量。')) ?></p>
               </div>
             </div>
           </div>
@@ -5449,11 +5936,11 @@ function render_admin_posts_page(): void
                 <table class="admin-table">
                   <thead>
                   <tr>
-                    <th>类型</th>
-                    <th>标题</th>
-                    <th>状态</th>
-                    <th>更新时间</th>
-                    <th>操作</th>
+                    <th><?= h(sblog_t('类型')) ?></th>
+                    <th><?= h(sblog_t('标题')) ?></th>
+                    <th><?= h(sblog_t('状态')) ?></th>
+                    <th><?= h(sblog_t('更新时间')) ?></th>
+                    <th><?= h(sblog_t('操作')) ?></th>
                   </tr>
                   </thead>
                   <tbody>
@@ -5467,25 +5954,25 @@ function render_admin_posts_page(): void
                       <td>
                         <div class="table-title admin-post-title">
                           <strong><a href="<?= h(url_for('edit', ['id' => $post['id']])) ?>"><?= h($post['title']) ?></a></strong>
-                          <?php if ($isPinned): ?><span class="admin-pinned-badge"><?= admin_icon('pin') ?>置顶</span><?php endif; ?>
+                          <?php if ($isPinned): ?><span class="admin-pinned-badge"><?= admin_icon('pin') ?><?= h(sblog_t('置顶')) ?></span><?php endif; ?>
                         </div>
                       </td>
                       <td><span class="status-badge status-badge--<?= h($state['class']) ?>"><?= h($state['label']) ?></span></td>
                       <td><time datetime="<?= h(date(DATE_ATOM, (int)$post['updated_at'])) ?>"><?= h(pretty_date((int)$post['updated_at'], true)) ?></time></td>
                       <td>
                         <div class="table-actions">
-                          <a class="button button--ghost" href="<?= h(content_permalink($post)) ?>">查看</a>
-                          <a class="button button--ghost" href="<?= h(url_for('edit', ['id' => $post['id']])) ?>">编辑</a>
+                          <a class="button button--ghost" href="<?= h(content_permalink($post)) ?>"><?= h(sblog_t('查看')) ?></a>
+                          <a class="button button--ghost" href="<?= h(url_for('edit', ['id' => $post['id']])) ?>"><?= h(sblog_t('编辑')) ?></a>
                           <form method="post" action="<?= h(url_for('change_status')) ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="id" value="<?= h($post['id']) ?>">
                             <input type="hidden" name="status" value="<?= h((string)$post['status'] === 'published' ? 'draft' : 'published') ?>">
-                            <button class="button button--ghost" type="submit"><?= (string)$post['status'] === 'published' ? '转草稿' : '发布' ?></button>
+                            <button class="button button--ghost" type="submit"><?= h((string)$post['status'] === 'published' ? sblog_t('转草稿') : sblog_t('发布')) ?></button>
                           </form>
-                          <form method="post" action="<?= h(url_for('delete_post')) ?>" onsubmit="return confirm('确定删除这篇文章吗？');">
+                          <form method="post" action="<?= h(url_for('delete_post')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除这篇文章吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                             <?= csrf_field() ?>
                             <input type="hidden" name="id" value="<?= h($post['id']) ?>">
-                            <button class="button button--danger" type="submit">删除</button>
+                            <button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button>
                           </form>
                         </div>
                       </td>
@@ -5496,8 +5983,8 @@ function render_admin_posts_page(): void
               </div>
             <?php else: ?>
               <div class="empty-state empty-state--inside">
-                <p>还没有文章。</p>
-                <a class="button" href="<?= h(url_for('write')) ?>">开始写作</a>
+                <p><?= h(sblog_t('还没有文章。')) ?></p>
+                <a class="button" href="<?= h(url_for('write')) ?>"><?= h(sblog_t('开始写作')) ?></a>
               </div>
             <?php endif; ?>
           </div>
@@ -5507,10 +5994,10 @@ function render_admin_posts_page(): void
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout('文章管理', $content, [
+    render_layout(sblog_t('文章管理'), $content, [
         'active' => 'posts',
         'wide' => true,
-        'description' => '博客文章管理',
+        'description' => sblog_t('博客文章管理'),
     ]);
 }
 
@@ -5525,11 +6012,11 @@ function render_admin_comments_page(): void
     $counts = comment_admin_counts();
     $sidebar = render_admin_sidebar('comments');
     $filters = [
-        'all' => ['label' => '全部', 'count' => $counts['all']],
-        'unread' => ['label' => '未读', 'count' => $counts['unread']],
-        'pending' => ['label' => '待审核', 'count' => $counts['pending']],
-        'approved' => ['label' => '已通过', 'count' => $counts['approved']],
-        'spam' => ['label' => '垃圾', 'count' => $counts['spam']],
+        'all' => ['label' => sblog_t('全部'), 'count' => $counts['all']],
+        'unread' => ['label' => sblog_t('未读'), 'count' => $counts['unread']],
+        'pending' => ['label' => sblog_t('待审核'), 'count' => $counts['pending']],
+        'approved' => ['label' => sblog_t('已通过'), 'count' => $counts['approved']],
+        'spam' => ['label' => sblog_t('垃圾'), 'count' => $counts['spam']],
     ];
 
     ob_start();
@@ -5537,14 +6024,14 @@ function render_admin_comments_page(): void
     <div class="admin-shell">
       <?= $sidebar ?>
       <div class="admin-main">
-        <?= render_admin_topbar('评论管理') ?>
+        <?= render_admin_topbar(sblog_t('评论管理')) ?>
 
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
             <div class="admin-head">
               <div class="admin-head-left">
-                <h2>评论管理</h2>
-                <p class="panel__meta">当前筛选 <?= h((string)$total) ?> 条，审核状态与未读通知独立管理。</p>
+                <h2><?= h(sblog_t('评论管理')) ?></h2>
+                <p class="panel__meta"><?= h(sblog_tn('当前筛选 {count} 条评论，审核状态与未读通知独立管理。', $total)) ?></p>
               </div>
               <?php if ($counts['unread'] > 0): ?>
                 <form method="post" action="<?= h(url_for('mark_comments_read')) ?>">
@@ -5552,14 +6039,14 @@ function render_admin_comments_page(): void
                   <input type="hidden" name="filter" value="<?= h($filter) ?>">
                   <input type="hidden" name="q" value="<?= h($search) ?>">
                   <input type="hidden" name="p" value="<?= h((string)$page) ?>">
-                  <button class="button button--secondary comment-mark-read" type="submit">全部标为已读</button>
+                  <button class="button button--secondary comment-mark-read" type="submit"><?= h(sblog_t('全部标为已读')) ?></button>
                 </form>
               <?php endif; ?>
             </div>
           </div>
 
           <div class="admin-comment-toolbar">
-            <nav class="admin-filter-tabs" aria-label="评论筛选">
+            <nav class="admin-filter-tabs" aria-label="<?= h(sblog_t('评论筛选')) ?>">
               <?php foreach ($filters as $key => $item): ?>
                 <a class="admin-filter-tab<?= $filter === $key ? ' is-active' : '' ?>" href="<?= h(admin_comments_url($key, $search)) ?>"<?= $filter === $key ? ' aria-current="page"' : '' ?>>
                   <?= h((string)$item['label']) ?><span><?= h((string)$item['count']) ?></span>
@@ -5569,9 +6056,9 @@ function render_admin_comments_page(): void
             <form class="comment-search" method="get" action="<?= h(url_for('admin_comments')) ?>">
               <?php if (!use_pretty_url()): ?><input type="hidden" name="a" value="admin_comments"><?php endif; ?>
               <?php if ($filter !== 'all'): ?><input type="hidden" name="filter" value="<?= h($filter) ?>"><?php endif; ?>
-              <label class="sr-only" for="comment-search">搜索评论</label>
-              <input id="comment-search" name="q" type="search" value="<?= h($search) ?>" placeholder="作者、邮箱、正文或文章">
-              <button class="button button--secondary" type="submit">搜索</button>
+              <label class="sr-only" for="comment-search"><?= h(sblog_t('搜索评论')) ?></label>
+              <input id="comment-search" name="q" type="search" value="<?= h($search) ?>" placeholder="<?= h(sblog_t('作者、邮箱、正文或文章')) ?>">
+              <button class="button button--secondary" type="submit"><?= h(sblog_t('搜索')) ?></button>
             </form>
           </div>
 
@@ -5581,12 +6068,12 @@ function render_admin_comments_page(): void
                 <table class="admin-table comment-table">
                   <thead>
                     <tr>
-                      <th><label class="table-check"><input type="checkbox" data-check-all="comment_ids[]" aria-label="全选评论"><span class="sr-only">全选</span></label></th>
-                      <th>评论者</th>
-                      <th>内容与文章</th>
-                      <th>状态</th>
-                      <th>提交时间</th>
-                      <th>操作</th>
+                      <th><label class="table-check"><input type="checkbox" data-check-all="comment_ids[]" aria-label="<?= h(sblog_t('全选评论')) ?>"><span class="sr-only"><?= h(sblog_t('全选')) ?></span></label></th>
+                      <th><?= h(sblog_t('评论者')) ?></th>
+                      <th><?= h(sblog_t('内容与文章')) ?></th>
+                      <th><?= h(sblog_t('状态')) ?></th>
+                      <th><?= h(sblog_t('提交时间')) ?></th>
+                      <th><?= h(sblog_t('操作')) ?></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -5594,25 +6081,25 @@ function render_admin_comments_page(): void
                       <?php $state = comment_status_meta((string)$comment['status']); ?>
                       <?php $authorUrl = safe_link_url((string)$comment['author_url']); ?>
                       <tr class="comment-row<?= (int)$comment['is_read'] === 0 ? ' is-unread' : '' ?>">
-                        <td><label class="table-check"><input type="checkbox" name="comment_ids[]" value="<?= h((string)$comment['id']) ?>" form="comments-bulk-form" aria-label="选择 <?= h((string)$comment['author_name']) ?> 的评论"><span class="sr-only">选择评论</span></label></td>
+                        <td><label class="table-check"><input type="checkbox" name="comment_ids[]" value="<?= h((string)$comment['id']) ?>" form="comments-bulk-form" aria-label="<?= h(sblog_t('选择 {author} 的评论', ['author' => (string)$comment['author_name']])) ?>"><span class="sr-only"><?= h(sblog_t('选择评论')) ?></span></label></td>
                         <td>
                           <div class="table-title">
                             <strong><?= h((string)$comment['author_name']) ?></strong>
                             <span><?= h((string)$comment['author_email']) ?></span>
-                            <?php if ((string)$comment['ip_address'] !== ''): ?><span>IP: <?= h((string)$comment['ip_address']) ?></span><?php endif; ?>
+                            <?php if ((string)$comment['ip_address'] !== ''): ?><span><?= h(sblog_t('IP：{address}', ['address' => (string)$comment['ip_address']])) ?></span><?php endif; ?>
                             <?php if ($authorUrl !== '#'): ?><a href="<?= h($authorUrl) ?>" target="_blank" rel="noopener noreferrer nofollow"><?= h((string)parse_url($authorUrl, PHP_URL_HOST)) ?></a><?php endif; ?>
                           </div>
                         </td>
                         <td>
                           <div class="comment-summary">
-                            <?php if (trim((string)$comment['reply_to_name']) !== ''): ?><span class="comment-summary__reply">回复 @<?= h((string)$comment['reply_to_name']) ?></span><?php endif; ?>
+                            <?php if (trim((string)$comment['reply_to_name']) !== ''): ?><span class="comment-summary__reply"><?= h(sblog_t('回复 @{name}', ['name' => (string)$comment['reply_to_name']])) ?></span><?php endif; ?>
                             <p><?= h(comment_excerpt((string)$comment['content'])) ?></p>
                             <a href="<?= h(content_permalink(['kind' => (string)$comment['post_kind'], 'slug' => (string)$comment['post_slug']])) ?><?= (string)$comment['status'] === 'approved' && (string)$comment['post_kind'] === 'post' ? '#comment-' . h((string)$comment['id']) : '' ?>"><?= h((string)$comment['post_title']) ?></a>
                           </div>
                         </td>
                         <td>
                           <span class="status-badge status-badge--<?= h((string)$state['class']) ?>"><?= h((string)$state['label']) ?></span>
-                          <?php if ((int)$comment['is_read'] === 0): ?><span class="comment-unread-dot">未读</span><?php endif; ?>
+                          <?php if ((int)$comment['is_read'] === 0): ?><span class="comment-unread-dot"><?= h(sblog_t('未读')) ?></span><?php endif; ?>
                         </td>
                         <td><time datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time></td>
                         <td>
@@ -5622,11 +6109,11 @@ function render_admin_comments_page(): void
                             <input type="hidden" name="filter" value="<?= h($filter) ?>">
                             <input type="hidden" name="q" value="<?= h($search) ?>">
                             <input type="hidden" name="p" value="<?= h((string)$page) ?>">
-                            <?php if ((string)$comment['status'] !== 'approved'): ?><button class="button button--ghost" name="action" value="approve" type="submit">通过</button><?php endif; ?>
-                            <?php if ((string)$comment['status'] === 'approved'): ?><button class="button button--ghost" name="action" value="pending" type="submit">撤下</button><?php endif; ?>
-                            <?php if ((string)$comment['status'] !== 'spam'): ?><button class="button button--ghost" name="action" value="spam" type="submit">垃圾</button><?php endif; ?>
-                            <?php if ((int)$comment['is_read'] === 0): ?><button class="button button--ghost" name="action" value="read" type="submit">已读</button><?php endif; ?>
-                            <button class="button button--danger" name="action" value="delete" type="submit" onclick="return confirm('确定永久删除这条评论吗？');">删除</button>
+                            <?php if ((string)$comment['status'] !== 'approved'): ?><button class="button button--ghost" name="action" value="approve" type="submit"><?= h(sblog_t('通过')) ?></button><?php endif; ?>
+                            <?php if ((string)$comment['status'] === 'approved'): ?><button class="button button--ghost" name="action" value="pending" type="submit"><?= h(sblog_t('撤下')) ?></button><?php endif; ?>
+                            <?php if ((string)$comment['status'] !== 'spam'): ?><button class="button button--ghost" name="action" value="spam" type="submit"><?= h(sblog_t('垃圾')) ?></button><?php endif; ?>
+                            <?php if ((int)$comment['is_read'] === 0): ?><button class="button button--ghost" name="action" value="read" type="submit"><?= h(sblog_t('已读')) ?></button><?php endif; ?>
+                            <button class="button button--danger" name="action" value="delete" type="submit" onclick="return confirm(<?= h(json_encode(sblog_t('确定永久删除这条评论吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);"><?= h(sblog_t('删除')) ?></button>
                           </form>
                         </td>
                       </tr>
@@ -5636,43 +6123,43 @@ function render_admin_comments_page(): void
               </div>
 
               <div class="admin-table-footer">
-                <form id="comments-bulk-form" class="comment-bulk-form" method="post" action="<?= h(url_for('moderate_comments')) ?>" onsubmit="return this.elements.action.value !== 'delete' || confirm('确定永久删除选中的评论吗？');">
+                <form id="comments-bulk-form" class="comment-bulk-form" method="post" action="<?= h(url_for('moderate_comments')) ?>" onsubmit="return this.elements.action.value !== 'delete' || confirm(<?= h(json_encode(sblog_t('确定永久删除选中的评论吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                   <?= csrf_field() ?>
                   <input type="hidden" name="filter" value="<?= h($filter) ?>">
                   <input type="hidden" name="q" value="<?= h($search) ?>">
                   <input type="hidden" name="p" value="<?= h((string)$page) ?>">
-                  <label for="comment-bulk-action">批量操作</label>
+                  <label for="comment-bulk-action"><?= h(sblog_t('批量操作')) ?></label>
                   <select id="comment-bulk-action" name="action" required>
-                    <option value="">请选择</option>
-                    <option value="approve">通过</option>
-                    <option value="pending">转待审核</option>
-                    <option value="spam">标记垃圾</option>
-                    <option value="read">标为已读</option>
-                    <option value="delete">删除</option>
+                    <option value=""><?= h(sblog_t('请选择')) ?></option>
+                    <option value="approve"><?= h(sblog_t('通过')) ?></option>
+                    <option value="pending"><?= h(sblog_t('转待审核')) ?></option>
+                    <option value="spam"><?= h(sblog_t('标记垃圾')) ?></option>
+                    <option value="read"><?= h(sblog_t('标为已读')) ?></option>
+                    <option value="delete"><?= h(sblog_t('删除')) ?></option>
                   </select>
-                  <button class="button button--secondary" type="submit">应用</button>
+                  <button class="button button--secondary" type="submit"><?= h(sblog_t('应用')) ?></button>
                 </form>
 
                 <?php if ($totalPages > 1): ?>
-                  <nav class="admin-pagination" aria-label="评论分页">
-                    <?php if ($page > 1): ?><a class="button button--secondary" href="<?= h(admin_comments_url($filter, $search, $page - 1)) ?>">上一页</a><?php endif; ?>
-                    <span>第 <?= h((string)$page) ?> / <?= h((string)$totalPages) ?> 页</span>
-                    <?php if ($page < $totalPages): ?><a class="button button--secondary" href="<?= h(admin_comments_url($filter, $search, $page + 1)) ?>">下一页</a><?php endif; ?>
+                  <nav class="admin-pagination" aria-label="<?= h(sblog_t('评论分页')) ?>">
+                    <?php if ($page > 1): ?><a class="button button--secondary" href="<?= h(admin_comments_url($filter, $search, $page - 1)) ?>"><?= h(sblog_t('上一页')) ?></a><?php endif; ?>
+                    <span><?= h(sblog_t('第 {page} / {pages} 页', ['page' => $page, 'pages' => $totalPages])) ?></span>
+                    <?php if ($page < $totalPages): ?><a class="button button--secondary" href="<?= h(admin_comments_url($filter, $search, $page + 1)) ?>"><?= h(sblog_t('下一页')) ?></a><?php endif; ?>
                   </nav>
                 <?php endif; ?>
               </div>
             <?php else: ?>
-              <div class="empty-state empty-state--inside"><p><?= $search !== '' ? '没有匹配的评论。' : '当前筛选下没有评论。' ?></p></div>
+              <div class="empty-state empty-state--inside"><p><?= h($search !== '' ? sblog_t('没有匹配的评论。') : sblog_t('当前筛选下没有评论。')) ?></p></div>
             <?php endif; ?>
           </div>
         </section>
       </div>
     </div>
     <?php
-    render_layout('评论管理', (string)ob_get_clean(), [
+    render_layout(sblog_t('评论管理'), (string)ob_get_clean(), [
         'active' => 'comments',
         'wide' => true,
-        'description' => '博客评论管理',
+        'description' => sblog_t('博客评论管理'),
     ]);
 }
 
@@ -5702,13 +6189,13 @@ function render_admin_categories_page(array $form = [], array $errors = []): voi
       <?= $sidebar ?>
 
       <div class="admin-main">
-        <?= render_admin_topbar('分类管理') ?>
+        <?= render_admin_topbar(sblog_t('分类管理')) ?>
 
         <div class="admin-grid admin-grid--split">
           <section class="panel admin-list-panel admin-animate admin-animate--2">
             <div class="panel__header">
-              <h2>分类列表</h2>
-              <p class="panel__meta">分类用于组织文章，不影响独立页面。</p>
+              <h2><?= h(sblog_t('分类列表')) ?></h2>
+              <p class="panel__meta"><?= h(sblog_t('分类用于组织文章，不影响独立页面。')) ?></p>
             </div>
             <div class="panel__body panel__body--flush">
               <?php if ($categories): ?>
@@ -5716,11 +6203,11 @@ function render_admin_categories_page(array $form = [], array $errors = []): voi
                   <table class="admin-table">
                     <thead>
                     <tr>
-                      <th>分类</th>
-                      <th>Slug</th>
-                      <th>文章数</th>
-                      <th>排序</th>
-                      <th>操作</th>
+                      <th><?= h(sblog_t('分类')) ?></th>
+                      <th><?= h(sblog_t('Slug')) ?></th>
+                      <th><?= h(sblog_t('文章数')) ?></th>
+                      <th><?= h(sblog_t('排序')) ?></th>
+                      <th><?= h(sblog_t('操作')) ?></th>
                     </tr>
                     </thead>
                     <tbody>
@@ -5737,11 +6224,11 @@ function render_admin_categories_page(array $form = [], array $errors = []): voi
                         <td><?= h((string)$category['sort_order']) ?></td>
                         <td>
                           <div class="table-actions">
-                            <a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_categories'), ['id' => (int)$category['id']])) ?>">编辑</a>
-                            <form method="post" action="<?= h(url_for('delete_category')) ?>" onsubmit="return confirm('确定删除这个空分类吗？');">
+                            <a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_categories'), ['id' => (int)$category['id']])) ?>"><?= h(sblog_t('编辑')) ?></a>
+                            <form method="post" action="<?= h(url_for('delete_category')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除这个空分类吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                               <?= csrf_field() ?>
                               <input type="hidden" name="id" value="<?= h($category['id']) ?>">
-                              <button class="button button--danger" type="submit">删除</button>
+                              <button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button>
                             </form>
                           </div>
                         </td>
@@ -5752,7 +6239,7 @@ function render_admin_categories_page(array $form = [], array $errors = []): voi
                 </div>
               <?php else: ?>
                 <div class="empty-state empty-state--inside">
-                  <p>还没有分类。</p>
+                  <p><?= h(sblog_t('还没有分类。')) ?></p>
                 </div>
               <?php endif; ?>
             </div>
@@ -5760,40 +6247,40 @@ function render_admin_categories_page(array $form = [], array $errors = []): voi
 
           <section class="panel admin-list-panel admin-animate admin-animate--3">
             <div class="panel__header">
-              <h2><?= $editing ? '编辑分类' : '新建分类' ?></h2>
-              <p class="panel__meta">名称、URL 标识和排序。</p>
+              <h2><?= h($editing ? sblog_t('编辑分类') : sblog_t('新建分类')) ?></h2>
+              <p class="panel__meta"><?= h(sblog_t('名称、URL 标识和排序。')) ?></p>
             </div>
             <div class="panel__body">
               <?php if ($errors): ?>
-                <div class="flash flash--error"><?= h(implode(' ', $errors)) ?></div>
+                <div class="flash flash--error"><?= h(implode(' ', translated_admin_form_errors($errors))) ?></div>
               <?php endif; ?>
 
               <form class="form-stack" method="post" action="<?= h(url_for('save_category')) ?>">
                 <?= csrf_field() ?>
                 <input type="hidden" name="id" value="<?= h((string)$values['id']) ?>">
                 <div class="field">
-                  <label for="category_name">分类名称</label>
+                  <label for="category_name"><?= h(sblog_t('分类名称')) ?></label>
                   <input id="category_name" name="name" type="text" value="<?= h((string)$values['name']) ?>" required>
                 </div>
                 <div class="field-grid">
                   <div class="field">
-                    <label for="category_slug">Slug</label>
-                    <input id="category_slug" name="slug" type="text" value="<?= h((string)$values['slug']) ?>" placeholder="留空自动生成">
+                    <label for="category_slug"><?= h(sblog_t('Slug')) ?></label>
+                    <input id="category_slug" name="slug" type="text" value="<?= h((string)$values['slug']) ?>" placeholder="<?= h(sblog_t('留空自动生成')) ?>">
                   </div>
                   <div class="field">
-                    <label for="category_sort">排序权重</label>
+                    <label for="category_sort"><?= h(sblog_t('排序权重')) ?></label>
                     <input id="category_sort" name="sort_order" type="number" value="<?= h((string)$values['sort_order']) ?>">
                   </div>
                 </div>
                 <div class="field">
-                  <label for="category_description">分类描述</label>
+                  <label for="category_description"><?= h(sblog_t('分类描述')) ?></label>
                   <textarea id="category_description" name="description" rows="4"><?= h((string)$values['description']) ?></textarea>
                 </div>
                 <div class="action-row">
                   <?php if ($editing): ?>
-                    <a class="button button--secondary" href="<?= h(url_for('admin_categories')) ?>">取消编辑</a>
+                    <a class="button button--secondary" href="<?= h(url_for('admin_categories')) ?>"><?= h(sblog_t('取消编辑')) ?></a>
                   <?php endif; ?>
-                  <button class="button" type="submit"><?= $editing ? '保存分类' : '创建分类' ?></button>
+                  <button class="button" type="submit"><?= h($editing ? sblog_t('保存分类') : sblog_t('创建分类')) ?></button>
                 </div>
               </form>
             </div>
@@ -5804,10 +6291,10 @@ function render_admin_categories_page(array $form = [], array $errors = []): voi
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout('分类管理', $content, [
+    render_layout(sblog_t('分类管理'), $content, [
         'active' => 'categories',
         'wide' => true,
-        'description' => '博客分类管理',
+        'description' => sblog_t('博客分类管理'),
     ]);
 }
 
@@ -5826,28 +6313,28 @@ function render_admin_links_page(array $form = [], array $errors = []): void
     ob_start();
     ?>
     <div class="admin-shell"><?= $sidebar ?><div class="admin-main">
-      <?= render_admin_topbar('友情链接') ?>
+      <?= render_admin_topbar(sblog_t('友情链接')) ?>
       <div class="admin-grid admin-grid--split">
-        <section class="panel admin-list-panel"><div class="panel__header"><h2>链接列表</h2><p class="panel__meta">排序数字越小越靠前。</p></div><div class="panel__body panel__body--flush">
-          <?php if ($links): ?><div class="table-wrap"><table class="admin-table"><thead><tr><th>名称</th><th>网址</th><th>排序</th><th>操作</th></tr></thead><tbody>
-          <?php foreach ($links as $link): ?><tr><td><div class="table-title"><strong><?= h((string)$link['name']) ?></strong><span><?= h((string)$link['description']) ?></span></div></td><td><a href="<?= h((string)$link['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$link['url']) ?></a></td><td><?= h((string)$link['sort_order']) ?></td><td><div class="table-actions"><a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_links'), ['id' => (int)$link['id']])) ?>">编辑</a><form method="post" action="<?= h(url_for('delete_link')) ?>" onsubmit="return confirm('确定删除这个链接吗？');"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h($link['id']) ?>"><button class="button button--danger" type="submit">删除</button></form></div></td></tr><?php endforeach; ?>
-          </tbody></table></div><?php else: ?><div class="empty-state empty-state--inside"><p>还没有友情链接。</p></div><?php endif; ?>
+        <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h(sblog_t('链接列表')) ?></h2><p class="panel__meta"><?= h(sblog_t('排序数字越小越靠前。')) ?></p></div><div class="panel__body panel__body--flush">
+          <?php if ($links): ?><div class="table-wrap"><table class="admin-table"><thead><tr><th><?= h(sblog_t('名称')) ?></th><th><?= h(sblog_t('网址')) ?></th><th><?= h(sblog_t('排序')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead><tbody>
+          <?php foreach ($links as $link): ?><tr><td><div class="table-title"><strong><?= h((string)$link['name']) ?></strong><span><?= h((string)$link['description']) ?></span></div></td><td><a href="<?= h((string)$link['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$link['url']) ?></a></td><td><?= h((string)$link['sort_order']) ?></td><td><div class="table-actions"><a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_links'), ['id' => (int)$link['id']])) ?>"><?= h(sblog_t('编辑')) ?></a><form method="post" action="<?= h(url_for('delete_link')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除这个链接吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h($link['id']) ?>"><button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button></form></div></td></tr><?php endforeach; ?>
+          </tbody></table></div><?php else: ?><div class="empty-state empty-state--inside"><p><?= h(sblog_t('还没有友情链接。')) ?></p></div><?php endif; ?>
         </div></section>
-        <section class="panel admin-list-panel"><div class="panel__header"><h2><?= $editing ? '编辑链接' : '添加链接' ?></h2></div><div class="panel__body">
-          <?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', $errors)) ?></div><?php endif; ?>
+        <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h($editing ? sblog_t('编辑链接') : sblog_t('添加链接')) ?></h2></div><div class="panel__body">
+          <?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', translated_admin_form_errors($errors))) ?></div><?php endif; ?>
           <form class="form-stack" method="post" action="<?= h(url_for('save_link')) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h((string)$values['id']) ?>">
-            <div class="field"><label for="link_name">网站名称</label><input id="link_name" name="name" value="<?= h((string)$values['name']) ?>" required></div>
-            <div class="field"><label for="link_url">网站地址</label><input id="link_url" name="url" type="url" value="<?= h((string)$values['url']) ?>" placeholder="https://example.com" required></div>
-            <div class="field"><label for="link_icon_url">网站图标地址</label><input id="link_icon_url" name="icon_url" type="url" value="<?= h((string)$values['icon_url']) ?>" placeholder="https://example.com/favicon.ico"></div>
-            <div class="field"><label for="link_description">简短描述</label><textarea id="link_description" name="description" rows="3"><?= h((string)$values['description']) ?></textarea></div>
-            <div class="field"><label for="link_sort">排序</label><input id="link_sort" name="sort_order" type="number" value="<?= h((string)$values['sort_order']) ?>"></div>
-            <div class="action-row"><?php if ($editing): ?><a class="button button--secondary" href="<?= h(url_for('admin_links')) ?>">取消编辑</a><?php endif; ?><button class="button" type="submit"><?= $editing ? '保存修改' : '添加链接' ?></button></div>
+            <div class="field"><label for="link_name"><?= h(sblog_t('网站名称')) ?></label><input id="link_name" name="name" value="<?= h((string)$values['name']) ?>" required></div>
+            <div class="field"><label for="link_url"><?= h(sblog_t('网站地址')) ?></label><input id="link_url" name="url" type="url" value="<?= h((string)$values['url']) ?>" placeholder="https://example.com" required></div>
+            <div class="field"><label for="link_icon_url"><?= h(sblog_t('网站图标地址')) ?></label><input id="link_icon_url" name="icon_url" type="url" value="<?= h((string)$values['icon_url']) ?>" placeholder="https://example.com/favicon.ico"></div>
+            <div class="field"><label for="link_description"><?= h(sblog_t('简短描述')) ?></label><textarea id="link_description" name="description" rows="3"><?= h((string)$values['description']) ?></textarea></div>
+            <div class="field"><label for="link_sort"><?= h(sblog_t('排序')) ?></label><input id="link_sort" name="sort_order" type="number" value="<?= h((string)$values['sort_order']) ?>"></div>
+            <div class="action-row"><?php if ($editing): ?><a class="button button--secondary" href="<?= h(url_for('admin_links')) ?>"><?= h(sblog_t('取消编辑')) ?></a><?php endif; ?><button class="button" type="submit"><?= h($editing ? sblog_t('保存修改') : sblog_t('添加链接')) ?></button></div>
           </form>
         </div></section>
       </div>
     </div></div>
     <?php
-    render_layout('友情链接', (string)ob_get_clean(), ['active' => 'links', 'wide' => true, 'description' => '友情链接管理']);
+    render_layout(sblog_t('友情链接'), (string)ob_get_clean(), ['active' => 'links', 'wide' => true, 'description' => sblog_t('友情链接管理')]);
 }
 
 function replace_tag_everywhere(string $old, ?string $new): void
@@ -5874,13 +6361,13 @@ function render_admin_tags_page(array $form = [], array $errors = []): void
     $currentSlug = $old !== '' ? tag_slug_for_label($old) : '';
     $sidebar = render_admin_sidebar('tags');
     ob_start(); ?>
-    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar('标签管理') ?><div class="admin-grid admin-grid--split">
-      <section class="panel admin-list-panel"><div class="panel__header"><h2>标签列表</h2><p class="panel__meta">标签来自文章内容，共 <?= h((string)count($tags)) ?> 个。</p></div><div class="panel__body panel__body--flush">
-      <?php if ($tags): ?><form method="post" action="<?= h(url_for('delete_tag')) ?>" onsubmit="return confirm('确定删除选中的标签吗？文章本身不会被删除。');"><?= csrf_field() ?><div class="table-wrap"><table class="admin-table"><thead><tr><th><input type="checkbox" aria-label="全选" data-check-all="tag_ids[]"></th><th>标签</th><th>Slug</th><th>文章数</th><th>操作</th></tr></thead><tbody><?php foreach ($tags as $tag): ?><tr><td><input type="checkbox" name="tag_ids[]" value="<?= h((string)$tag['label']) ?>" aria-label="选择 <?= h((string)$tag['label']) ?>"></td><td><strong>#<?= h((string)$tag['label']) ?></strong></td><td><?= h((string)$tag['slug']) ?></td><td><?= h((string)$tag['count']) ?></td><td><a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_tags'), ['tag' => (string)$tag['label']])) ?>">修改</a></td></tr><?php endforeach; ?></tbody></table></div><div class="panel__body"><button class="button button--danger" type="submit">批量删除</button></div></form><?php else: ?><div class="empty-state empty-state--inside"><p>还没有标签。</p></div><?php endif; ?>
+    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar(sblog_t('标签管理')) ?><div class="admin-grid admin-grid--split">
+      <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h(sblog_t('标签列表')) ?></h2><p class="panel__meta"><?= h(sblog_tn('标签来自文章内容，共 {count} 个标签。', count($tags))) ?></p></div><div class="panel__body panel__body--flush">
+      <?php if ($tags): ?><form method="post" action="<?= h(url_for('delete_tag')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除选中的标签吗？文章本身不会被删除。'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);"><?= csrf_field() ?><div class="table-wrap"><table class="admin-table"><thead><tr><th><input type="checkbox" aria-label="<?= h(sblog_t('全选')) ?>" data-check-all="tag_ids[]"></th><th><?= h(sblog_t('标签')) ?></th><th><?= h(sblog_t('Slug')) ?></th><th><?= h(sblog_t('文章数')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead><tbody><?php foreach ($tags as $tag): ?><tr><td><input type="checkbox" name="tag_ids[]" value="<?= h((string)$tag['label']) ?>" aria-label="<?= h(sblog_t('选择标签 {tag}', ['tag' => (string)$tag['label']])) ?>"></td><td><strong>#<?= h((string)$tag['label']) ?></strong></td><td><?= h((string)$tag['slug']) ?></td><td><?= h((string)$tag['count']) ?></td><td><a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_tags'), ['tag' => (string)$tag['label']])) ?>"><?= h(sblog_t('修改')) ?></a></td></tr><?php endforeach; ?></tbody></table></div><div class="panel__body"><button class="button button--danger" type="submit"><?= h(sblog_t('批量删除')) ?></button></div></form><?php else: ?><div class="empty-state empty-state--inside"><p><?= h(sblog_t('还没有标签。')) ?></p></div><?php endif; ?>
       </div></section>
-      <section class="panel admin-list-panel"><div class="panel__header"><h2>修改标签</h2></div><div class="panel__body"><?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', $errors)) ?></div><?php endif; ?><form class="form-stack" method="post" action="<?= h(url_for('save_tag')) ?>"><?= csrf_field() ?><div class="field"><label>原标签</label><input name="old_tag" value="<?= h($old) ?>" readonly required></div><div class="field"><label>标签名称</label><input name="new_tag" value="<?= h((string)($form['new_tag'] ?? $old)) ?>" required></div><div class="field"><label>Slug</label><input name="tag_slug" value="<?= h((string)($form['tag_slug'] ?? $currentSlug)) ?>" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required><p class="field-hint">仅使用小写字母、数字和连字符。</p></div><div class="action-row"><button class="button">保存修改</button></div></form></div></section>
+      <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h(sblog_t('修改标签')) ?></h2></div><div class="panel__body"><?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', translated_admin_form_errors($errors))) ?></div><?php endif; ?><form class="form-stack" method="post" action="<?= h(url_for('save_tag')) ?>"><?= csrf_field() ?><div class="field"><label><?= h(sblog_t('原标签')) ?></label><input name="old_tag" value="<?= h($old) ?>" readonly required></div><div class="field"><label><?= h(sblog_t('标签名称')) ?></label><input name="new_tag" value="<?= h((string)($form['new_tag'] ?? $old)) ?>" required></div><div class="field"><label><?= h(sblog_t('Slug')) ?></label><input name="tag_slug" value="<?= h((string)($form['tag_slug'] ?? $currentSlug)) ?>" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required><p class="field-hint"><?= h(sblog_t('仅使用小写字母、数字和连字符。')) ?></p></div><div class="action-row"><button class="button"><?= h(sblog_t('保存修改')) ?></button></div></form></div></section>
     </div></div></div><?php
-    render_layout('标签管理', (string)ob_get_clean(), ['active' => 'tags', 'wide' => true, 'description' => '标签管理']);
+    render_layout(sblog_t('标签管理'), (string)ob_get_clean(), ['active' => 'tags', 'wide' => true, 'description' => sblog_t('标签管理')]);
 }
 
 function render_admin_users_page(array $form = [], array $errors = []): void
@@ -5892,59 +6379,71 @@ function render_admin_users_page(array $form = [], array $errors = []): void
     $profileDefaults = ['nickname' => '', 'email' => '', 'avatar_url' => '', 'website_url' => '', 'signature' => ''];
     foreach (social_profile_definitions() as $definition) { $profileDefaults[$definition['column']] = ''; }
     $profile = array_merge($profileDefaults, $account, $form);
+    $socialLabels = [
+        'github' => sblog_t('GitHub'),
+        'qq' => sblog_t('QQ'),
+        'wechat' => sblog_t('微信'),
+        'weibo' => sblog_t('微博'),
+        'x' => sblog_t('X'),
+        'telegram' => sblog_t('Telegram'),
+        'mastodon' => sblog_t('Mastodon'),
+        'bilibili' => sblog_t('哔哩哔哩'),
+        'instagram' => sblog_t('Instagram'),
+        'tiktok' => sblog_t('TikTok'),
+    ];
     $sidebar = render_admin_sidebar('users');
     ob_start(); ?>
-    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar('用户设置') ?><div class="admin-grid admin-user-settings">
+    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar(sblog_t('用户设置')) ?><div class="admin-grid admin-user-settings">
       <section class="admin-profile-settings" aria-labelledby="user-settings-title">
         <header class="admin-profile-settings__header">
-          <h2 id="user-settings-title">用户设置</h2>
+          <h2 id="user-settings-title"><?= h(sblog_t('用户设置')) ?></h2>
           <p>@<?= h($username) ?></p>
         </header>
-        <?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', $errors)) ?></div><?php endif; ?>
+        <?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', translated_admin_form_errors($errors))) ?></div><?php endif; ?>
         <form class="admin-profile-form" method="post" action="<?= h(url_for('save_user')) ?>">
           <?= csrf_field() ?>
           <section class="admin-profile-section" aria-labelledby="account-settings-title">
-            <div class="admin-profile-section__title"><h3 id="account-settings-title">账户信息</h3></div>
+            <div class="admin-profile-section__title"><h3 id="account-settings-title"><?= h(sblog_t('账户信息')) ?></h3></div>
             <div class="admin-profile-section__fields">
               <div class="field-grid">
-                <div class="field"><label for="user-username">用户名</label><input id="user-username" name="username" value="<?= h($username) ?>" autocomplete="username" required></div>
-                <div class="field"><label for="user-email">邮箱地址</label><input id="user-email" name="email" type="email" value="<?= h((string)$profile['email']) ?>" autocomplete="email"></div>
+                <div class="field"><label for="user-username"><?= h(sblog_t('用户名')) ?></label><input id="user-username" name="username" value="<?= h($username) ?>" autocomplete="username" required></div>
+                <div class="field"><label for="user-email"><?= h(sblog_t('邮箱地址')) ?></label><input id="user-email" name="email" type="email" value="<?= h((string)$profile['email']) ?>" autocomplete="email"></div>
               </div>
               <div class="field-grid field-grid--triple">
-                <div class="field"><label for="user-current-password">原密码</label><input id="user-current-password" name="current_password" type="password" autocomplete="current-password"></div>
-                <div class="field"><label for="user-password">新密码</label><input id="user-password" name="password" type="password" minlength="8" autocomplete="new-password"></div>
-                <div class="field"><label for="user-password-confirm">确认新密码</label><input id="user-password-confirm" name="password_confirm" type="password" minlength="8" autocomplete="new-password"></div>
+                <div class="field"><label for="user-current-password"><?= h(sblog_t('原密码')) ?></label><input id="user-current-password" name="current_password" type="password" autocomplete="current-password"></div>
+                <div class="field"><label for="user-password"><?= h(sblog_t('新密码')) ?></label><input id="user-password" name="password" type="password" minlength="8" autocomplete="new-password"></div>
+                <div class="field"><label for="user-password-confirm"><?= h(sblog_t('确认新密码')) ?></label><input id="user-password-confirm" name="password_confirm" type="password" minlength="8" autocomplete="new-password"></div>
               </div>
-              <p class="field-hint">留空则不修改。</p>
+              <p class="field-hint"><?= h(sblog_t('留空则不修改。')) ?></p>
             </div>
           </section>
           <section class="admin-profile-section" aria-labelledby="public-profile-title">
-            <div class="admin-profile-section__title"><h3 id="public-profile-title">公开资料</h3></div>
+            <div class="admin-profile-section__title"><h3 id="public-profile-title"><?= h(sblog_t('公开资料')) ?></h3></div>
             <div class="admin-profile-section__fields">
               <div class="field-grid">
-                <div class="field"><label for="user-nickname">昵称</label><input id="user-nickname" name="nickname" value="<?= h((string)$profile['nickname']) ?>" required></div>
-                <div class="field"><label for="user-avatar">头像地址</label><input id="user-avatar" name="avatar_url" type="url" maxlength="300" value="<?= h((string)$profile['avatar_url']) ?>" placeholder="https://example.com/avatar.jpg"></div>
+                <div class="field"><label for="user-nickname"><?= h(sblog_t('昵称')) ?></label><input id="user-nickname" name="nickname" value="<?= h((string)$profile['nickname']) ?>" required></div>
+                <div class="field"><label for="user-avatar"><?= h(sblog_t('头像地址')) ?></label><input id="user-avatar" name="avatar_url" type="url" maxlength="300" value="<?= h((string)$profile['avatar_url']) ?>" placeholder="https://example.com/avatar.jpg"></div>
               </div>
-              <div class="field"><label for="user-signature">个人签名档</label><textarea id="user-signature" name="signature" rows="3" placeholder="一句话介绍自己"><?= h((string)$profile['signature']) ?></textarea></div>
-              <div class="field"><label for="user-website">网站地址</label><input id="user-website" name="website_url" type="url" maxlength="300" value="<?= h((string)$profile['website_url']) ?>" placeholder="https://example.com"></div>
+              <div class="field"><label for="user-signature"><?= h(sblog_t('个人签名档')) ?></label><textarea id="user-signature" name="signature" rows="3" placeholder="<?= h(sblog_t('一句话介绍自己')) ?>"><?= h((string)$profile['signature']) ?></textarea></div>
+              <div class="field"><label for="user-website"><?= h(sblog_t('网站地址')) ?></label><input id="user-website" name="website_url" type="url" maxlength="300" value="<?= h((string)$profile['website_url']) ?>" placeholder="https://example.com"></div>
             </div>
           </section>
           <section class="admin-profile-section" aria-labelledby="social-profile-title">
-            <div class="admin-profile-section__title"><h3 id="social-profile-title">社交链接</h3></div>
+            <div class="admin-profile-section__title"><h3 id="social-profile-title"><?= h(sblog_t('社交链接')) ?></h3></div>
             <div class="admin-profile-section__fields field-grid">
               <?php foreach (social_profile_definitions() as $key => $definition): ?>
                 <div class="field">
-                  <label for="social-<?= h($key) ?>"><?= h((string)$definition['label']) ?></label>
+                  <label for="social-<?= h($key) ?>"><?= h($socialLabels[$key] ?? (string)$definition['label']) ?></label>
                   <input id="social-<?= h($key) ?>" name="social_<?= h($key) ?>" type="url" maxlength="300" value="<?= h((string)$profile[$definition['column']]) ?>" placeholder="<?= h((string)$definition['placeholder']) ?>">
                 </div>
               <?php endforeach; ?>
             </div>
           </section>
-          <div class="admin-profile-actions"><button class="button" type="submit">保存修改</button></div>
+          <div class="admin-profile-actions"><button class="button" type="submit"><?= h(sblog_t('保存修改')) ?></button></div>
         </form>
       </section>
     </div></div></div><?php
-    render_layout('用户设置', (string)ob_get_clean(), ['active' => 'users', 'wide' => true, 'description' => '用户设置']);
+    render_layout(sblog_t('用户设置'), (string)ob_get_clean(), ['active' => 'users', 'wide' => true, 'description' => sblog_t('用户设置')]);
 }
 
 function render_admin_media_page(): void
@@ -5978,16 +6477,16 @@ function render_admin_media_page(): void
     <div class="admin-shell">
       <?= render_admin_sidebar('media') ?>
       <div class="admin-main">
-        <?= render_admin_topbar('媒体库') ?>
+        <?= render_admin_topbar(sblog_t('媒体库')) ?>
         <div class="media-library admin-animate admin-animate--2">
           <section class="panel media-library-upload">
-            <div class="panel__header"><h2>上传媒体</h2><p class="panel__meta">图片、PDF、文本和 ZIP 文件，每个最大 30M。</p></div>
+            <div class="panel__header"><h2><?= h(sblog_t('上传媒体')) ?></h2><p class="panel__meta"><?= h(sblog_t('图片、PDF、文本和 ZIP 文件，每个最大 30M。')) ?></p></div>
             <div class="panel__body">
               <div class="attachment-uploader" data-upload-url="<?= h(url_for('upload_attachment')) ?>" data-csrf="<?= h(csrf_token()) ?>" data-refresh-on-upload="1">
                 <input id="mediaAttachmentInput" class="attachment-input" type="file" name="attachments[]" multiple>
                 <label class="attachment-drop" for="mediaAttachmentInput">
-                  <span class="attachment-drop__title">选择或拖入媒体文件</span>
-                  <span class="attachment-drop__hint">上传完成后会自动加入媒体库。</span>
+                  <span class="attachment-drop__title"><?= h(sblog_t('选择或拖入媒体文件')) ?></span>
+                  <span class="attachment-drop__hint"><?= h(sblog_t('上传完成后会自动加入媒体库。')) ?></span>
                 </label>
                 <div class="attachment-list" aria-live="polite"></div>
               </div>
@@ -5996,35 +6495,35 @@ function render_admin_media_page(): void
 
           <form class="media-library-toolbar" method="get" action="<?= h(url_for('admin_media')) ?>">
             <?php if (!use_pretty_url()): ?><input type="hidden" name="a" value="admin_media"><?php endif; ?>
-            <strong>媒体资料：<span class="media-library-count"><?= h((string)$total) ?></span></strong>
-            <label class="media-library-search"><span class="sr-only">搜索媒体</span><input name="q" type="search" value="<?= h($search) ?>" placeholder="搜索媒体"></label>
-            <label class="media-library-filter"><span class="sr-only">媒体类型</span><select name="type"><option value="all"<?= $type === 'all' ? ' selected' : '' ?>>全部媒体</option><option value="images"<?= $type === 'images' ? ' selected' : '' ?>>图片</option><option value="files"<?= $type === 'files' ? ' selected' : '' ?>>文件</option></select></label>
-            <button class="button button--secondary" type="submit">筛选</button>
+            <strong><?= h(sblog_tn('媒体资料：{count} 项', $total)) ?></strong>
+            <label class="media-library-search"><span class="sr-only"><?= h(sblog_t('搜索媒体')) ?></span><input name="q" type="search" value="<?= h($search) ?>" placeholder="<?= h(sblog_t('搜索媒体')) ?>"></label>
+            <label class="media-library-filter"><span class="sr-only"><?= h(sblog_t('媒体类型')) ?></span><select name="type"><option value="all"<?= $type === 'all' ? ' selected' : '' ?>><?= h(sblog_t('全部媒体')) ?></option><option value="images"<?= $type === 'images' ? ' selected' : '' ?>><?= h(sblog_t('图片')) ?></option><option value="files"<?= $type === 'files' ? ' selected' : '' ?>><?= h(sblog_t('文件')) ?></option></select></label>
+            <button class="button button--secondary" type="submit"><?= h(sblog_t('筛选')) ?></button>
           </form>
 
           <?php if ($editing): ?>
             <section class="panel media-editor" id="media-editor">
-              <div class="panel__header"><h2>编辑媒体</h2><p class="panel__meta"><?= h((string)$editing['original_name']) ?></p></div>
+              <div class="panel__header"><h2><?= h(sblog_t('编辑媒体')) ?></h2><p class="panel__meta"><?= h((string)$editing['original_name']) ?></p></div>
               <div class="panel__body">
                 <form class="form-stack" method="post" action="<?= h(url_for('save_media')) ?>">
                   <?= csrf_field() ?><input type="hidden" name="id" value="<?= h((string)$editing['id']) ?>">
-                  <div class="field"><label for="mediaTitle">标题</label><input id="mediaTitle" name="title" value="<?= h((string)$editing['title']) ?>" maxlength="255" required></div>
-                  <?php if (!empty($editing['is_image'])): ?><div class="field"><label for="mediaAlt">替代文本</label><input id="mediaAlt" name="alt_text" value="<?= h((string)$editing['alt_text']) ?>" maxlength="500"></div><?php endif; ?>
-                  <div class="field"><label for="mediaCaption">说明文字</label><textarea id="mediaCaption" name="caption" rows="3" maxlength="2000"><?= h((string)$editing['caption']) ?></textarea></div>
-                  <div class="action-row"><a class="button button--secondary" href="<?= h(url_for('admin_media')) ?>">取消</a><button class="button" type="submit">保存媒体</button></div>
+                  <div class="field"><label for="mediaTitle"><?= h(sblog_t('标题')) ?></label><input id="mediaTitle" name="title" value="<?= h((string)$editing['title']) ?>" maxlength="255" required></div>
+                  <?php if (!empty($editing['is_image'])): ?><div class="field"><label for="mediaAlt"><?= h(sblog_t('替代文本')) ?></label><input id="mediaAlt" name="alt_text" value="<?= h((string)$editing['alt_text']) ?>" maxlength="500"></div><?php endif; ?>
+                  <div class="field"><label for="mediaCaption"><?= h(sblog_t('说明文字')) ?></label><textarea id="mediaCaption" name="caption" rows="3" maxlength="2000"><?= h((string)$editing['caption']) ?></textarea></div>
+                  <div class="action-row"><a class="button button--secondary" href="<?= h(url_for('admin_media')) ?>"><?= h(sblog_t('取消')) ?></a><button class="button" type="submit"><?= h(sblog_t('保存媒体')) ?></button></div>
                 </form>
               </div>
             </section>
           <?php elseif ($editId > 0): ?>
-            <div class="flash flash--error">找不到媒体资料。</div>
+            <div class="flash flash--error"><?= h(sblog_t('找不到媒体资料。')) ?></div>
           <?php endif; ?>
 
           <?php if ($mediaItems): ?>
             <div class="media-library-grid">
               <?php foreach ($mediaItems as $media): ?>
-                <?php $extension = strtoupper(pathinfo((string)$media['original_name'], PATHINFO_EXTENSION)) ?: 'FILE'; ?>
+                <?php $extension = strtoupper(pathinfo((string)$media['original_name'], PATHINFO_EXTENSION)) ?: sblog_t('文件'); ?>
                 <article class="media-library-item">
-                  <a class="media-library-preview" href="<?= h((string)$media['url']) ?>" target="_blank" rel="noopener noreferrer" aria-label="打开文件" title="<?= h((string)$media['original_name']) ?>">
+                  <a class="media-library-preview" href="<?= h((string)$media['url']) ?>" target="_blank" rel="noopener noreferrer" aria-label="<?= h(sblog_t('打开文件')) ?>" title="<?= h((string)$media['original_name']) ?>">
                     <?php if (!empty($media['is_image'])): ?><img src="<?= h((string)$media['url']) ?>" alt="<?= h((string)($media['alt_text'] ?: $media['title'])) ?>" loading="lazy"><?php else: ?><span><?= h(str_sub_u($extension, 0, 8)) ?></span><?php endif; ?>
                   </a>
                   <div class="media-library-meta">
@@ -6033,21 +6532,21 @@ function render_admin_media_page(): void
                     <span><?= h(pretty_date((int)$media['created_at'], true)) ?><?= (int)$media['width'] > 0 ? ' · ' . h((string)$media['width']) . '×' . h((string)$media['height']) : '' ?></span>
                   </div>
                   <div class="media-library-actions">
-                    <a class="button button--ghost" href="<?= h((string)$media['url']) ?>" target="_blank" rel="noopener noreferrer">打开</a>
-                    <a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_media'), ['id' => (int)$media['id']])) ?>#media-editor">编辑</a>
-                    <form method="post" action="<?= h(url_for('delete_media')) ?>" onsubmit="return confirm('删除此媒体资料？文件将被永久删除。');"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h((string)$media['id']) ?>"><button class="button button--danger" type="submit">删除</button></form>
+                    <a class="button button--ghost" href="<?= h((string)$media['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h(sblog_t('打开')) ?></a>
+                    <a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_media'), ['id' => (int)$media['id']])) ?>#media-editor"><?= h(sblog_t('编辑')) ?></a>
+                    <form method="post" action="<?= h(url_for('delete_media')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('删除此媒体资料？文件将被永久删除。'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h((string)$media['id']) ?>"><button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button></form>
                   </div>
                 </article>
               <?php endforeach; ?>
             </div>
           <?php else: ?>
-            <div class="empty-state media-library-empty"><p><?= $search !== '' || $type !== 'all' ? '没有匹配的媒体资料。' : '暂无媒体资料。' ?></p></div>
+            <div class="empty-state media-library-empty"><p><?= h($search !== '' || $type !== 'all' ? sblog_t('没有匹配的媒体资料。') : sblog_t('暂无媒体资料。')) ?></p></div>
           <?php endif; ?>
         </div>
       </div>
     </div>
     <?php
-    render_layout('媒体库', (string)ob_get_clean(), ['active' => 'media', 'wide' => true, 'description' => '媒体资料管理']);
+    render_layout(sblog_t('媒体库'), (string)ob_get_clean(), ['active' => 'media', 'wide' => true, 'description' => sblog_t('媒体资料管理')]);
 }
 
 function render_admin_plugins_page(): void
@@ -6065,49 +6564,52 @@ function render_admin_plugins_page(): void
       <?= $sidebar ?>
 
       <div class="admin-main">
-        <?= render_admin_topbar('插件管理') ?>
+        <?= render_admin_topbar(sblog_t('插件管理')) ?>
 
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
-            <h2>插件管理</h2>
-            <p class="panel__meta">启用可信插件，为博客增加功能或语言支持。</p>
+            <h2><?= h(sblog_t('插件管理')) ?></h2>
+            <p class="panel__meta"><?= h(sblog_t('启用可信插件，为博客增加功能或语言支持。')) ?></p>
           </div>
           <div class="panel__body panel__body--flush">
             <?php if ($plugins): ?>
               <div class="table-wrap">
                 <table class="admin-table">
-                  <thead><tr><th>插件</th><th>作者</th><th>版本</th><th>状态</th><th>操作</th></tr></thead>
+                  <thead><tr><th><?= h(sblog_t('插件')) ?></th><th><?= h(sblog_t('作者')) ?></th><th><?= h(sblog_t('版本')) ?></th><th><?= h(sblog_t('状态')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead>
                   <tbody>
                   <?php foreach ($plugins as $slug => $plugin): ?>
-                    <?php $isActive = in_array($slug, $active, true); ?>
+                    <?php
+                    $isActive = in_array($slug, $active, true);
+                    $displayMetadata = plugin_display_metadata((string)$slug, $plugin);
+                    ?>
                     <tr>
                       <td>
                         <div class="table-title">
-                          <strong><?= h((string)$plugin['name']) ?></strong>
-                          <span><?= h((string)$plugin['description']) ?></span>
+                          <strong><?= h($displayMetadata['name']) ?></strong>
+                          <span><?= h($displayMetadata['description']) ?></span>
                         </div>
                       </td>
                       <td><?php if ($plugin['author'] !== ''): ?><?php if ($plugin['url'] !== ''): ?><a href="<?= h((string)$plugin['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$plugin['author']) ?></a><?php else: ?><?= h((string)$plugin['author']) ?><?php endif; ?><?php else: ?>—<?php endif; ?></td>
                       <td><?= h((string)($plugin['version'] ?: '—')) ?></td>
                       <td>
                         <?php if (isset($errors[$slug])): ?>
-                          <span class="status-badge status-badge--draft" title="<?= h((string)$errors[$slug]) ?>">加载失败</span>
+                          <span class="status-badge status-badge--draft" title="<?= h((string)$errors[$slug]) ?>"><?= h(sblog_t('加载失败')) ?></span>
                         <?php elseif ($isActive): ?>
-                          <span class="status-badge status-badge--published">已启用</span>
+                          <span class="status-badge status-badge--published"><?= h(sblog_t('已启用')) ?></span>
                         <?php else: ?>
-                          <span class="status-badge status-badge--draft">未启用</span>
+                          <span class="status-badge status-badge--draft"><?= h(sblog_t('未启用')) ?></span>
                         <?php endif; ?>
                       </td>
                       <td>
                         <div class="table-actions">
                           <?php if ($isActive && (string)$plugin['settings_action'] !== ''): ?>
-                            <a class="button button--secondary" href="<?= h(script_url() . '?a=' . rawurlencode((string)$plugin['settings_action'])) ?>">设置</a>
+                            <a class="button button--secondary" href="<?= h(script_url() . '?a=' . rawurlencode((string)$plugin['settings_action'])) ?>"><?= h(sblog_t('设置')) ?></a>
                           <?php endif; ?>
                           <form method="post" action="<?= h(url_for('toggle_plugin')) ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="plugin" value="<?= h((string)$slug) ?>">
                             <input type="hidden" name="operation" value="<?= $isActive ? 'deactivate' : 'activate' ?>">
-                            <button class="button <?= $isActive ? 'button--ghost' : '' ?>" type="submit"><?= $isActive ? '停用' : '启用' ?></button>
+                            <button class="button <?= $isActive ? 'button--ghost' : '' ?>" type="submit"><?= h($isActive ? sblog_t('停用') : sblog_t('启用')) ?></button>
                           </form>
                         </div>
                       </td>
@@ -6117,17 +6619,17 @@ function render_admin_plugins_page(): void
                 </table>
               </div>
             <?php else: ?>
-              <div class="empty-state empty-state--inside"><p>没有发现有效插件。请将插件放入 <code>plugins/插件目录</code>。</p></div>
+              <div class="empty-state empty-state--inside"><p><?= h(sblog_t('没有发现有效插件。请将插件放入 {path}。', ['path' => 'plugins/插件目录'])) ?></p></div>
             <?php endif; ?>
           </div>
         </section>
       </div>
     </div>
     <?php
-    render_layout('插件管理', (string)ob_get_clean(), [
+    render_layout(sblog_t('插件管理'), (string)ob_get_clean(), [
         'active' => 'plugins',
         'wide' => true,
-        'description' => '博客插件管理',
+        'description' => sblog_t('博客插件管理'),
     ]);
 }
 
@@ -6146,16 +6648,16 @@ function render_admin_themes_page(): void
       <?= $sidebar ?>
 
       <div class="admin-main">
-        <?= render_admin_topbar('主题管理') ?>
+        <?= render_admin_topbar(sblog_t('主题管理')) ?>
 
         <section class="theme-manager admin-animate admin-animate--2" aria-labelledby="theme-manager-title" data-theme-manager>
           <header class="theme-manager__header">
             <div>
-              <p class="admin-masthead__eyebrow">Appearance</p>
-              <h1 id="theme-manager-title">主题管理</h1>
-              <p>预览已安装主题，并为博客前台启用新的外观。</p>
+              <p class="admin-masthead__eyebrow"><?= h(sblog_t('外观')) ?></p>
+              <h1 id="theme-manager-title"><?= h(sblog_t('主题管理')) ?></h1>
+              <p><?= h(sblog_t('预览已安装主题，并为博客前台启用新的外观。')) ?></p>
             </div>
-            <span class="theme-manager__count"><?= count($themes) ?> 个主题</span>
+            <span class="theme-manager__count"><?= h(sblog_tn('{count} 个主题', count($themes))) ?></span>
           </header>
 
           <div class="theme-grid">
@@ -6163,35 +6665,39 @@ function render_admin_themes_page(): void
               <?php
               $isActive = $slug === $activeSlug;
               $previewUrl = url_with_query(url_for('home'), ['theme_preview' => (string)$slug]);
+              $displayMetadata = theme_display_metadata((string)$slug, $theme);
+              $themeName = $displayMetadata['name'];
+              $themeDescription = $displayMetadata['description'];
+              $previewLabel = sblog_t('预览主题 {theme}', ['theme' => $themeName]);
               ?>
               <article class="theme-card<?= $isActive ? ' is-active' : '' ?>" data-theme-card data-theme-slug="<?= h((string)$slug) ?>">
-                <a class="theme-card__preview" href="<?= h($previewUrl) ?>" target="_blank" rel="noopener" aria-label="预览主题 <?= h((string)$theme['name']) ?>">
-                  <iframe src="<?= h($previewUrl) ?>" loading="lazy" tabindex="-1" aria-hidden="true" title=""></iframe>
-                  <span>打开预览</span>
+                <a class="theme-card__preview" href="<?= h($previewUrl) ?>" target="_blank" rel="noopener" aria-label="<?= h($previewLabel) ?>" title="<?= h($previewLabel) ?>">
+                  <iframe src="<?= h($previewUrl) ?>" loading="lazy" tabindex="-1" aria-hidden="true" title="<?= h($previewLabel) ?>"></iframe>
+                  <span><?= h(sblog_t('打开预览')) ?></span>
                 </a>
                 <div class="theme-card__body">
                   <div class="theme-card__heading">
                     <div>
-                      <h2><?= h((string)$theme['name']) ?></h2>
+                      <h2><?= h($themeName) ?></h2>
                       <p><?= h((string)$slug) ?><?= $theme['version'] !== '' ? ' · ' . h((string)$theme['version']) : '' ?></p>
                     </div>
-                    <span class="status-badge status-badge--published" data-theme-current<?= $isActive ? '' : ' hidden' ?>>当前主题</span>
+                    <span class="status-badge status-badge--published" data-theme-current<?= $isActive ? '' : ' hidden' ?>><?= h(sblog_t('当前主题')) ?></span>
                   </div>
-                  <p class="theme-card__description"><?= h((string)($theme['description'] ?: '该主题没有提供说明。')) ?></p>
+                  <p class="theme-card__description"><?= h($themeDescription !== '' ? $themeDescription : sblog_t('该主题没有提供说明。')) ?></p>
                   <div class="theme-card__footer">
                     <span class="theme-card__author">
                       <?php if ($theme['author'] !== ''): ?>
-                        作者：<?php if ($theme['url'] !== ''): ?><a href="<?= h((string)$theme['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$theme['author']) ?></a><?php else: ?><?= h((string)$theme['author']) ?><?php endif; ?>
+                        <?= h(sblog_t('作者：')) ?><?php if ($theme['url'] !== ''): ?><a href="<?= h((string)$theme['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$theme['author']) ?></a><?php else: ?><?= h((string)$theme['author']) ?><?php endif; ?>
                       <?php else: ?>
-                        作者未注明
+                        <?= h(sblog_t('作者未注明')) ?>
                       <?php endif; ?>
                     </span>
                     <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-activate<?= $isActive ? ' hidden' : '' ?>>
                       <?= csrf_field() ?>
                       <input type="hidden" name="theme" value="<?= h((string)$slug) ?>">
-                      <button class="button" type="submit">启用</button>
+                      <button class="button" type="submit"><?= h(sblog_t('启用')) ?></button>
                     </form>
-                    <span class="button button--ghost is-disabled" aria-disabled="true" data-theme-active<?= $isActive ? '' : ' hidden' ?>>已启用</span>
+                    <span class="button button--ghost is-disabled" aria-disabled="true" data-theme-active<?= $isActive ? '' : ' hidden' ?>><?= h(sblog_t('已启用')) ?></span>
                   </div>
                 </div>
               </article>
@@ -6201,10 +6707,10 @@ function render_admin_themes_page(): void
       </div>
     </div>
     <?php
-    render_layout('主题管理', (string)ob_get_clean(), [
+    render_layout(sblog_t('主题管理'), (string)ob_get_clean(), [
         'active' => 'themes',
         'wide' => true,
-        'description' => '博客前台主题管理',
+        'description' => sblog_t('博客前台主题管理'),
     ]);
 }
 
@@ -6220,73 +6726,73 @@ function render_admin_settings_page(): void
       <?= $sidebar ?>
 
       <div class="admin-main">
-        <?= render_admin_topbar('站点设置') ?>
+        <?= render_admin_topbar(sblog_t('站点设置')) ?>
 
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
-            <h2>站点设置</h2>
-            <p class="panel__meta">名称、地址、首页展示与伪静态配置。</p>
+            <h2><?= h(sblog_t('站点设置')) ?></h2>
+            <p class="panel__meta"><?= h(sblog_t('名称、地址、首页展示与伪静态配置。')) ?></p>
           </div>
           <div class="panel__body">
             <form class="form-stack" method="post" action="<?= h(url_for('save_settings')) ?>">
               <?= csrf_field() ?>
-              <div class="field"><label for="site_name">站点名称</label><input id="site_name" name="site_name" type="text" value="<?= h(setting('site_name')) ?>" required></div>
-              <div class="field"><label for="site_tagline">首页副标题</label><input id="site_tagline" name="site_tagline" type="text" value="<?= h(setting('site_tagline')) ?>"></div>
-              <div class="field"><label for="site_description">站点描述</label><textarea id="site_description" name="site_description" rows="3"><?= h(setting('site_description')) ?></textarea></div>
-              <div class="field"><label for="site_keywords">站点关键字</label><input id="site_keywords" name="site_keywords" value="<?= h(setting('site_keywords')) ?>" placeholder="PHP, SQLite, 博客"><p class="field-hint">使用英文逗号分隔，页面将输出为 SEO keywords 元信息。</p></div>
+              <div class="field"><label for="site_name"><?= h(sblog_t('站点名称')) ?></label><input id="site_name" name="site_name" type="text" value="<?= h(setting('site_name')) ?>" required></div>
+              <div class="field"><label for="site_tagline"><?= h(sblog_t('首页副标题')) ?></label><input id="site_tagline" name="site_tagline" type="text" value="<?= h(setting('site_tagline')) ?>"></div>
+              <div class="field"><label for="site_description"><?= h(sblog_t('站点描述')) ?></label><textarea id="site_description" name="site_description" rows="3"><?= h(setting('site_description')) ?></textarea></div>
+              <div class="field"><label for="site_keywords"><?= h(sblog_t('站点关键字')) ?></label><input id="site_keywords" name="site_keywords" value="<?= h(setting('site_keywords')) ?>" placeholder="<?= h(sblog_t('PHP, SQLite, 博客')) ?>"><p class="field-hint"><?= h(sblog_t('使用英文逗号分隔，页面将输出为 SEO keywords 元信息。')) ?></p></div>
               <div class="field">
-                <label for="site_url">站点地址</label>
+                <label for="site_url"><?= h(sblog_t('站点地址')) ?></label>
                 <input id="site_url" name="site_url" type="url" value="<?= h(setting('site_url')) ?>" placeholder="https://example.com/blog">
-                <p class="field-hint">RSS 会优先使用这里的绝对地址，子目录部署时请带上完整路径。</p>
+                <p class="field-hint"><?= h(sblog_t('RSS 会优先使用这里的绝对地址，子目录部署时请带上完整路径。')) ?></p>
               </div>
-              <div class="field"><label for="favicon_url">Favicon 地址</label><input id="favicon_url" name="favicon_url" value="<?= h(setting('favicon_url', 'logo.png')) ?>" placeholder="logo.png"><p class="field-hint">默认使用项目根目录的 logo.png，也可以填写完整图片 URL 或站内绝对路径。</p></div>
+              <div class="field"><label for="favicon_url"><?= h(sblog_t('Favicon 地址')) ?></label><input id="favicon_url" name="favicon_url" value="<?= h(setting('favicon_url', 'logo.png')) ?>" placeholder="logo.png"><p class="field-hint"><?= h(sblog_t('默认使用项目根目录的 {file}，也可以填写完整图片 URL 或站内绝对路径。', ['file' => 'logo.png'])) ?></p></div>
               <div class="field">
-                <label for="footer_beian">备案号</label>
-                <input id="footer_beian" name="footer_beian" type="text" value="<?= h(setting('footer_beian')) ?>" placeholder="京 ICP 备 12345678 号">
+                <label for="footer_beian"><?= h(sblog_t('备案号')) ?></label>
+                <input id="footer_beian" name="footer_beian" type="text" value="<?= h(setting('footer_beian')) ?>" placeholder="<?= h(sblog_t('京 ICP 备 12345678 号')) ?>">
               </div>
               <div class="field">
-                <label for="posts_per_page">首页每页文章数</label>
+                <label for="posts_per_page"><?= h(sblog_t('首页每页文章数')) ?></label>
                 <input id="posts_per_page" name="posts_per_page" type="number" min="1" max="24" value="<?= h(setting('posts_per_page', '6')) ?>">
               </div>
               <fieldset class="field settings-field">
-                <legend>评论设置</legend>
+                <legend><?= h(sblog_t('评论设置')) ?></legend>
                 <div class="settings-option-list">
-                  <label class="setting-option"><input id="comments_enabled" name="comments_enabled" type="checkbox" value="1"<?= setting('comments_enabled', '1') === '1' ? ' checked' : '' ?>><span>允许访客提交评论</span></label>
-                  <label class="setting-option"><input name="comments_require_approval" type="checkbox" value="1"<?= setting('comments_require_approval', '1') === '1' ? ' checked' : '' ?>><span>访客首次留言需审核后展示（按邮箱判断）</span></label>
-                  <label class="setting-option"><input name="comments_notify" type="checkbox" value="1"<?= setting('comments_notify', '1') === '1' ? ' checked' : '' ?>><span>新评论显示后台提醒</span></label>
+                  <label class="setting-option"><input id="comments_enabled" name="comments_enabled" type="checkbox" value="1"<?= setting('comments_enabled', '1') === '1' ? ' checked' : '' ?>><span><?= h(sblog_t('允许访客提交评论')) ?></span></label>
+                  <label class="setting-option"><input name="comments_require_approval" type="checkbox" value="1"<?= setting('comments_require_approval', '1') === '1' ? ' checked' : '' ?>><span><?= h(sblog_t('访客首次留言需审核后展示（按邮箱判断）')) ?></span></label>
+                  <label class="setting-option"><input name="comments_notify" type="checkbox" value="1"<?= setting('comments_notify', '1') === '1' ? ' checked' : '' ?>><span><?= h(sblog_t('新评论显示后台提醒')) ?></span></label>
                 </div>
               </fieldset>
               <div class="field">
-                  <label for="pretty_url">伪静态 URL</label>
+                  <label for="pretty_url"><?= h(sblog_t('伪静态 URL')) ?></label>
                   <select id="pretty_url" name="pretty_url">
-                    <option value="0"<?= setting('pretty_url', '0') === '0' ? ' selected' : '' ?>>关闭</option>
-                    <option value="1"<?= setting('pretty_url', '0') === '1' ? ' selected' : '' ?>>开启</option>
+                    <option value="0"<?= setting('pretty_url', '0') === '0' ? ' selected' : '' ?>><?= h(sblog_t('关闭')) ?></option>
+                    <option value="1"<?= setting('pretty_url', '0') === '1' ? ' selected' : '' ?>><?= h(sblog_t('开启')) ?></option>
                   </select>
-                  <p class="field-hint">开启后文章链接会变成 `/archive/slug`，需要服务器 rewrite 支持。</p>
+                  <p class="field-hint"><?= h(sblog_t('开启后文章链接会变成 {path}，需要服务器 rewrite 支持。', ['path' => '/archive/slug'])) ?></p>
                   <div class="rewrite-help" data-rewrite-help<?= setting('pretty_url', '0') === '1' ? '' : ' hidden' ?>>
-                    <strong>Apache</strong>
-                    <p>启用 <code>mod_rewrite</code>，并为当前目录设置 <code>AllowOverride All</code>。项目根目录已有可直接使用的 <code>.htaccess</code>。</p>
-                    <strong>Nginx</strong>
+                    <strong><?= h(sblog_t('Apache')) ?></strong>
+                    <p><?= h(sblog_t('启用 {module}，并为当前目录设置 {setting}。项目根目录已有可直接使用的 {file}。', ['module' => 'mod_rewrite', 'setting' => 'AllowOverride All', 'file' => '.htaccess'])) ?></p>
+                    <strong><?= h(sblog_t('Nginx')) ?></strong>
                     <pre><code>location ^~ /data/ { deny all; }
 location ^~ /cache/ { deny all; }
 
 location / {
     try_files $uri $uri/ /index.php?$query_string;
 }</code></pre>
-                    <p>若博客安装在子目录，请把 <code>/index.php</code> 改为包含子目录的入口路径，例如 <code>/blog/index.php</code>。</p>
+                    <p><?= h(sblog_t('若博客安装在子目录，请把 {entry} 改为包含子目录的入口路径，例如 {example}。', ['entry' => '/index.php', 'example' => '/blog/index.php'])) ?></p>
                   </div>
               </div>
               <div class="field">
-                <label for="site_footer">页脚文案</label>
-                <input id="site_footer" name="site_footer" type="text" value="<?= h(setting('site_footer')) ?>" placeholder="支持 {year} 占位符">
+                <label for="site_footer"><?= h(sblog_t('页脚文案')) ?></label>
+                <input id="site_footer" name="site_footer" type="text" value="<?= h(setting('site_footer')) ?>" placeholder="<?= h(sblog_t('支持 {year} 占位符')) ?>">
               </div>
               <div class="field">
-                <label for="custom_head_code">Head 自定义代码</label>
+                <label for="custom_head_code"><?= h(sblog_t('Head 自定义代码')) ?></label>
                 <textarea id="custom_head_code" name="custom_head_code" rows="10" spellcheck="false" placeholder="&lt;script&gt;...&lt;/script&gt;"><?= h(setting('custom_head_code')) ?></textarea>
-                <p class="field-hint">原样插入前台页面的 &lt;/head&gt; 前，可用于统计脚本、meta 或 style；请仅使用可信代码。</p>
+                <p class="field-hint"><?= h(sblog_t('原样插入前台页面的 {closing_tag} 前，可用于统计脚本、{meta} 或 {style}；请仅使用可信代码。', ['closing_tag' => '</head>', 'meta' => 'meta', 'style' => 'style'])) ?></p>
               </div>
               <div class="action-row">
-                <button class="button" type="submit">保存设置</button>
+                <button class="button" type="submit"><?= h(sblog_t('保存设置')) ?></button>
               </div>
             </form>
           </div>
@@ -6296,10 +6802,10 @@ location / {
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout('站点设置', $content, [
+    render_layout(sblog_t('站点设置'), $content, [
         'active' => 'settings',
         'wide' => true,
-        'description' => '博客站点设置',
+        'description' => sblog_t('博客站点设置'),
     ]);
 }
 
@@ -6342,20 +6848,20 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
       <?= $sidebar ?>
 
       <div class="admin-main">
-        <?= render_admin_topbar($isEdit ? '编辑内容' : '撰写文章') ?>
+        <?= render_admin_topbar($isEdit ? sblog_t('编辑内容') : sblog_t('撰写文章')) ?>
 
         <section class="panel admin-masthead admin-masthead--compact admin-animate admin-animate--2">
           <div class="panel__body admin-masthead__body">
             <div class="admin-masthead__intro">
               <img class="admin-masthead__logo" src="<?= h(theme_logo_url()) ?>" width="72" height="72" alt="<?= h($siteName) ?>">
               <div class="admin-masthead__copy">
-                <p class="admin-masthead__eyebrow"><?= $isEdit ? 'Edit' : 'Write' ?></p>
-                <h1 class="admin-masthead__title"><?= $isEdit ? '编辑内容' : '撰写文章' ?></h1>
-                <p class="admin-masthead__lead">支持基础 Markdown，可创建文章或独立页面。</p>
+                <p class="admin-masthead__eyebrow"><?= h($isEdit ? sblog_t('编辑') : sblog_t('撰写')) ?></p>
+                <h1 class="admin-masthead__title"><?= h($isEdit ? sblog_t('编辑内容') : sblog_t('撰写文章')) ?></h1>
+                <p class="admin-masthead__lead"><?= h(sblog_t('支持基础 Markdown，可创建文章或独立页面。')) ?></p>
               </div>
             </div>
             <div class="admin-masthead__actions">
-              <a class="button button--secondary" href="<?= h(url_for('admin')) ?>">返回后台</a>
+              <a class="button button--secondary" href="<?= h(url_for('admin')) ?>"><?= h(sblog_t('返回后台')) ?></a>
             </div>
           </div>
         </section>
@@ -6364,122 +6870,122 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
           <div class="panel__body">
             <?php if ($errors): ?>
               <div class="flash flash--error">
-                <?= h(implode(' ', $errors)) ?>
+                <?= h(implode(' ', translated_admin_form_errors($errors))) ?>
               </div>
             <?php endif; ?>
 
             <form class="form-stack" method="post" action="<?= h($isEdit ? url_for('edit', ['id' => $existing['id']]) : url_for('write')) ?>">
               <?= csrf_field() ?>
               <div class="field">
-                <label for="title">标题</label>
+                <label for="title"><?= h(sblog_t('标题')) ?></label>
                 <input id="title" name="title" type="text" value="<?= h((string)$values['title']) ?>" required>
               </div>
 
               <div class="field-grid field-grid--quad">
                 <div class="field">
-                  <label for="kind">内容类型</label>
+                  <label for="kind"><?= h(sblog_t('内容类型')) ?></label>
                   <select id="kind" name="kind">
-                    <option value="post"<?= (string)$values['kind'] === 'post' ? ' selected' : '' ?>>文章</option>
-                    <option value="page"<?= (string)$values['kind'] === 'page' ? ' selected' : '' ?>>独立页面</option>
+                    <option value="post"<?= (string)$values['kind'] === 'post' ? ' selected' : '' ?>><?= h(sblog_t('文章')) ?></option>
+                    <option value="page"<?= (string)$values['kind'] === 'page' ? ' selected' : '' ?>><?= h(sblog_t('独立页面')) ?></option>
                   </select>
                 </div>
                 <div class="field">
-                  <div class="field-label-row"><label for="slug">Slug</label><?= $editorActions['slug'] ?></div>
-                  <input id="slug" name="slug" type="text" value="<?= h((string)$values['slug']) ?>" placeholder="留空将自动生成">
+                  <div class="field-label-row"><label for="slug"><?= h(sblog_t('Slug')) ?></label><?= $editorActions['slug'] ?></div>
+                  <input id="slug" name="slug" type="text" value="<?= h((string)$values['slug']) ?>" placeholder="<?= h(sblog_t('留空将自动生成')) ?>">
                 </div>
                 <div class="field">
-                  <label for="category_id">分类</label>
+                  <label for="category_id"><?= h(sblog_t('分类')) ?></label>
                   <select id="category_id" name="category_id" required>
-                    <option value="" disabled>请选择分类</option>
+                    <option value="" disabled><?= h(sblog_t('请选择分类')) ?></option>
                     <?php foreach ($categories as $category): ?>
                       <option value="<?= h($category['id']) ?>"<?= (string)$values['category_id'] === (string)$category['id'] ? ' selected' : '' ?>><?= h($category['name']) ?></option>
                     <?php endforeach; ?>
                   </select>
                 </div>
                 <div class="field">
-                  <label for="published_at">发布时间</label>
+                  <label for="published_at"><?= h(sblog_t('发布时间')) ?></label>
                   <input id="published_at" name="published_at" type="datetime-local" value="<?= h((string)$values['published_at']) ?>">
                 </div>
               </div>
 
               <div class="field">
-                <label for="tags_input">标签</label>
-                <input id="tags_input" name="tags_input" type="text" value="<?= h((string)$values['tags_input']) ?>" placeholder="用逗号分隔，例如 PHP, SQLite, 随笔">
-                <p class="field-hint">独立页面可以留空，文章会用这些标签生成聚合页。</p>
+                <label for="tags_input"><?= h(sblog_t('标签')) ?></label>
+                <input id="tags_input" name="tags_input" type="text" value="<?= h((string)$values['tags_input']) ?>" placeholder="<?= h(sblog_t('用逗号分隔，例如 PHP, SQLite, 随笔')) ?>">
+                <p class="field-hint"><?= h(sblog_t('独立页面可以留空，文章会用这些标签生成聚合页。')) ?></p>
               </div>
 
               <div class="field">
-                <div class="field-label-row"><label for="excerpt">摘要</label><?= $editorActions['excerpt'] ?></div>
-                <textarea id="excerpt" name="excerpt" rows="3" placeholder="留空将自动从正文截取"><?= h((string)$values['excerpt']) ?></textarea>
+                <div class="field-label-row"><label for="excerpt"><?= h(sblog_t('摘要')) ?></label><?= $editorActions['excerpt'] ?></div>
+                <textarea id="excerpt" name="excerpt" rows="3" placeholder="<?= h(sblog_t('留空将自动从正文截取')) ?>"><?= h((string)$values['excerpt']) ?></textarea>
               </div>
 
               <div class="field">
-                <label for="status">状态</label>
+                <label for="status"><?= h(sblog_t('状态')) ?></label>
                 <select id="status" name="status">
-                  <option value="draft"<?= (string)$values['status'] === 'draft' ? ' selected' : '' ?>>草稿</option>
-                  <option value="published"<?= (string)$values['status'] === 'published' ? ' selected' : '' ?>>发布</option>
+                  <option value="draft"<?= (string)$values['status'] === 'draft' ? ' selected' : '' ?>><?= h(sblog_t('草稿')) ?></option>
+                  <option value="published"<?= (string)$values['status'] === 'published' ? ' selected' : '' ?>><?= h(sblog_t('发布')) ?></option>
                 </select>
-                <p class="field-hint">如果发布时间晚于当前时间，前台会按定时发布处理。</p>
+                <p class="field-hint"><?= h(sblog_t('如果发布时间晚于当前时间，前台会按定时发布处理。')) ?></p>
               </div>
 
               <label class="pin-option" for="is_pinned">
                 <input id="is_pinned" name="is_pinned" type="checkbox" value="1"<?= (string)$values['is_pinned'] === '1' ? ' checked' : '' ?>>
-                <span><strong>置顶文章</strong><small>发布后优先显示在前端文章列表顶部，仅对文章生效。</small></span>
+                <span><strong><?= h(sblog_t('置顶文章')) ?></strong><small><?= h(sblog_t('发布后优先显示在前端文章列表顶部，仅对文章生效。')) ?></small></span>
               </label>
 
               <label class="pin-option page-comments-option" for="allow_comments">
                 <input id="allow_comments" name="allow_comments" type="checkbox" value="1"<?= (string)$values['allow_comments'] === '1' ? ' checked' : '' ?>>
-                <span><strong>显示评论</strong><small>仅对独立页面生效。</small></span>
+                <span><strong><?= h(sblog_t('显示评论')) ?></strong><small><?= h(sblog_t('仅对独立页面生效。')) ?></small></span>
               </label>
 
               <div class="field">
-                <div class="field-label-row"><label for="content">正文</label><?= $editorActions['content'] ?></div>
+                <div class="field-label-row"><label for="content"><?= h(sblog_t('正文')) ?></label><?= $editorActions['content'] ?></div>
                 <div class="markdown-editor" data-markdown-editor>
-                  <div class="markdown-toolbar" role="toolbar" aria-label="Markdown 格式工具栏">
-                    <label class="sr-only" for="markdown-heading">标题级别</label>
-                    <select id="markdown-heading" class="markdown-toolbar__heading" data-markdown-heading title="标题级别" aria-label="标题级别">
-                      <option value="">标题</option>
-                      <option value="1">一级标题</option>
-                      <option value="2">二级标题</option>
-                      <option value="3">三级标题</option>
+                  <div class="markdown-toolbar" role="toolbar" aria-label="<?= h(sblog_t('Markdown 格式工具栏')) ?>">
+                    <label class="sr-only" for="markdown-heading"><?= h(sblog_t('标题级别')) ?></label>
+                    <select id="markdown-heading" class="markdown-toolbar__heading" data-markdown-heading title="<?= h(sblog_t('标题级别')) ?>" aria-label="<?= h(sblog_t('标题级别')) ?>">
+                      <option value=""><?= h(sblog_t('标题')) ?></option>
+                      <option value="1"><?= h(sblog_t('一级标题')) ?></option>
+                      <option value="2"><?= h(sblog_t('二级标题')) ?></option>
+                      <option value="3"><?= h(sblog_t('三级标题')) ?></option>
                     </select>
                     <span class="markdown-toolbar__separator" aria-hidden="true"></span>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="bold" aria-label="加粗" aria-keyshortcuts="Control+B Meta+B" title="加粗 (Ctrl/Cmd+B)"><strong aria-hidden="true">B</strong></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="italic" aria-label="斜体" aria-keyshortcuts="Control+I Meta+I" title="斜体 (Ctrl/Cmd+I)"><em aria-hidden="true">I</em></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="strike" aria-label="删除线" title="删除线"><span class="markdown-toolbar__strike" aria-hidden="true">S</span></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="inline-code" aria-label="行内代码" title="行内代码"><span class="markdown-toolbar__code" aria-hidden="true">&lt;/&gt;</span></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="bold" aria-label="<?= h(sblog_t('加粗')) ?>" aria-keyshortcuts="Control+B Meta+B" title="<?= h(sblog_t('加粗 (Ctrl/Cmd+B)')) ?>"><strong aria-hidden="true">B</strong></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="italic" aria-label="<?= h(sblog_t('斜体')) ?>" aria-keyshortcuts="Control+I Meta+I" title="<?= h(sblog_t('斜体 (Ctrl/Cmd+I)')) ?>"><em aria-hidden="true">I</em></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="strike" aria-label="<?= h(sblog_t('删除线')) ?>" title="<?= h(sblog_t('删除线')) ?>"><span class="markdown-toolbar__strike" aria-hidden="true">S</span></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="inline-code" aria-label="<?= h(sblog_t('行内代码')) ?>" title="<?= h(sblog_t('行内代码')) ?>"><span class="markdown-toolbar__code" aria-hidden="true">&lt;/&gt;</span></button>
                     <span class="markdown-toolbar__separator" aria-hidden="true"></span>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="quote" aria-label="引用" title="引用"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21c3 0 7-1 7-8V5c0-1.2-.8-2-2-2H4C2.8 3 2 3.8 2 5v6c0 1.2.8 2 2 2h3c0 3-1 5-4 6v2Zm11 0c3 0 7-1 7-8V5c0-1.2-.8-2-2-2h-4c-1.2 0-2 .8-2 2v6c0 1.2.8 2 2 2h3c0 3-1 5-4 6v2Z"/></svg></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="unordered-list" aria-label="无序列表" title="无序列表"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="ordered-list" aria-label="有序列表" title="有序列表"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6h11M10 12h11M10 18h11M4 6h1V3L3 4M3 11h2l-2 3h2M3 17h2l-2 2h2"/></svg></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="task-list" aria-label="任务列表" title="任务列表"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6h10M11 12h10M11 18h10M3 6l1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="quote" aria-label="<?= h(sblog_t('引用')) ?>" title="<?= h(sblog_t('引用')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21c3 0 7-1 7-8V5c0-1.2-.8-2-2-2H4C2.8 3 2 3.8 2 5v6c0 1.2.8 2 2 2h3c0 3-1 5-4 6v2Zm11 0c3 0 7-1 7-8V5c0-1.2-.8-2-2-2h-4c-1.2 0-2 .8-2 2v6c0 1.2.8 2 2 2h3c0 3-1 5-4 6v2Z"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="unordered-list" aria-label="<?= h(sblog_t('无序列表')) ?>" title="<?= h(sblog_t('无序列表')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="ordered-list" aria-label="<?= h(sblog_t('有序列表')) ?>" title="<?= h(sblog_t('有序列表')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6h11M10 12h11M10 18h11M4 6h1V3L3 4M3 11h2l-2 3h2M3 17h2l-2 2h2"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="task-list" aria-label="<?= h(sblog_t('任务列表')) ?>" title="<?= h(sblog_t('任务列表')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6h10M11 12h10M11 18h10M3 6l1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/></svg></button>
                     <span class="markdown-toolbar__separator" aria-hidden="true"></span>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="link" aria-label="插入链接" aria-keyshortcuts="Control+K Meta+K" title="链接 (Ctrl/Cmd+K)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/></svg></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="image" aria-label="插入图片" title="图片"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="table" aria-label="插入表格" title="表格"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14M16 5v14"/></svg></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="code-block" aria-label="代码块" title="代码块"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3m8-6 3 3-3 3m-2-9-4 12"/></svg></button>
-                    <button class="markdown-toolbar__button" type="button" data-markdown-action="horizontal-rule" aria-label="分隔线" title="分隔线"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="link" aria-label="<?= h(sblog_t('插入链接')) ?>" aria-keyshortcuts="Control+K Meta+K" title="<?= h(sblog_t('链接 (Ctrl/Cmd+K)')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="image" aria-label="<?= h(sblog_t('插入图片')) ?>" title="<?= h(sblog_t('图片')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="table" aria-label="<?= h(sblog_t('插入表格')) ?>" title="<?= h(sblog_t('表格')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14M16 5v14"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="code-block" aria-label="<?= h(sblog_t('代码块')) ?>" title="<?= h(sblog_t('代码块')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3m8-6 3 3-3 3m-2-9-4 12"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="horizontal-rule" aria-label="<?= h(sblog_t('分隔线')) ?>" title="<?= h(sblog_t('分隔线')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
                   </div>
                   <textarea id="content" class="editor-textarea" name="content" rows="18" spellcheck="true" required><?= h((string)$values['content']) ?></textarea>
-                  <div class="markdown-editor__status"><span>Markdown</span><span data-markdown-count aria-live="polite">0 字符</span></div>
+                  <div class="markdown-editor__status"><span><?= h(sblog_t('Markdown')) ?></span><span data-markdown-count aria-live="polite"><?= h(sblog_tn('{count} 个字符', 0)) ?></span></div>
                 </div>
-                <p class="field-hint">支持 Markdown；将网易云音乐、哔哩哔哩、YouTube 或豆瓣链接单独放在一段可自动解析。</p>
+                <p class="field-hint"><?= h(sblog_t('支持 Markdown；将网易云音乐、哔哩哔哩、YouTube 或豆瓣链接单独放在一段可自动解析。')) ?></p>
               </div>
 
               <div class="field">
-                <label for="attachmentInput">上传附件</label>
+                <label for="attachmentInput"><?= h(sblog_t('上传附件')) ?></label>
                 <div class="attachment-uploader" data-upload-url="<?= h(url_for('upload_attachment')) ?>" data-csrf="<?= h(csrf_token()) ?>">
                   <input id="attachmentInput" class="attachment-input" type="file" name="attachments[]" multiple>
                   <label class="attachment-drop" for="attachmentInput">
-                    <span class="attachment-drop__title">选择或拖入附件</span>
-                    <span class="attachment-drop__hint">可同时上传多个附件，每个最大 30M；图片上传完成后显示缩略图并插入 Markdown。</span>
+                    <span class="attachment-drop__title"><?= h(sblog_t('选择或拖入附件')) ?></span>
+                    <span class="attachment-drop__hint"><?= h(sblog_t('可同时上传多个附件，每个最大 30M；图片上传完成后显示缩略图并插入 Markdown。')) ?></span>
                   </label>
                   <div class="attachment-list" aria-live="polite"></div>
                 </div>
               </div>
 
               <div class="action-row">
-                <button class="button" type="submit"><?= $isEdit ? '保存修改' : '创建文章' ?></button>
+                <button class="button" type="submit"><?= h($isEdit ? sblog_t('保存修改') : sblog_t('创建文章')) ?></button>
               </div>
             </form>
             <?= $afterFormHtml ?>
@@ -6490,10 +6996,10 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout($isEdit ? '编辑文章' : '写新文章', $content, [
+    render_layout($isEdit ? sblog_t('编辑文章') : sblog_t('写新文章'), $content, [
         'active' => $isEdit ? 'edit' : 'write',
         'wide' => true,
-        'description' => '博客文章编辑器',
+        'description' => sblog_t('博客文章编辑器'),
     ]);
 }
 
@@ -6507,7 +7013,7 @@ ob_start('plugin_output_buffer');
 apply_pretty_route();
 
 if (($_GET['__route_not_found'] ?? '') === '1') {
-    simple_error_page('页面不存在', '你访问的地址没有匹配到任何页面。', 404);
+    simple_error_page(sblog_t('页面不存在'), sblog_t('你访问的地址没有匹配到任何页面。'), 404);
 }
 
 $action = (string)plugin_filter('route_action', (string)($_GET['a'] ?? 'home'), ['request' => $_REQUEST]);
@@ -6562,11 +7068,11 @@ switch ($action) {
             [$postId, 'published', time()]
         );
         if (!$post || !content_allows_comments($post)) {
-            simple_error_page('文章不存在', '这篇文章当前无法接收评论。', 404);
+            simple_error_page(sblog_t('文章不存在'), sblog_t('这篇文章当前无法接收评论。'), 404);
         }
         $returnUrl = content_permalink($post) . '#comments';
         if (setting('comments_enabled', '1') !== '1') {
-            set_comment_notice($postId, 'error', '评论功能当前已关闭。');
+            set_comment_notice($postId, 'error', sblog_t('评论功能当前已关闭。'));
             redirect_to($returnUrl);
         }
         $authenticatedIdentity = authenticated_comment_identity();
@@ -6583,7 +7089,7 @@ switch ($action) {
         }
         if (trim((string)($_POST['company'] ?? '')) !== '') {
             forget_comment_form($postId, $startedAt);
-            set_comment_notice($postId, 'success', '评论已提交，审核通过后会显示。');
+            set_comment_notice($postId, 'success', sblog_t('评论已提交，审核通过后会显示。'));
             redirect_to($returnUrl);
         }
 
@@ -6718,7 +7224,11 @@ switch ($action) {
                 'author_url' => $comment['author_url'],
             ];
         }
-        set_comment_notice($postId, 'success', $status === 'approved' ? '评论已发布。' : '评论已提交，审核通过后会显示。');
+        set_comment_notice(
+            $postId,
+            'success',
+            $status === 'approved' ? sblog_t('评论已发布。') : sblog_t('评论已提交，审核通过后会显示。')
+        );
         redirect_to($returnUrl);
         break;
 
@@ -6726,7 +7236,7 @@ switch ($action) {
         $slug = trim((string)($_GET['slug'] ?? $_GET['id'] ?? ''));
         $post = fetch_post_by_identifier($slug, is_admin());
         if (!$post) {
-            simple_error_page('文章不存在', '可能还未发布，或者链接已经失效。', 404);
+            simple_error_page(sblog_t('文章不存在'), sblog_t('可能还未发布，或者链接已经失效。'), 404);
         }
         render_post_page($post);
         break;
@@ -6735,7 +7245,7 @@ switch ($action) {
         $slug = trim((string)($_GET['slug'] ?? $_GET['id'] ?? ''));
         $page = fetch_page_by_identifier($slug, is_admin());
         if (!$page) {
-            simple_error_page('页面不存在', '可能还未发布，或者链接已经失效。', 404);
+            simple_error_page(sblog_t('页面不存在'), sblog_t('可能还未发布，或者链接已经失效。'), 404);
         }
         render_page_view($page);
         break;
@@ -6749,13 +7259,13 @@ switch ($action) {
             verify_csrf();
             $rate = password_reset_rate_state();
             if ((int)$rate['count'] >= 3) {
-                render_forgot_password_page('', '重置请求过于频繁，请 15 分钟后再试。');
+                render_forgot_password_page('', sblog_t('重置请求过于频繁，请 15 分钟后再试。'));
             }
             password_reset_rate_state(true);
 
             $account = trim((string)($_POST['account'] ?? ''));
             if ($account === '') {
-                render_forgot_password_page('', '请填写用户名或邮箱。', ['account' => $account]);
+                render_forgot_password_page('', sblog_t('请填写用户名或邮箱。'), ['account' => $account]);
             }
 
             $user = one(
@@ -6768,7 +7278,7 @@ switch ($action) {
                 send_password_reset_notice($user, $token, $expiresAt);
             }
 
-            render_forgot_password_page('如果账号存在，重置链接已经生成。请检查管理员邮箱；若服务器未配置发信，请查看 cache 目录中的 password-reset 文件。');
+            render_forgot_password_page(sblog_t('如果账号存在，重置链接已经生成。请检查管理员邮箱；若服务器未配置发信，请查看 cache 目录中的 password-reset 文件。'));
         }
 
         render_forgot_password_page();
@@ -6782,7 +7292,7 @@ switch ($action) {
         $token = trim((string)($_POST['token'] ?? $_GET['token'] ?? ''));
         $reset = password_reset_by_token($token);
         if (!$reset) {
-            render_forgot_password_page('', '重置链接无效或已过期，请重新申请。');
+            render_forgot_password_page('', sblog_t('重置链接无效或已过期，请重新申请。'));
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -6791,17 +7301,17 @@ switch ($action) {
             $confirm = (string)($_POST['password_confirm'] ?? '');
 
             if (strlen($password) < 8) {
-                render_reset_password_page($token, '新密码至少需要 8 个字符。');
+                render_reset_password_page($token, sblog_t('新密码至少需要 8 个字符。'));
             }
             if ($password !== $confirm) {
-                render_reset_password_page($token, '两次输入的密码不一致。');
+                render_reset_password_page($token, sblog_t('两次输入的密码不一致。'));
             }
 
             $now = time();
             q('UPDATE users SET password_hash = ? WHERE id = ?', [password_hash($password, PASSWORD_DEFAULT), (int)$reset['user_id']]);
             q('UPDATE password_resets SET used_at = ? WHERE id = ?', [$now, (int)$reset['id']]);
             q('UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at = 0', [$now, (int)$reset['user_id']]);
-            set_flash('success', '密码已更新，请使用新密码登录。');
+            set_flash('success', sblog_t('密码已更新，请使用新密码登录。'));
             redirect_to(url_for('login'));
         }
 
@@ -6817,7 +7327,7 @@ switch ($action) {
             verify_csrf();
             $rate = login_rate_state();
             if ((int)$rate['count'] >= 5) {
-                render_login_page('登录尝试过多，请 15 分钟后再试。');
+                render_login_page(sblog_t('登录尝试过多，请 15 分钟后再试。'));
             }
             $username = trim((string)($_POST['username'] ?? ''));
             $password = (string)($_POST['password'] ?? '');
@@ -6825,7 +7335,7 @@ switch ($action) {
 
             if (!$user || !password_verify($password, (string)$user['password_hash'])) {
                 login_rate_state(true);
-                render_login_page('用户名或密码不正确。', ['username' => $username]);
+                render_login_page(sblog_t('用户名或密码不正确。'), ['username' => $username]);
             }
 
             login_rate_state(false, true);
@@ -6837,7 +7347,7 @@ switch ($action) {
             $_SESSION['admin_last_seen_at'] = $now;
             $_SESSION['admin_password_fingerprint'] = hash('sha256', (string)$user['password_hash']);
             update_admin_presence((int)$user['id']);
-            set_flash('success', '已登录后台。');
+            set_flash('success', sblog_t('已登录后台。'));
             redirect_to(url_for('admin'));
         }
 
@@ -6851,21 +7361,21 @@ switch ($action) {
         break;
 
     case 'admin':
-        $flash = $_SESSION['flash'] ?? null;
-        $justUpdated = is_array($flash)
-            && (string)($flash['type'] ?? '') === 'success'
-            && str_starts_with((string)($flash['message'] ?? ''), '已更新到 ');
-        if (is_admin() && $justUpdated && bundled_release_files_missing()) {
+        $justUpdated = is_admin() && !empty($_SESSION['sblog_release_updated']);
+        if ($justUpdated) {
+            unset($_SESSION['sblog_release_updated']);
+        }
+        if ($justUpdated && bundled_release_files_missing()) {
             try {
                 $update = github_update_info(true);
                 if (!empty($update['repair'])) {
                     $version = install_github_update($update);
-                    set_flash('success', '已更新到 ' . $version . '，并已同步内置主题和插件。');
+                    set_flash('success', sblog_t('已更新到 {version}，并已同步内置主题和插件。', ['version' => $version]));
                 } elseif ((string)($update['error'] ?? '') !== '') {
                     throw new RuntimeException((string)$update['error']);
                 }
             } catch (Throwable $exception) {
-                set_flash('error', '程序已更新，但内置主题和插件同步失败：' . $exception->getMessage());
+                set_flash('error', sblog_t('程序已更新，但内置主题和插件同步失败：{error}', ['error' => $exception->getMessage()]));
             }
         }
         render_admin_page();
@@ -6877,9 +7387,17 @@ switch ($action) {
             $update = github_update_info(true);
             $isRepair = !empty($update['repair']);
             $version = install_github_update($update);
-            set_flash('success', $isRepair ? '内置主题和插件已同步。' : '已更新到 ' . $version . '。如版本包含数据库变更，请继续访问 update.php。');
+            if (!$isRepair) {
+                $_SESSION['sblog_release_updated'] = true;
+            }
+            set_flash(
+                'success',
+                $isRepair
+                    ? sblog_t('内置主题和插件已同步。')
+                    : sblog_t('已更新到 {version}。如版本包含数据库变更，请继续访问 update.php。', ['version' => $version])
+            );
         } catch (Throwable $exception) {
-            set_flash('error', '更新失败：' . $exception->getMessage());
+            set_flash('error', sblog_t('更新失败：{error}', ['error' => $exception->getMessage()]));
         }
         redirect_to(url_for('admin'));
         break;
@@ -6889,13 +7407,13 @@ switch ($action) {
         $update = github_update_info(true);
         $updateError = trim((string)($update['error'] ?? ''));
         if ($updateError !== '') {
-            set_flash('error', '检测更新失败：' . $updateError);
+            set_flash('error', sblog_t('检测更新失败：{error}', ['error' => $updateError]));
         } elseif (!empty($update['available'])) {
-            set_flash('success', '发现新版本 ' . (string)$update['latest'] . '，可点击“立即更新”完成升级。');
+            set_flash('success', sblog_t('发现新版本 {version}，可点击“立即更新”完成升级。', ['version' => (string)$update['latest']]));
         } elseif (!empty($update['repair'])) {
-            set_flash('success', '当前版本已是最新，但内置主题或插件需要补全。');
+            set_flash('success', sblog_t('当前版本已是最新，但内置主题或插件需要补全。'));
         } else {
-            set_flash('success', '暂无更新，当前已是最新版本 ' . APP_VERSION . '。');
+            set_flash('success', sblog_t('暂无更新，当前已是最新版本 {version}。', ['version' => APP_VERSION]));
         }
         redirect_to(url_for('admin'));
         break;
@@ -6946,7 +7464,7 @@ switch ($action) {
         $operation = (string)($_POST['operation'] ?? '');
         $plugins = available_plugins();
         if (!isset($plugins[$slug]) || !in_array($operation, ['activate', 'deactivate'], true)) {
-            set_flash('error', '插件不存在或操作无效。');
+            set_flash('error', sblog_t('插件不存在或操作无效。'));
             redirect_to(url_for('admin_plugins'));
         }
         $activePlugins = active_plugin_slugs(true);
@@ -6961,7 +7479,7 @@ switch ($action) {
         }
         save_active_plugins($activePlugins);
         plugin_action('plugin_status_changed', ['plugin' => $slug, 'operation' => $operation]);
-        set_flash('success', $operation === 'activate' ? '插件已启用。' : '插件已停用。');
+        set_flash('success', $operation === 'activate' ? sblog_t('插件已启用。') : sblog_t('插件已停用。'));
         redirect_to(url_with_query(url_for('admin_plugins'), ['changed' => bin2hex(random_bytes(4))]), 303);
         break;
 
@@ -6970,12 +7488,12 @@ switch ($action) {
         $mediaId = max(0, (int)($_POST['id'] ?? 0));
         $media = $mediaId > 0 ? one('SELECT * FROM media WHERE id = ?', [$mediaId]) : null;
         if (!$media) {
-            set_flash('error', '找不到媒体资料。');
+            set_flash('error', sblog_t('找不到媒体资料。'));
             redirect_to(url_for('admin_media'));
         }
         $title = trim((string)($_POST['title'] ?? ''));
         if ($title === '') {
-            set_flash('error', '媒体标题不能为空。');
+            set_flash('error', sblog_t('媒体标题不能为空。'));
             redirect_to(url_with_query(url_for('admin_media'), ['id' => $mediaId]) . '#media-editor');
         }
         q('UPDATE media SET title = ?, alt_text = ?, caption = ?, updated_at = ? WHERE id = ?', [
@@ -6984,7 +7502,7 @@ switch ($action) {
             str_sub_u(trim((string)($_POST['caption'] ?? '')), 0, 2000),
             time(), $mediaId,
         ]);
-        set_flash('success', '媒体资料已更新。');
+        set_flash('success', sblog_t('媒体资料已更新。'));
         redirect_to(url_for('admin_media'));
         break;
 
@@ -6993,16 +7511,16 @@ switch ($action) {
         $mediaId = max(0, (int)($_POST['id'] ?? 0));
         $media = $mediaId > 0 ? one('SELECT * FROM media WHERE id = ?', [$mediaId]) : null;
         if (!$media) {
-            set_flash('error', '找不到媒体资料。');
+            set_flash('error', sblog_t('找不到媒体资料。'));
             redirect_to(url_for('admin_media'));
         }
         $deleted = delete_media_storage($media);
         if (empty($deleted['ok'])) {
-            set_flash('error', (string)($deleted['error'] ?? '删除媒体资料失败。'));
+            set_flash('error', (string)($deleted['error'] ?? sblog_t('删除媒体资料失败。')));
             redirect_to(url_for('admin_media'));
         }
         q('DELETE FROM media WHERE id = ?', [$mediaId]);
-        set_flash('success', '媒体资料已删除。');
+        set_flash('success', sblog_t('媒体资料已删除。'));
         redirect_to(url_for('admin_media'));
         break;
 
@@ -7012,16 +7530,16 @@ switch ($action) {
         $acceptsJson = str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
         if (!array_key_exists($themeSlug, available_themes())) {
             if ($acceptsJson) {
-                json_response(['ok' => false, 'error' => '所选主题不存在或 theme.json 无效。'], 422);
+                json_response(['ok' => false, 'error' => sblog_t('所选主题不存在或 theme.json 无效。')], 422);
             }
-            set_flash('error', '所选主题不存在或 theme.json 无效。');
+            set_flash('error', sblog_t('所选主题不存在或 theme.json 无效。'));
             redirect_to(url_for('admin_themes'));
         }
         save_settings(['active_theme' => $themeSlug]);
         if ($acceptsJson) {
             json_response(['ok' => true, 'active_theme' => $themeSlug]);
         }
-        set_flash('success', '主题已启用。');
+        set_flash('success', sblog_t('主题已启用。'));
         redirect_to(url_with_query(url_for('admin_themes'), ['changed' => bin2hex(random_bytes(4))]), 303);
         break;
 
@@ -7046,7 +7564,7 @@ switch ($action) {
             'site_footer' => trim((string)($_POST['site_footer'] ?? '')),
             'custom_head_code' => trim((string)($_POST['custom_head_code'] ?? '')),
         ]);
-        set_flash('success', '站点设置已更新。');
+        set_flash('success', sblog_t('站点设置已更新。'));
         redirect_to(url_for('admin_settings'));
         break;
 
@@ -7056,7 +7574,7 @@ switch ($action) {
         $search = trim((string)($_POST['q'] ?? ''));
         $page = max(1, (int)($_POST['p'] ?? 1));
         $updated = q('UPDATE comments SET is_read = 1, updated_at = ? WHERE is_read = 0', [time()])->rowCount();
-        set_flash('success', $updated > 0 ? '所有评论通知已标为已读。' : '当前没有未读评论。');
+        set_flash('success', $updated > 0 ? sblog_t('所有评论通知已标为已读。') : sblog_t('当前没有未读评论。'));
         redirect_to(admin_comments_url($filter, $search, $page));
         break;
 
@@ -7072,18 +7590,18 @@ switch ($action) {
         if ($singleId > 0) { $ids = [$singleId]; }
         $ids = positive_int_ids($ids);
         if (!in_array($action, ['approve', 'pending', 'spam', 'read', 'delete'], true) || $ids === []) {
-            set_flash('error', $ids === [] ? '请先选择评论。' : '未知的评论操作。');
+            set_flash('error', $ids === [] ? sblog_t('请先选择评论。') : sblog_t('未知的评论操作。'));
             redirect_to($returnUrl);
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         if ($action === 'delete') {
             $affected = q("DELETE FROM comments WHERE id IN ({$placeholders})", $ids)->rowCount();
-            $message = '已删除 ' . $affected . ' 条评论。';
+            $message = sblog_tn('已删除 {count} 条评论。', $affected);
         } elseif ($action === 'read') {
             $params = array_merge([time()], $ids);
             $affected = q("UPDATE comments SET is_read = 1, updated_at = ? WHERE id IN ({$placeholders})", $params)->rowCount();
-            $message = '已将 ' . $affected . ' 条评论标为已读。';
+            $message = sblog_tn('已将 {count} 条评论标为已读。', $affected);
         } else {
             $status = ['approve' => 'approved', 'pending' => 'pending', 'spam' => 'spam'][$action];
             $params = array_merge([$status, time()], $ids);
@@ -7092,9 +7610,9 @@ switch ($action) {
                 send_approved_reply_notices($ids);
             }
             $message = match ($status) {
-                'approved' => '已通过 ' . $affected . ' 条评论。',
-                'spam' => '已将 ' . $affected . ' 条评论标记为垃圾。',
-                default => '已将 ' . $affected . ' 条评论转为待审核。',
+                'approved' => sblog_tn('已通过 {count} 条评论。', $affected),
+                'spam' => sblog_tn('已将 {count} 条评论标记为垃圾。', $affected),
+                default => sblog_tn('已将 {count} 条评论转为待审核。', $affected),
             };
         }
         set_flash('success', $message);
@@ -7120,14 +7638,14 @@ switch ($action) {
                 'UPDATE categories SET name = ?, slug = ?, description = ?, sort_order = ?, updated_at = ? WHERE id = ?',
                 [$data['name'], $data['slug'], $data['description'], $data['sort_order'], time(), $id]
             );
-            set_flash('success', '分类已保存。');
+            set_flash('success', sblog_t('分类已保存。'));
         } else {
             $now = time();
             q(
                 'INSERT INTO categories(name, slug, description, sort_order, created_at, updated_at) VALUES(?,?,?,?,?,?)',
                 [$data['name'], $data['slug'], $data['description'], $data['sort_order'], $now, $now]
             );
-            set_flash('success', '分类已创建。');
+            set_flash('success', sblog_t('分类已创建。'));
         }
         redirect_to(url_for('admin_categories'));
         break;
@@ -7138,12 +7656,12 @@ switch ($action) {
         if ($id > 0) {
             $postCount = (int)val('SELECT COUNT(*) FROM posts WHERE kind = ? AND category_id = ?', ['post', $id]);
             if ($postCount > 0) {
-                set_flash('error', '该分类下仍有文章，请先将文章移动到其他分类。');
+                set_flash('error', sblog_t('该分类下仍有文章，请先将文章移动到其他分类。'));
                 redirect_to(url_for('admin_categories'));
             }
             q('DELETE FROM categories WHERE id = ?', [$id]);
         }
-        set_flash('success', '分类已删除。');
+        set_flash('success', sblog_t('分类已删除。'));
         redirect_to(url_for('admin_categories'));
         break;
 
@@ -7162,11 +7680,11 @@ switch ($action) {
         if ($errors) { render_admin_links_page(['id' => (string)$id, 'name' => $name, 'url' => $url, 'icon_url' => $iconUrl, 'description' => $description, 'sort_order' => (string)$sortOrder], $errors); }
         if ($id > 0 && one('SELECT id FROM links WHERE id = ?', [$id])) {
             q('UPDATE links SET name = ?, url = ?, icon_url = ?, description = ?, sort_order = ?, updated_at = ? WHERE id = ?', [$name, $url, $iconUrl, $description, $sortOrder, time(), $id]);
-            set_flash('success', '链接已更新。');
+            set_flash('success', sblog_t('链接已更新。'));
         } else {
             $now = time();
             q('INSERT INTO links(name, url, icon_url, description, sort_order, created_at, updated_at) VALUES(?,?,?,?,?,?,?)', [$name, $url, $iconUrl, $description, $sortOrder, $now, $now]);
-            set_flash('success', '链接已添加。');
+            set_flash('success', sblog_t('链接已添加。'));
         }
         redirect_to(url_for('admin_links'));
         break;
@@ -7185,7 +7703,7 @@ switch ($action) {
         if (str_lower_u($oldTag) !== str_lower_u($newTag)) { replace_tag_everywhere($oldTag, $newTag); }
         q('DELETE FROM tag_meta WHERE label = ?', [$oldTag]);
         q('INSERT OR REPLACE INTO tag_meta(label, slug, updated_at) VALUES(?,?,?)', [$newTag, $tagSlug, time()]);
-        set_flash('success', '标签名称和 Slug 已更新。');
+        set_flash('success', sblog_t('标签名称和 Slug 已更新。'));
         redirect_to(url_for('admin_tags'));
         break;
 
@@ -7198,14 +7716,14 @@ switch ($action) {
             replace_tag_everywhere($tag, null);
             q('DELETE FROM tag_meta WHERE label = ?', [$tag]);
         }
-        set_flash('success', $selected ? '所选标签已移除，文章内容保持不变。' : '请先选择需要删除的标签。');
+        set_flash('success', $selected ? sblog_t('所选标签已移除，文章内容保持不变。') : sblog_t('请先选择需要删除的标签。'));
         redirect_to(url_for('admin_tags'));
         break;
 
     case 'delete_link':
         require_admin_post(url_for('admin_links'));
         q('DELETE FROM links WHERE id = ?', [(int)($_POST['id'] ?? 0)]);
-        set_flash('success', '链接已删除。');
+        set_flash('success', sblog_t('链接已删除。'));
         redirect_to(url_for('admin_links'));
         break;
 
@@ -7231,7 +7749,7 @@ switch ($action) {
         foreach (social_profile_definitions() as $definition) {
             $url = $socialProfiles[$definition['column']];
             if ($url !== '' && (strlen($url) > 300 || !preg_match('#^https?://#i', $url) || !filter_var($url, FILTER_VALIDATE_URL))) {
-                $errors[] = $definition['label'] . '链接格式不正确。';
+                $errors[] = (string)($definition['source_label'] ?? $definition['label']) . '链接格式不正确。';
             }
         }
         if (one('SELECT id FROM users WHERE username = ? AND id != ?', [$username, $id])) { $errors[] = '用户名已存在。'; }
@@ -7256,13 +7774,13 @@ switch ($action) {
         if ($newPasswordHash !== '') {
             $_SESSION['admin_password_fingerprint'] = hash('sha256', $newPasswordHash);
         }
-        set_flash('success', '用户设置已保存。');
+        set_flash('success', sblog_t('用户设置已保存。'));
         redirect_to(url_for('admin_users'));
         break;
 
     case 'upload_attachment':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            json_response(['ok' => false, 'error' => '仅支持 POST 上传。'], 405);
+            json_response(['ok' => false, 'error' => sblog_t('仅支持 POST 上传。')], 405);
         }
         handle_attachment_upload();
         break;
@@ -7274,7 +7792,7 @@ switch ($action) {
             [$data, $errors] = validate_post_input($_POST);
             if (!$errors) {
                 $id = save_post($data);
-                set_flash('success', '文章已创建。');
+                set_flash('success', sblog_t('文章已创建。'));
                 redirect_to(url_for('edit', ['id' => $id]));
             }
             render_editor_page(null, post_form_from_request($_POST), $errors);
@@ -7287,14 +7805,14 @@ switch ($action) {
         $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
         $post = fetch_post_by_id($id);
         if (!$post) {
-            simple_error_page('文章不存在', '找不到需要编辑的文章。', 404);
+            simple_error_page(sblog_t('文章不存在'), sblog_t('找不到需要编辑的文章。'), 404);
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             verify_csrf();
             [$data, $errors] = validate_post_input($_POST, $post);
             if (!$errors) {
                 save_post($data, $id);
-                set_flash('success', '文章已保存。');
+                set_flash('success', sblog_t('文章已保存。'));
                 redirect_to(url_for('edit', ['id' => $id]));
             }
             render_editor_page($post, post_form_from_request($_POST), $errors);
@@ -7308,7 +7826,7 @@ switch ($action) {
         $status = (string)($_POST['status'] ?? 'draft');
         $post = fetch_post_by_id($id);
         if (!$post) {
-            simple_error_page('文章不存在', '找不到需要变更状态的文章。', 404);
+            simple_error_page(sblog_t('文章不存在'), sblog_t('找不到需要变更状态的文章。'), 404);
         }
         $target = $status === 'published' ? 'published' : 'draft';
         $publishedAt = (int)$post['published_at'];
@@ -7316,7 +7834,7 @@ switch ($action) {
             $publishedAt = time();
         }
         q('UPDATE posts SET status = ?, published_at = ?, updated_at = ? WHERE id = ?', [$target, $publishedAt, time(), $id]);
-        set_flash('success', $target === 'published' ? '文章已发布。' : '文章已转为草稿。');
+        set_flash('success', $target === 'published' ? sblog_t('文章已发布。') : sblog_t('文章已转为草稿。'));
         redirect_to(url_for('admin_posts'));
         break;
 
@@ -7324,11 +7842,11 @@ switch ($action) {
         require_admin_post(url_for('admin_posts'));
         $id = (int)($_POST['id'] ?? 0);
         q('DELETE FROM posts WHERE id = ?', [$id]);
-        set_flash('success', '文章已删除。');
+        set_flash('success', sblog_t('文章已删除。'));
         redirect_to(url_for('admin_posts'));
         break;
 
     default:
-        simple_error_page('页面不存在', '当前操作未定义。', 404);
+        simple_error_page(sblog_t('页面不存在'), sblog_t('当前操作未定义。'), 404);
         break;
 }

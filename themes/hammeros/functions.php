@@ -32,7 +32,7 @@ function hammeros_post_list(array $posts): string
         $publishedAt = (int)$post['published_at'];
         ?>
         <article class="hammer-post reveal" style="--reveal-order:<?= h((string)min($index, 5)) ?>">
-          <a class="hammer-post__media hammer-post__media--<?= h((string)(($index % 4) + 1)) ?>" href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>" aria-label="阅读《<?= h((string)$post['title']) ?>》">
+          <a class="hammer-post__media hammer-post__media--<?= h((string)(($index % 4) + 1)) ?>" href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>" aria-label="<?= h(sblog_t('阅读文章：{title}', ['title' => (string)$post['title']])) ?>">
             <?php if ($cover !== ''): ?>
               <img src="<?= h($cover) ?>" alt="" loading="lazy" decoding="async" onerror="this.remove()">
             <?php else: ?>
@@ -43,12 +43,12 @@ function hammeros_post_list(array $posts): string
           <div class="hammer-post__body">
             <div class="hammer-post__meta">
               <time datetime="<?= h(date(DATE_ATOM, $publishedAt)) ?>"><?= h(date('Y.m.d', $publishedAt)) ?></time>
-              <?php if (!empty($post['is_pinned'])): ?><span class="hammer-pin">置顶</span><?php endif; ?>
+              <?php if (!empty($post['is_pinned'])): ?><span class="hammer-pin"><?= h(sblog_t('置顶')) ?></span><?php endif; ?>
               <?php if ($tags !== []): ?><span><?= h((string)$tags[0]['label']) ?></span><?php endif; ?>
             </div>
             <h2><a href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>"><?= h((string)$post['title']) ?></a></h2>
             <p><?= h(hammeros_excerpt($post)) ?></p>
-            <a class="hammer-post__more" href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>" aria-label="继续阅读《<?= h((string)$post['title']) ?>》">继续阅读 <span aria-hidden="true">→</span></a>
+            <a class="hammer-post__more" href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>" aria-label="<?= h(sblog_t('继续阅读：{title}', ['title' => (string)$post['title']])) ?>"><?= h(sblog_t('继续阅读')) ?> <span aria-hidden="true">→</span></a>
           </div>
         </article>
       <?php endforeach; ?>
@@ -65,10 +65,10 @@ function hammeros_pager(int $page, int $totalPages): string
 
     ob_start();
     ?>
-    <nav class="hammer-pager" aria-label="分页">
-      <?php if ($page > 1): ?><a href="<?= h(home_page_url($page - 1)) ?>"><span aria-hidden="true">←</span> 上一页</a><?php else: ?><span></span><?php endif; ?>
+    <nav class="hammer-pager" aria-label="<?= h(sblog_t('分页')) ?>">
+      <?php if ($page > 1): ?><a href="<?= h(home_page_url($page - 1)) ?>"><span aria-hidden="true">←</span> <?= h(sblog_t('上一页')) ?></a><?php else: ?><span></span><?php endif; ?>
       <span class="hammer-pager__count"><?= h((string)$page) ?> / <?= h((string)$totalPages) ?></span>
-      <?php if ($page < $totalPages): ?><a href="<?= h(home_page_url($page + 1)) ?>">下一页 <span aria-hidden="true">→</span></a><?php else: ?><span></span><?php endif; ?>
+      <?php if ($page < $totalPages): ?><a href="<?= h(home_page_url($page + 1)) ?>"><?= h(sblog_t('下一页')) ?> <span aria-hidden="true">→</span></a><?php else: ?><span></span><?php endif; ?>
     </nav>
     <?php
     return (string)ob_get_clean();
@@ -81,14 +81,14 @@ function hammeros_render_home(): string
     $total = count_published_posts();
     $totalPages = max(1, (int)ceil($total / $perPage));
     $posts = fetch_published_posts($perPage, ($page - 1) * $perPage);
-    $tagline = trim(setting('site_tagline')) ?: '把复杂留给系统，把时间还给生活。';
+    $tagline = trim(setting('site_tagline')) ?: sblog_t('把复杂留给系统，把时间还给生活。');
 
     ob_start();
     ?>
     <section class="hammer-home-head">
       <div>
-        <span class="hammer-eyebrow"><?= $page > 1 ? 'CONTINUE READING' : 'TODAY' ?></span>
-        <h1><?= $page > 1 ? '继续翻阅，第 ' . h((string)$page) . ' 页' : '今天，也有一些值得读的事' ?></h1>
+        <span class="hammer-eyebrow"><?= h($page > 1 ? sblog_t('CONTINUE READING') : sblog_t('TODAY')) ?></span>
+        <h1><?= h($page > 1 ? sblog_t('继续翻阅，第 {page} 页', ['page' => $page]) : sblog_t('今天，也有一些值得读的事')) ?></h1>
       </div>
       <p><?= h($tagline) ?></p>
     </section>
@@ -96,7 +96,7 @@ function hammeros_render_home(): string
       <?= hammeros_post_list($posts) ?>
       <?= hammeros_pager($page, $totalPages) ?>
     <?php else: ?>
-      <div class="empty-notice"><p>内容柜还是空的。</p><?php if (is_admin()): ?><p><a href="<?= h(url_for('write')) ?>">写下第一篇文章</a></p><?php endif; ?></div>
+      <div class="empty-notice"><p><?= h(sblog_t('内容柜还是空的。')) ?></p><?php if (is_admin()): ?><p><a href="<?= h(url_for('write')) ?>"><?= h(sblog_t('写下第一篇文章')) ?></a></p><?php endif; ?></div>
     <?php endif;
     return (string)ob_get_clean();
 }
@@ -112,15 +112,15 @@ function hammeros_render_archive(): string
     ob_start();
     ?>
     <header class="hammer-page-head">
-      <span class="hammer-eyebrow">MEMORY DRAWER</span>
-      <h1>归档</h1>
-      <p>共收好 <?= h((string)count($posts)) ?> 篇文章，按时间整齐放置。</p>
+      <span class="hammer-eyebrow"><?= h(sblog_t('MEMORY DRAWER')) ?></span>
+      <h1><?= h(sblog_t('归档')) ?></h1>
+      <p><?= h(sblog_tn('共收好 {count} 篇文章，按时间整齐放置。', count($posts))) ?></p>
     </header>
     <?php if ($years): ?>
       <div class="hammer-archive">
         <?php foreach ($years as $year => $yearPosts): ?>
           <section class="hammer-year reveal">
-            <div class="hammer-year__label"><strong><?= h((string)$year) ?></strong><span><?= h((string)count($yearPosts)) ?> 篇</span></div>
+            <div class="hammer-year__label"><strong><?= h((string)$year) ?></strong><span><?= h(sblog_tn('{count} 篇', count($yearPosts))) ?></span></div>
             <ol>
               <?php foreach ($yearPosts as $post): ?>
                 <li>
@@ -133,7 +133,7 @@ function hammeros_render_archive(): string
           </section>
         <?php endforeach; ?>
       </div>
-    <?php else: ?><div class="empty-notice"><p>归档抽屉还是空的。</p></div><?php endif;
+    <?php else: ?><div class="empty-notice"><p><?= h(sblog_t('归档抽屉还是空的。')) ?></p></div><?php endif;
     return (string)ob_get_clean();
 }
 
@@ -143,9 +143,9 @@ function hammeros_render_tags(): string
     ob_start();
     ?>
     <header class="hammer-page-head">
-      <span class="hammer-eyebrow">INDEX LABELS</span>
-      <h1>标签</h1>
-      <p><?= h((string)count($tags)) ?> 枚索引，帮你快速找回感兴趣的内容。</p>
+      <span class="hammer-eyebrow"><?= h(sblog_t('INDEX LABELS')) ?></span>
+      <h1><?= h(sblog_t('标签')) ?></h1>
+      <p><?= h(sblog_tn('{count} 枚索引，帮你快速找回感兴趣的内容。', count($tags))) ?></p>
     </header>
     <?php if ($tags): ?>
       <div class="hammer-tags">
@@ -155,7 +155,7 @@ function hammeros_render_tags(): string
           </a>
         <?php endforeach; ?>
       </div>
-    <?php else: ?><div class="empty-notice"><p>还没有标签。</p></div><?php endif;
+    <?php else: ?><div class="empty-notice"><p><?= h(sblog_t('还没有标签。')) ?></p></div><?php endif;
     return (string)ob_get_clean();
 }
 
@@ -171,11 +171,11 @@ function hammeros_render_tag_page(string $slug): string
     ob_start();
     ?>
     <header class="hammer-page-head">
-      <span class="hammer-eyebrow">FILTERED</span>
+      <span class="hammer-eyebrow"><?= h(sblog_t('FILTERED')) ?></span>
       <h1># <?= h($label) ?></h1>
-      <p>为你找到 <?= h((string)count($posts)) ?> 篇文章。</p>
+      <p><?= h(sblog_tn('为你找到 {count} 篇文章。', count($posts))) ?></p>
     </header>
-    <?= $posts ? hammeros_post_list($posts) : '<div class="empty-notice"><p>这个标签下还没有文章。</p></div>' ?>
+    <?= $posts ? hammeros_post_list($posts) : '<div class="empty-notice"><p>' . h(sblog_t('这个标签下还没有文章。')) . '</p></div>' ?>
     <?php
     return (string)ob_get_clean();
 }
@@ -194,11 +194,11 @@ function hammeros_render_category(string $slug): string
     ob_start();
     ?>
     <header class="hammer-page-head">
-      <span class="hammer-eyebrow">COLLECTION</span>
+      <span class="hammer-eyebrow"><?= h(sblog_t('COLLECTION')) ?></span>
       <h1><?= h((string)$category['name']) ?></h1>
-      <p><?= h(trim((string)$category['description']) ?: '这个分类里共有 ' . count($posts) . ' 篇文章。') ?></p>
+      <p><?= h(trim((string)$category['description']) ?: sblog_tn('这个分类里共有 {count} 篇文章。', count($posts))) ?></p>
     </header>
-    <?= $posts ? hammeros_post_list($posts) : '<div class="empty-notice"><p>这个分类下还没有文章。</p></div>' ?>
+    <?= $posts ? hammeros_post_list($posts) : '<div class="empty-notice"><p>' . h(sblog_t('这个分类下还没有文章。')) . '</p></div>' ?>
     <?php
     return (string)ob_get_clean();
 }
@@ -209,9 +209,9 @@ function hammeros_render_links(): string
     ob_start();
     ?>
     <header class="hammer-page-head">
-      <span class="hammer-eyebrow">NEIGHBORS</span>
-      <h1>朋友们</h1>
-      <p>一些常来常往、值得敲门拜访的地方。</p>
+      <span class="hammer-eyebrow"><?= h(sblog_t('NEIGHBORS')) ?></span>
+      <h1><?= h(sblog_t('朋友们')) ?></h1>
+      <p><?= h(sblog_t('一些常来常往、值得敲门拜访的地方。')) ?></p>
     </header>
     <?php if ($links): ?>
       <div class="hammer-links">
@@ -219,17 +219,29 @@ function hammeros_render_links(): string
           <?php $name = trim((string)$link['name']); $icon = trim((string)$link['icon_url']); ?>
           <a class="hammer-link reveal" style="--reveal-order:<?= h((string)min($index, 5)) ?>" href="<?= h((string)$link['url']) ?>" target="_blank" rel="noopener noreferrer">
             <span class="hammer-link__avatar"><?php if ($icon !== ''): ?><img src="<?= h($icon) ?>" alt="" loading="lazy" onerror="this.remove()"><?php endif; ?><span><?= h(str_sub_u($name, 0, 1)) ?></span></span>
-            <span class="hammer-link__copy"><strong><?= h($name) ?></strong><small><?= h(trim((string)$link['description']) ?: '去看看他们最近在做什么') ?></small></span>
+            <span class="hammer-link__copy"><strong><?= h($name) ?></strong><small><?= h(trim((string)$link['description']) ?: sblog_t('去看看他们最近在做什么')) ?></small></span>
             <span class="hammer-link__arrow" aria-hidden="true">↗</span>
           </a>
         <?php endforeach; ?>
       </div>
-    <?php else: ?><div class="empty-notice"><p>邻居名册还是空的。</p></div><?php endif;
+    <?php else: ?><div class="empty-notice"><p><?= h(sblog_t('邻居名册还是空的。')) ?></p></div><?php endif;
     return (string)ob_get_clean();
 }
 
 add_theme_filter('body_class', static function (string $classes, array $context): string {
     return trim($classes . ' hammeros-theme');
+});
+
+add_theme_filter('comments_labels', static function (array $labels, array $context): array {
+    return array_replace($labels, [
+        'title' => sblog_t('来信'),
+        'form_title' => sblog_t('写封回信'),
+        'submit' => sblog_t('寄出回信'),
+        'cancel_reply' => sblog_t('取消'),
+        'cancel_reply_aria' => sblog_t('取消回复'),
+        'empty' => sblog_t('信箱里还没有新消息。'),
+        'closed' => sblog_t('这篇文章暂不接收回信。'),
+    ]);
 });
 
 add_theme_filter('content', static function (string $content, array $context): string {
@@ -255,14 +267,7 @@ add_theme_filter('content', static function (string $content, array $context): s
         return hammeros_render_links();
     }
 
-    return strtr($content, [
-        '<h2 class="section-header" id="comments-title">comments.log</h2>' => '<h2 class="section-header" id="comments-title">来信</h2>',
-        '<h3 class="comment-form__title">new-comment</h3>' => '<h3 class="comment-form__title">写封回信</h3>',
-        '<button class="terminal-action" type="submit">[提交评论]</button>' => '<button class="terminal-action" type="submit">寄出回信</button>',
-        '<div class="comments__empty empty-notice">// 暂无评论</div>' => '<div class="comments__empty empty-notice">信箱里还没有新消息。</div>',
-        '<div class="comments__empty empty-notice">// 评论已关闭</div>' => '<div class="comments__empty empty-notice">这篇文章暂不接收回信。</div>',
-        '<button class="comment-reply-cancel" type="button" data-comment-reply-cancel aria-label="取消回复">[取消]</button>' => '<button class="comment-reply-cancel" type="button" data-comment-reply-cancel aria-label="取消回复">取消</button>',
-    ]);
+    return $content;
 });
 
 add_theme_action('head', static function (array $context): string {

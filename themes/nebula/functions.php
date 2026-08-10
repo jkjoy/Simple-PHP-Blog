@@ -51,7 +51,7 @@ function nebula_render_post_grid(array $posts): string
             <?php else: ?>
               <span class="cover-label"><?= h(strtoupper($label)) ?></span>
             <?php endif; ?>
-            <?php if (!empty($post['is_pinned'])): ?><span class="pin-badge">置顶</span><?php endif; ?>
+            <?php if (!empty($post['is_pinned'])): ?><span class="pin-badge"><?= h(sblog_t('置顶')) ?></span><?php endif; ?>
           </div>
           <div class="post-body">
             <h3><?= h((string)$post['title']) ?></h3>
@@ -85,8 +85,8 @@ function nebula_render_pager(int $page, int $totalPages): string
 
     ob_start();
     ?>
-    <nav class="pager reveal" aria-label="分页">
-      <?php if ($page > 1): ?><a href="<?= h(home_page_url($page - 1)) ?>">上一页</a><?php else: ?><span>上一页</span><?php endif; ?>
+    <nav class="pager reveal" aria-label="<?= h(sblog_t('分页')) ?>">
+      <?php if ($page > 1): ?><a href="<?= h(home_page_url($page - 1)) ?>"><?= h(sblog_t('上一页')) ?></a><?php else: ?><span><?= h(sblog_t('上一页')) ?></span><?php endif; ?>
       <?php $prev = 0; foreach ($numbers as $number): ?>
         <?php if ($number - $prev > 1): ?><span class="ellipsis">…</span><?php endif; ?>
         <?php if ($number === $page): ?>
@@ -96,7 +96,7 @@ function nebula_render_pager(int $page, int $totalPages): string
         <?php endif; ?>
         <?php $prev = $number; ?>
       <?php endforeach; ?>
-      <?php if ($page < $totalPages): ?><a href="<?= h(home_page_url($page + 1)) ?>">下一页</a><?php else: ?><span>下一页</span><?php endif; ?>
+      <?php if ($page < $totalPages): ?><a href="<?= h(home_page_url($page + 1)) ?>"><?= h(sblog_t('下一页')) ?></a><?php else: ?><span><?= h(sblog_t('下一页')) ?></span><?php endif; ?>
     </nav>
     <?php
     return (string)ob_get_clean();
@@ -113,14 +113,14 @@ function nebula_render_home(): string
     ob_start();
     if ($posts): ?>
       <section id="posts">
-        <h2 class="section-title reveal"><?= $page > 1 ? '第 ' . h((string)$page) . ' 页' : '最新文章' ?></h2>
+        <h2 class="section-title reveal"><?= h($page > 1 ? sblog_t('第 {page} 页', ['page' => $page]) : sblog_t('最新文章')) ?></h2>
         <?= nebula_render_post_grid($posts) ?>
         <?= nebula_render_pager($page, $totalPages) ?>
       </section>
     <?php else: ?>
       <div class="empty-notice">
-        <p>还没有已发布的文章。</p>
-        <?php if (is_admin()): ?><p><a href="<?= h(url_for('write')) ?>">写第一篇文章</a></p><?php endif; ?>
+        <p><?= h(sblog_t('还没有已发布的文章。')) ?></p>
+        <?php if (is_admin()): ?><p><a href="<?= h(url_for('write')) ?>"><?= h(sblog_t('写第一篇文章')) ?></a></p><?php endif; ?>
       </div>
     <?php endif;
 
@@ -140,7 +140,7 @@ function nebula_render_timeline(array $posts, bool $groupByYear = true): string
         }
         ?>
         <?php foreach ($years as $year => $yearPosts): ?>
-          <h2 class="t-year reveal"><?= h((string)$year) ?><span class="t-cnt">· <?= h((string)count($yearPosts)) ?> 篇</span></h2>
+          <h2 class="t-year reveal"><?= h((string)$year) ?><span class="t-cnt"><?= h(sblog_tn('· {count} 篇', count($yearPosts))) ?></span></h2>
           <?php foreach ($yearPosts as $index => $post): ?>
             <a class="t-item reveal" href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>"<?= nebula_reveal_delay($index % 8, 0.05) ?>>
               <span class="t-date"><?= h(date('m-d', (int)$post['published_at'])) ?></span>
@@ -152,7 +152,7 @@ function nebula_render_timeline(array $posts, bool $groupByYear = true): string
         <?php foreach ($posts as $index => $post): ?>
           <a class="t-item reveal" href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>"<?= nebula_reveal_delay($index % 8, 0.05) ?>>
             <span class="t-date"><?= h(date('Y-m-d', (int)$post['published_at'])) ?></span>
-            <span class="t-title"><?php if (!empty($post['is_pinned'])): ?><span class="t-pin">置顶</span><?php endif; ?><?= h((string)$post['title']) ?></span>
+            <span class="t-title"><?php if (!empty($post['is_pinned'])): ?><span class="t-pin"><?= h(sblog_t('置顶')) ?></span><?php endif; ?><?= h((string)$post['title']) ?></span>
           </a>
         <?php endforeach; ?>
       <?php endif; ?>
@@ -192,19 +192,19 @@ function nebula_render_archives(): string
     ob_start();
     ?>
     <div class="page-head reveal">
-      <h1 class="grad-text">归档</h1>
-      <p>时间轴上的 <?= h((string)$total) ?> 篇文章 · 总共写了 <?= h((string)$wordCount) ?> 字</p>
+      <h1 class="grad-text"><?= h(sblog_t('归档')) ?></h1>
+      <p><?= h(sblog_tn('时间轴上的 {count} 篇文章 · 总共写了 {words} 字', $total, ['words' => $wordCount])) ?></p>
     </div>
     <?php if ($posts): ?>
       <div class="stats stats--bordered reveal"<?= nebula_reveal_delay(1) ?>>
-        <div class="stat"><div class="num"><?= h((string)$categoryCount) ?></div><div class="label">分类</div></div>
-        <div class="stat"><div class="num"><?= h((string)$tagCount) ?></div><div class="label">标签</div></div>
-        <div class="stat"><div class="num"><?= h((string)$linkCount) ?></div><div class="label">友链</div></div>
-        <?php if ($runningDays > 0): ?><div class="stat"><div class="num"><?= h((string)$runningDays) ?></div><div class="label">运行天数</div></div><?php endif; ?>
+        <div class="stat"><div class="num"><?= h((string)$categoryCount) ?></div><div class="label"><?= h(sblog_t('分类')) ?></div></div>
+        <div class="stat"><div class="num"><?= h((string)$tagCount) ?></div><div class="label"><?= h(sblog_t('标签')) ?></div></div>
+        <div class="stat"><div class="num"><?= h((string)$linkCount) ?></div><div class="label"><?= h(sblog_t('友链')) ?></div></div>
+        <?php if ($runningDays > 0): ?><div class="stat"><div class="num"><?= h((string)$runningDays) ?></div><div class="label"><?= h(sblog_t('运行天数')) ?></div></div><?php endif; ?>
       </div>
       <?= nebula_render_timeline($posts) ?>
     <?php else: ?>
-      <div class="empty-notice"><p>归档还是空的。</p></div>
+      <div class="empty-notice"><p><?= h(sblog_t('归档还是空的。')) ?></p></div>
     <?php endif;
 
     return (string)ob_get_clean();
@@ -222,8 +222,8 @@ function nebula_render_tags(): string
     ob_start();
     ?>
     <div class="page-head reveal">
-      <h1 class="grad-text">标签</h1>
-      <p><?= h((string)count($tags)) ?> 个标签，<?= h((string)$total) ?> 篇文章 · 每一枚标签，都是一颗星</p>
+      <h1 class="grad-text"><?= h(sblog_t('标签')) ?></h1>
+      <p><?= h(sblog_t('{tags} 个标签，{posts} 篇文章 · 每一枚标签，都是一颗星', ['tags' => count($tags), 'posts' => $total])) ?></p>
     </div>
     <?php if ($tags): ?>
       <div class="cloud-wrap reveal"<?= nebula_reveal_delay(1) ?>>
@@ -236,7 +236,7 @@ function nebula_render_tags(): string
         </div>
       </div>
     <?php else: ?>
-      <div class="empty-notice"><p>还没有标签。</p></div>
+      <div class="empty-notice"><p><?= h(sblog_t('还没有标签。')) ?></p></div>
     <?php endif;
 
     return (string)ob_get_clean();
@@ -255,12 +255,12 @@ function nebula_render_tag_page(string $slug): string
     ?>
     <div class="page-head reveal">
       <h1><span class="grad-text">#</span> <?= h($label) ?></h1>
-      <p>共 <?= h((string)count($posts)) ?> 篇文章</p>
+      <p><?= h(sblog_tn('共 {count} 篇文章', count($posts))) ?></p>
     </div>
     <?php if ($posts): ?>
       <?= nebula_render_timeline($posts, false) ?>
     <?php else: ?>
-      <div class="empty-notice"><p>这个标签下还没有文章。</p></div>
+      <div class="empty-notice"><p><?= h(sblog_t('这个标签下还没有文章。')) ?></p></div>
     <?php endif;
 
     return (string)ob_get_clean();
@@ -281,13 +281,13 @@ function nebula_render_category_page(string $slug): string
     ob_start();
     ?>
     <div class="page-head reveal">
-      <h1><span class="grad-text">分类</span> <?= h((string)$category['name']) ?></h1>
-      <p>共 <?= h((string)count($posts)) ?> 篇文章<?= $description !== '' ? ' · ' . h($description) : '' ?></p>
+      <h1><span class="grad-text"><?= h(sblog_t('分类')) ?></span> <?= h((string)$category['name']) ?></h1>
+      <p><?= h(sblog_tn('共 {count} 篇文章', count($posts))) ?><?= $description !== '' ? ' · ' . h($description) : '' ?></p>
     </div>
     <?php if ($posts): ?>
       <?= nebula_render_timeline($posts, false) ?>
     <?php else: ?>
-      <div class="empty-notice"><p>这个分类下还没有已发布文章。</p></div>
+      <div class="empty-notice"><p><?= h(sblog_t('这个分类下还没有已发布文章。')) ?></p></div>
     <?php endif;
 
     return (string)ob_get_clean();
@@ -300,8 +300,8 @@ function nebula_render_links(): string
     ob_start();
     ?>
     <div class="page-head reveal">
-      <h1 class="grad-text">友链</h1>
-      <p>一些值得访问的网站与朋友</p>
+      <h1 class="grad-text"><?= h(sblog_t('友链')) ?></h1>
+      <p><?= h(sblog_t('一些值得访问的网站与朋友')) ?></p>
     </div>
     <?php if ($links): ?>
       <div class="link-grid">
@@ -315,13 +315,13 @@ function nebula_render_links(): string
             </span>
             <span class="link-info">
               <span class="name"><?= h($name) ?></span>
-              <span class="desc"><?= h(trim((string)$link['description']) ?: '欢迎访问这个网站') ?></span>
+              <span class="desc"><?= h(trim((string)$link['description']) ?: sblog_t('欢迎访问这个网站')) ?></span>
             </span>
           </a>
         <?php endforeach; ?>
       </div>
     <?php else: ?>
-      <div class="empty-notice"><p>还没有添加友情链接。</p></div>
+      <div class="empty-notice"><p><?= h(sblog_t('还没有添加友情链接。')) ?></p></div>
     <?php endif;
 
     return (string)ob_get_clean();
@@ -329,6 +329,18 @@ function nebula_render_links(): string
 
 add_theme_filter('body_class', static function (string $classes, array $context): string {
     return trim($classes . ' nebula-theme');
+});
+
+add_theme_filter('comments_labels', static function (array $labels, array $context): array {
+    return array_replace($labels, [
+        'title' => sblog_t('评论'),
+        'form_title' => sblog_t('写下评论'),
+        'submit' => sblog_t('提交评论'),
+        'cancel_reply' => sblog_t('取消'),
+        'cancel_reply_aria' => sblog_t('取消回复'),
+        'empty' => sblog_t('暂无评论，来抢沙发吧'),
+        'closed' => sblog_t('评论已关闭'),
+    ]);
 });
 
 add_theme_filter('content', static function (string $content, array $context): string {
@@ -356,15 +368,7 @@ add_theme_filter('content', static function (string $content, array $context): s
         return nebula_render_links();
     }
 
-    // 文章 / 独立页面：沿用内置结构，仅替换终端风格的文案
-    return strtr($content, [
-        '<h2 class="section-header" id="comments-title">comments.log</h2>' => '<h2 class="section-header" id="comments-title">评论</h2>',
-        '<h3 class="comment-form__title">new-comment</h3>' => '<h3 class="comment-form__title">写下评论</h3>',
-        '<button class="terminal-action" type="submit">[提交评论]</button>' => '<button class="terminal-action" type="submit">提交评论</button>',
-        '<div class="comments__empty empty-notice">// 暂无评论</div>' => '<div class="comments__empty empty-notice">暂无评论，来抢沙发吧</div>',
-        '<div class="comments__empty empty-notice">// 评论已关闭</div>' => '<div class="comments__empty empty-notice">评论已关闭</div>',
-        '<button class="comment-reply-cancel" type="button" data-comment-reply-cancel aria-label="取消回复">[取消]</button>' => '<button class="comment-reply-cancel" type="button" data-comment-reply-cancel aria-label="取消回复">取消</button>',
-    ]);
+    return $content;
 });
 
 add_theme_action('head', static function (array $context): string {

@@ -53,6 +53,7 @@ add_plugin_filter('output_html', static function (string $html, array $context):
 核心提供以下 filter：
 
 - `route_action`：修改当前路由 action
+- `post_fields_before_defaults`：在留空的 Slug 和摘要应用核心默认值前提供候选值
 - `post_data_before_save`：在文章写入数据库前修改数据
 - `admin_sidebar_links`：修改后台侧边栏链接数组
 - `site_mail_send`：处理站点邮件发送
@@ -63,6 +64,40 @@ add_plugin_filter('output_html', static function (string $html, array $context):
 - `output_html`：过滤最终 HTML 文档
 
 filter 回调依次接收当前值和 `$context`，必须返回过滤后的值。`output_html` 的 context 包含 `action` 与 `content_type`。
+
+`post_fields_before_defaults` 仅在基础校验通过且 Slug 或摘要留空时执行。当前值包含 `slug`、`excerpt`，context 包含 `title`、`content`、`kind`、`post_id`；核心只采纳原本留空字段的字符串候选值，空结果继续使用内置默认规则。
+
+## 语言目录
+
+语言插件应注册固定翻译键，并在模板中通过命名参数格式化动态内容。翻译键可以使用稳定的语义键，也可以使用类似 gettext 的默认中文消息。语言插件不得通过 `output_html` 扫描或替换最终 HTML，也不要把文章标题、正文、评论等用户内容作为翻译键传入。
+
+```php
+sblog_i18n_register('en', [
+    'post_navigation.previous' => 'Previous post',
+    'post_navigation.previous_label' => 'Previous post: {title}',
+]);
+sblog_i18n_set_locale('en');
+
+$label = sblog_t('post_navigation.previous_label', [
+    'title' => (string)$post['title'],
+]);
+
+sblog_i18n_register('en', [
+    '{count} 篇文章' => [
+        'one' => '{count} post',
+        'other' => '{count} posts',
+    ],
+]);
+$countLabel = sblog_tn('{count} 篇文章', $count);
+
+sblog_i18n_register_client('en', [
+    'open_menu' => 'Open menu',
+]);
+```
+
+`sblog_t()` 会先读取当前语言，再依次回退到基础语言代码和内置中文目录。`sblog_tn()` 根据当前语言选择 `one`、`few`、`many` 或 `other` 复数形式。参数只替换 `{name}` 占位符，不会再次进入翻译流程；输出到 HTML 时仍需使用 `h()` 转义。
+
+`sblog_i18n_locale()` 用于 HTML `lang`、响应头或日期格式化。核心和内置主题会在 `<head>` 中输出 `sblog_i18n_head()`，将当前语言的客户端目录安全写入 `window.sblogI18n`。
 
 ## 资源文件
 
