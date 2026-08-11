@@ -570,7 +570,7 @@ function default_settings(): array
         'custom_head_code' => '',
         'active_theme' => 'nebula',
         'active_plugins' => '["ai-assistant","email-notifications","s3-storage"]',
-        'favicon_url' => 'logo.png',
+        'favicon_url' => 'favicon.png',
         'footer_beian' => '',
         'posts_per_page' => '6',
         'pretty_url' => '0',
@@ -1250,7 +1250,7 @@ function github_update_info(bool $refresh = false): array
 
 function install_release_files(string $source, string $targetRoot, string $backup): void
 {
-    $files = ['index.php', 'index.css', 'index.js', 'install.php', 'update.php', 'README.md', 'README-EN.md', 'logo.png', '.htaccess'];
+    $files = ['index.php', 'index.css', 'index.js', 'install.php', 'update.php', 'README.md', 'README-EN.md', 'logo.png', 'favicon.png', '.htaccess'];
     foreach (['themes', 'plugins'] as $extensionDirectory) {
         $extensionRoot = $source . '/' . $extensionDirectory;
         if (!is_dir($extensionRoot)) {
@@ -3534,7 +3534,7 @@ function theme_logo_url(): string
 function theme_favicon_url(): string
 {
     $value = trim(setting('favicon_url', default_settings()['favicon_url']));
-    if ($value === '') { $value = 'logo.png'; }
+    if ($value === '') { $value = 'favicon.png'; }
     if (preg_match('#^https?://#i', $value) || str_starts_with($value, '/')) { return $value; }
     return asset_url($value);
 }
@@ -6745,7 +6745,7 @@ function render_admin_settings_page(): void
                 <input id="site_url" name="site_url" type="url" value="<?= h(setting('site_url')) ?>" placeholder="https://example.com/blog">
                 <p class="field-hint"><?= h(sblog_t('RSS 会优先使用这里的绝对地址，子目录部署时请带上完整路径。')) ?></p>
               </div>
-              <div class="field"><label for="favicon_url"><?= h(sblog_t('Favicon 地址')) ?></label><input id="favicon_url" name="favicon_url" value="<?= h(setting('favicon_url', 'logo.png')) ?>" placeholder="logo.png"><p class="field-hint"><?= h(sblog_t('默认使用项目根目录的 {file}，也可以填写完整图片 URL 或站内绝对路径。', ['file' => 'logo.png'])) ?></p></div>
+              <div class="field"><label for="favicon_url"><?= h(sblog_t('Favicon 地址')) ?></label><input id="favicon_url" name="favicon_url" value="<?= h(setting('favicon_url', 'favicon.png')) ?>" placeholder="favicon.png"><p class="field-hint"><?= h(sblog_t('默认使用项目根目录的 {file}，也可以填写完整图片 URL 或站内绝对路径。', ['file' => 'favicon.png'])) ?></p></div>
               <div class="field">
                 <label for="footer_beian"><?= h(sblog_t('备案号')) ?></label>
                 <input id="footer_beian" name="footer_beian" type="text" value="<?= h(setting('footer_beian')) ?>" placeholder="<?= h(sblog_t('京 ICP 备 12345678 号')) ?>">

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Simple PHP Blog icon</title>
+  <desc id="desc">A warm paper page with a folded corner and a single continuous S-shaped ink stroke.</desc>
+  <rect width="1024" height="1024" rx="208" fill="#171717"/>
+  <path d="M294 176h292l144 144v480c0 26.5-21.5 48-48 48H294c-26.5 0-48-21.5-48-48V224c0-26.5 21.5-48 48-48Z" fill="#FAF8F1"/>
+  <path d="M586 176v96c0 26.5 21.5 48 48 48h96L586 176Z" fill="#E7A23B"/>
+  <path d="M652 405c-36-40-89-61-148-61-84 0-146 40-146 97 0 58 58 77 151 92 97 15 157 43 157 111 0 73-72 119-166 119-66 0-126-23-168-68" fill="none" stroke="#171717" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="332" cy="695" r="36" fill="#E7A23B"/>
+</svg>

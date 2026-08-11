@@ -74,7 +74,7 @@ function sblog_english_language_map(): array
         '开启后文章链接会变成 `/archive/slug`，需要服务器 rewrite 支持。' => 'When enabled, post URLs use `/archive/slug` and require server rewrite support.',
         '使用英文逗号分隔，页面将输出为 SEO keywords 元信息。' => 'Separate values with commas. They are emitted as the SEO keywords meta tag.',
         'RSS 会优先使用这里的绝对地址，子目录部署时请带上完整路径。' => 'RSS prefers this absolute URL. Include the complete path for a subdirectory installation.',
-        '默认使用项目根目录的 logo.png，也可以填写完整图片 URL 或站内绝对路径。' => 'Defaults to logo.png in the project root. A full image URL or site-absolute path is also supported.',
+        '默认使用项目根目录的 {file}，也可以填写完整图片 URL 或站内绝对路径。' => 'Defaults to {file} in the project root. A full image URL or site-absolute path is also supported.',
         '访客首次留言需审核后展示（按邮箱判断）' => 'Hold a visitor\'s first comment for approval (matched by email)',
         '原样插入前台页面的 &lt;/head&gt; 前，可用于统计脚本、meta 或 style；请仅使用可信代码。' => 'Inserted unchanged before &lt;/head&gt; on public pages. Use only trusted analytics, meta, or style code.',
         '当前程序版本完整，但发布包中的内置主题或插件尚未同步。' => 'The application is current, but bundled themes or plugins from the release still need to be synchronized.',

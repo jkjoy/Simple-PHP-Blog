@@ -174,7 +174,7 @@ function i_default_settings(): array
         'active_theme' => 'nebula',
         'active_plugins' => '["ai-assistant","email-notifications","s3-storage"]',
         'core_feature_plugins_migrated' => '1',
-        'favicon_url' => 'logo.png',
+        'favicon_url' => 'favicon.png',
         'footer_beian' => '',
         'comments_enabled' => '1',
         'comments_require_approval' => '1',

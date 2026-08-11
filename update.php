@@ -76,7 +76,7 @@ function update_default_settings(): array
         'custom_head_code' => '',
         'active_theme' => 'nebula',
         'active_plugins' => '["ai-assistant","email-notifications","s3-storage"]',
-        'favicon_url' => 'logo.png',
+        'favicon_url' => 'favicon.png',
         'footer_beian' => '',
         'posts_per_page' => '6',
         'pretty_url' => '0',
