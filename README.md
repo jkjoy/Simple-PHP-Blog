@@ -110,7 +110,7 @@ plugins/       功能插件与语言插件
 - 每个插件放在 `plugins/<插件目录>/`，并提供 `plugin.json` 和 `plugin.php`。
 - 后台“插件管理”可以启用、停用和设置插件；内置功能插件不再占用独立侧边栏入口。
 - 插件可使用带优先级的 action/filter 扩展请求、文章保存、评论创建、后台菜单和最终 HTML 输出。
-- 项目内置 `ai-assistant`、`email-notifications` 和 `s3-storage` 功能插件，新安装默认启用，可分别停用。
+- 所有内置插件在新安装时默认停用，可按需在后台“插件管理”中启用。
 - 项目内置 `english-language` 与 `russian-language` 插件，启用后会将前台、登录页和后台系统界面翻译为对应语言，不修改数据库中的文章内容；语言插件之间互斥。
 - 插件开发接口与完整钩子列表见 `plugins/README.md`。
 - 插件 PHP 是服务器端可信代码，只安装来源可信的插件。

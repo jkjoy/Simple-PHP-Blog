@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.9.0';
+const APP_VERSION = 'v1.9.1';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -501,22 +501,6 @@ function ensure_schema(PDO $pdo): void
     $statement = $pdo->prepare("UPDATE posts SET category_id = ? WHERE kind = 'post' AND (category_id IS NULL OR category_id NOT IN (SELECT id FROM categories))");
     $statement->execute([$defaultCategoryId]);
 
-    $pluginMigration = $pdo->prepare('SELECT value FROM settings WHERE name = ?');
-    $pluginMigration->execute(['core_feature_plugins_migrated']);
-    if ($pluginMigration->fetchColumn() === false) {
-        $activeStatement = $pdo->prepare('SELECT value FROM settings WHERE name = ?');
-        $activeStatement->execute(['active_plugins']);
-        $configured = json_decode((string)($activeStatement->fetchColumn() ?: '[]'), true);
-        $configured = is_array($configured) ? array_map('strval', $configured) : [];
-        foreach (['ai-assistant', 'email-notifications', 's3-storage'] as $pluginSlug) {
-            if (!in_array($pluginSlug, $configured, true)) {
-                $configured[] = $pluginSlug;
-            }
-        }
-        $savePluginSetting = $pdo->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)');
-        $savePluginSetting->execute(['active_plugins', json_encode($configured, JSON_UNESCAPED_SLASHES)]);
-        $savePluginSetting->execute(['core_feature_plugins_migrated', '1']);
-    }
     $done = true;
 }
 
@@ -589,7 +573,7 @@ function default_settings(): array
         'site_footer' => '',
         'custom_head_code' => '',
         'active_theme' => 'nebula',
-        'active_plugins' => '["ai-assistant","email-notifications","s3-storage"]',
+        'active_plugins' => '[]',
         'favicon_url' => 'favicon.png',
         'footer_beian' => '',
         'posts_per_page' => '6',
