@@ -101,7 +101,10 @@ function timellow_category(array $post): ?array
 
 function timellow_page_hero(string $title, string $description): string
 {
-    return '<section class="page-hero"><h1 class="page-title">' . h($title) . '</h1><p class="page-description">' . h($description) . '</p></section>';
+    $descriptionMarkup = $description !== ''
+        ? '<p class="page-description">' . h($description) . '</p>'
+        : '';
+    return '<section class="page-hero"><h1 class="page-title">' . h($title) . '</h1>' . $descriptionMarkup . '</section>';
 }
 
 function timellow_render_posts(array $posts, string $hero = '', string $pagination = ''): string
@@ -277,29 +280,30 @@ function timellow_render_article(string $content, array $context): string
     $category = timellow_category($post);
     $comments = '';
     if (preg_match('/<section class="comments".*<\/section>/s', $content, $match)) {
-        $comments = $match[0];
+        $comments = preg_replace('/\s*<span class="comments__count">.*?<\/span>/s', '', $match[0]) ?? $match[0];
     }
     $navigation = '';
-    if (!$isPage && preg_match('/<ul class="pagination">(.*?)<\/ul>/s', $content, $match)) {
-        $newer = '';
-        $older = '';
-        if (preg_match('/<li class="page-item page-previous">(.*?)<\/li>/s', $match[1], $item)) {
-            $newer = trim($item[1]);
-        }
-        if (preg_match('/<li class="page-item page-next">(.*?)<\/li>/s', $match[1], $item)) {
-            $older = trim($item[1]);
-        }
-        if ($newer !== '' || $older !== '') {
+    if (!$isPage) {
+        $neighbors = post_neighbors($post);
+        $newer = $neighbors['newer'];
+        $older = $neighbors['older'];
+        if ($newer || $older) {
+            $newerLink = $newer
+                ? '<a href="' . h(content_permalink($newer)) . '" rel="prev" aria-label="' . h(sblog_t('post_navigation.previous_label', ['title' => (string)$newer['title']])) . '">' . h((string)$newer['title']) . '</a>'
+                : h(sblog_t('已经是第一篇了'));
+            $olderLink = $older
+                ? '<a href="' . h(content_permalink($older)) . '" rel="next" aria-label="' . h(sblog_t('post_navigation.next_label', ['title' => (string)$older['title']])) . '">' . h((string)$older['title']) . '</a>'
+                : h(sblog_t('已经是最后一篇了'));
             $navigation = '<nav class="article-nav" aria-label="' . h(sblog_t('文章切换')) . '">'
-                . '<div class="article-nav-card"><span class="article-nav-label">' . h(sblog_t('上一篇')) . '</span><p class="article-nav-title">' . ($newer !== '' ? $newer : h(sblog_t('已经是第一篇了'))) . '</p></div>'
-                . '<div class="article-nav-card"><span class="article-nav-label">' . h(sblog_t('下一篇')) . '</span><p class="article-nav-title">' . ($older !== '' ? $older : h(sblog_t('已经是最后一篇了'))) . '</p></div>'
+                . '<div class="article-nav-card"><span class="article-nav-label">' . h(sblog_t('上一篇')) . '</span><p class="article-nav-title">' . $newerLink . '</p></div>'
+                . '<div class="article-nav-card"><span class="article-nav-label">' . h(sblog_t('下一篇')) . '</span><p class="article-nav-title">' . $olderLink . '</p></div>'
                 . '</nav>';
         }
     }
     ob_start();
     ?>
     <main class="site-main">
-      <?php if ($isPage): ?><?= timellow_page_hero((string)$post['title'], timellow_excerpt($post, 96) ?: setting('site_tagline', '')) ?><?php endif; ?>
+      <?php if ($isPage): ?><?= timellow_page_hero((string)$post['title'], '') ?><?php endif; ?>
       <article class="content-card" itemscope itemtype="<?= $isPage ? 'https://schema.org/WebPage' : 'https://schema.org/BlogPosting' ?>">
         <?php if (!$isPage): ?><header class="article-header"><h1 class="article-title" itemprop="headline"><?= h((string)$post['title']) ?></h1><div class="article-meta"><time datetime="<?= h(date(DATE_ATOM, $timestamp)) ?>" itemprop="datePublished"><?= h(date('Y-m-d', $timestamp)) ?></time><?php if ($category): ?><span class="meta-separator"></span><a href="<?= h(url_for('category', ['slug' => (string)$category['slug']])) ?>"><?= h((string)$category['name']) ?></a><?php endif; ?><span class="meta-separator"></span><a href="#comments"><?= h(sblog_tn('{count} 条评论', approved_comment_count((int)$post['id']))) ?></a></div></header><?php endif; ?>
         <div class="article-body" itemprop="articleBody"><?= $body ?></div>
@@ -314,8 +318,9 @@ function timellow_render_article(string $content, array $context): string
 
 add_theme_filter('body_class', static fn(string $classes): string => trim($classes . ' timellow-theme timellow-no-sidebar'));
 
-add_theme_filter('comments_labels', static function (array $labels): array {
-    return array_merge($labels, ['title' => sblog_t('评论'), 'form_title' => sblog_t('发表评论'), 'submit' => sblog_t('提交评论'), 'cancel_reply' => sblog_t('取消回复'), 'empty' => sblog_t('暂无评论'), 'closed' => sblog_t('评论已关闭')]);
+add_theme_filter('comments_labels', static function (array $labels, array $context): array {
+    $total = (int)($context['total'] ?? 0);
+    return array_merge($labels, ['title' => sblog_tn('{count} 条评论', $total), 'form_title' => sblog_t('发表评论'), 'submit' => sblog_t('提交评论'), 'cancel_reply' => sblog_t('取消回复'), 'empty' => sblog_t('暂无评论'), 'closed' => sblog_t('评论已关闭')]);
 });
 
 add_theme_filter('content', static function (string $content, array $context): string {
