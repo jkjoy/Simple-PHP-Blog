@@ -166,7 +166,39 @@ function paper_render_tag(string $slug): string
         return '';
     }
     $label = $label ?? $slug;
-    return paper_render_listing('#' . $label, sblog_tn('{count} 篇文章', count($posts)), $posts);
+    return paper_render_listing($label, sblog_tn('{count} 篇文章', count($posts)), $posts);
+}
+
+function paper_render_tags(): string
+{
+    $tags = tag_index_data();
+    $counts = array_map(static fn(array $tag): int => (int)$tag['count'], $tags);
+    $minimum = $counts === [] ? 0 : min($counts);
+    $maximum = $counts === [] ? 0 : max($counts);
+
+    ob_start();
+    ?>
+    <header class="paper-page-header">
+      <h1><?= h(sblog_t('标签')) ?></h1>
+      <?php if ($tags): ?><p><?= h(sblog_tn('共有 {count} 个标签', count($tags))) ?></p><?php endif; ?>
+    </header>
+    <?php if ($tags): ?>
+      <nav class="tag-cloud" aria-label="<?= h(sblog_t('标签')) ?>">
+        <?php foreach ($tags as $tag): ?>
+          <?php
+          $count = (int)$tag['count'];
+          $weight = $maximum === $minimum ? 3 : 1 + (int)round(($count - $minimum) * 4 / ($maximum - $minimum));
+          ?>
+          <a class="tag-index-link" data-weight="<?= h((string)$weight) ?>" href="<?= h(url_for('tag', ['slug' => (string)$tag['slug']])) ?>">
+            <span><?= h((string)$tag['label']) ?></span>
+            <strong aria-label="<?= h(sblog_tn('{count} 篇文章', $count)) ?>"><?= h((string)$count) ?></strong>
+          </a>
+        <?php endforeach; ?>
+      </nav>
+    <?php else: ?>
+      <div class="empty-notice"><p><?= h(sblog_t('还没有标签。')) ?></p></div>
+    <?php endif;
+    return (string)ob_get_clean();
 }
 
 function paper_render_category(string $slug): string
@@ -259,9 +291,16 @@ add_theme_filter('content', static function (string $content, array $context): s
     if ($active === 'tags' && $action === 'tag') {
         return paper_render_tag((string)($_GET['slug'] ?? '')) ?: $content;
     }
+    if ($active === 'tags') {
+        return paper_render_tags();
+    }
     if ($active === 'links') {
         return paper_render_links();
     }
 
-    return $content;
+    return preg_replace(
+        '/(<a\b[^>]*class="[^"]*\bpost-tag\b[^"]*"[^>]*>)#/i',
+        '$1',
+        $content
+    ) ?? $content;
 });
