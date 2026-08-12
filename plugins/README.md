@@ -55,6 +55,7 @@ add_plugin_filter('output_html', static function (string $html, array $context):
 - `route_action`：修改当前路由 action
 - `post_fields_before_defaults`：在留空的 Slug 和摘要应用核心默认值前提供候选值
 - `post_data_before_save`：在文章写入数据库前修改数据
+- `comment_submission_allowed`：在评论写入数据库前决定是否允许提交；当前值为布尔值，context 包含 `post`、`comment`、`status` 与 `authenticated`
 - `admin_sidebar_links`：修改后台侧边栏链接数组
 - `site_mail_send`：处理站点邮件发送
 - `notification_recipient`：修改评论通知收件邮箱

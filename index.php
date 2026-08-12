@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.7.0';
+const APP_VERSION = 'v1.8.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -763,6 +763,8 @@ function sblog_default_translations(): array
         'post_navigation.next_label' => '下一篇：{title}',
         'plugin.ai-assistant.name' => 'AI 助手',
         'plugin.ai-assistant.description' => '为文章提供 Slug 生成、摘要生成和正文润色功能。',
+        'plugin.akismet.name' => 'Akismet 垃圾评论拦截',
+        'plugin.akismet.description' => '提交评论前通过 Akismet 检测垃圾内容，并提供连接状态与拦截统计。',
         'plugin.email-notifications.name' => '邮件通知',
         'plugin.email-notifications.description' => '通过 SMTP 或 PHP mail 发送密码重置和评论通知邮件。',
         'plugin.english-language.name' => '英文语言包',
@@ -779,6 +781,8 @@ function sblog_default_translations(): array
         'theme.liquid-glass.description' => '明亮、通透的苹果风格阅读主题。支持深浅模式、响应式导航、文章封面、玻璃质感控件与完整内容页面。',
         'theme.nebula.name' => 'Nebula 星云',
         'theme.nebula.description' => '深空极光 · 玻璃拟态 · 暗色优先。星空粒子背景、渐变封面卡片、时间轴归档与标签云，支持亮暗主题切换。',
+        'theme.once.name' => 'Once',
+        'theme.once.description' => '1:1 复刻 Typecho-Theme-Once 的双栏博客主题，适配 SBlog 首页、文章、归档、标签、友链与评论。',
         'theme.starter.name' => 'Starter Contrast',
         'theme.starter.description' => '演示样式覆盖、head action 与 body_class filter 的入门主题。',
         'theme.ying.name' => 'Ying',
@@ -910,6 +914,10 @@ function plugin_display_metadata(string $slug, array $manifest): array
             'name' => sblog_t('plugin.ai-assistant.name'),
             'description' => sblog_t('plugin.ai-assistant.description'),
         ],
+        'akismet' => [
+            'name' => sblog_t('plugin.akismet.name'),
+            'description' => sblog_t('plugin.akismet.description'),
+        ],
         'email-notifications' => [
             'name' => sblog_t('plugin.email-notifications.name'),
             'description' => sblog_t('plugin.email-notifications.description'),
@@ -953,6 +961,10 @@ function theme_display_metadata(string $slug, array $manifest): array
         'nebula' => [
             'name' => sblog_t('theme.nebula.name'),
             'description' => sblog_t('theme.nebula.description'),
+        ],
+        'once' => [
+            'name' => sblog_t('theme.once.name'),
+            'description' => sblog_t('theme.once.description'),
         ],
         'starter' => [
             'name' => sblog_t('theme.starter.name'),
@@ -7118,6 +7130,16 @@ switch ($action) {
             && (setting('comments_require_approval', '1') === '1' || $linkCount > 2);
         $status = $needsApproval ? 'pending' : 'approved';
         $isRead = setting('comments_notify', '1') === '1' ? 0 : 1;
+        $submissionAllowed = plugin_filter('comment_submission_allowed', true, [
+            'post' => $post,
+            'comment' => $comment,
+            'status' => $status,
+            'authenticated' => $isAuthenticatedAdmin,
+        ]);
+        if ($submissionAllowed !== true) {
+            set_comment_notice($postId, 'success', sblog_t('评论已提交，审核通过后会显示。'));
+            redirect_to($returnUrl);
+        }
         $now = time();
         $userId = (int)($authenticatedIdentity['user_id'] ?? 0);
         $insertParams = [

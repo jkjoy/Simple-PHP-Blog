@@ -1,0 +1,8 @@
+{
+  "name": "Akismet 垃圾评论拦截",
+  "version": "1.0.0",
+  "author": "Simple PHP Blog",
+  "url": "https://akismet.com/",
+  "description": "提交评论前通过 Akismet 检测垃圾内容，并提供连接状态与拦截统计。",
+  "settings_action": "admin_akismet"
+}
