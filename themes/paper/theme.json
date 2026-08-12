@@ -1,6 +1,6 @@
 {
   "name": "Paper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "nanxiaobei",
   "url": "https://github.com/nanxiaobei/hugo-paper",
   "description": "移植自 Hugo Paper 的简洁单栏阅读主题，支持亮暗模式、移动导航、文章归档、标签、友链与评论。"

@@ -777,6 +777,15 @@ $db->exec(
     ) WITHOUT ROWID'
 );
 $db->exec(
+    'CREATE TABLE IF NOT EXISTS post_likes(
+        post_id INTEGER NOT NULL,
+        ip_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY(post_id, ip_hash),
+        FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
+    ) WITHOUT ROWID'
+);
+$db->exec(
     'CREATE TABLE IF NOT EXISTS media(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         original_name TEXT NOT NULL,

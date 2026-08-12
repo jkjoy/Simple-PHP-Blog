@@ -946,58 +946,72 @@
 }
 
 .farallon-theme .post-navigation .nav-links {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  transform: translateY(150%);
-  transition: transform 0.5s ease;
-}
-
-.farallon-theme .post-navigation.is-active .nav-links {
-  transform: translateY(0);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
 }
 
 .farallon-theme .post-navigation .nav-previous,
 .farallon-theme .post-navigation .nav-next {
-  width: 48%;
-  padding: 15px;
+  min-width: 0;
   text-align: right;
-  background: var(--farallon-background-white);
-  border: 1px solid transparent;
-  background-clip: padding-box;
-  background-origin: border-box;
 }
 
 .farallon-theme .post-navigation .nav-previous {
   text-align: left;
 }
 
+.farallon-theme .post-navigation .nav-next:only-child {
+  grid-column: 2;
+}
+
 .farallon-theme .post-navigation .nav-previous a,
 .farallon-theme .post-navigation .nav-next a {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  height: 100%;
+  padding: 15px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.farallon-theme .post-navigation a:hover,
+.farallon-theme .post-navigation a:focus-visible {
+  color: var(--farallon-hover-color);
+  background: var(--farallon-background-gray);
+  border-color: var(--farallon-border-color-light);
+  outline: 0;
 }
 
 .farallon-theme .post-navigation .meta-nav {
+  display: block;
+  margin-bottom: 4px;
   color: var(--farallon-text-gray);
   font-size: 12px;
+  line-height: 1.5;
   text-transform: uppercase;
 }
 
 .farallon-theme .post-navigation .post-title {
   display: -webkit-box;
-  min-height: 3em;
+  min-height: 0;
+  padding: 0;
   margin: 0;
   overflow: hidden;
   color: var(--farallon-text-color);
   font-size: 14px;
   font-weight: 400;
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  border: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
-.farallon-theme .post-navigation .post-title:hover {
+.farallon-theme .post-navigation a:hover .post-title,
+.farallon-theme .post-navigation a:focus-visible .post-title {
   color: var(--farallon-hover-color);
 }
 
@@ -1454,6 +1468,15 @@
 
   .farallon-theme .graph .media-embed--video {
     margin: 22px 0;
+  }
+
+  .farallon-theme .post-navigation .nav-links {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .farallon-theme .post-navigation .nav-next:only-child {
+    grid-column: 1;
   }
 
   .farallon-theme .doulist-subject {

@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.8.0';
+const APP_VERSION = 'v1.9.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -37,13 +37,24 @@ const SETTINGS_CACHE_FILE = CACHE_DIR . '/settings.php';
 const UPDATE_REPOSITORY = 'jkjoy/Simple-PHP-Blog';
 const UPDATE_CACHE_FILE = CACHE_DIR . '/github-update.json';
 const BUNDLED_RELEASE_FILES = [
+    'themes/adams/theme.json',
+    'themes/clarity/theme.json',
+    'themes/farallon/theme.json',
     'themes/hammeros/theme.json',
+    'themes/jaguar/theme.json',
     'themes/liquid-glass/theme.json',
+    'themes/mango/theme.json',
     'themes/nebula/theme.json',
+    'themes/nojs/theme.json',
+    'themes/once/theme.json',
+    'themes/paper/theme.json',
     'themes/starter/theme.json',
+    'themes/timellow/theme.json',
     'themes/ying/theme.json',
     'plugins/ai-assistant/plugin.json',
     'plugins/ai-assistant/plugin.php',
+    'plugins/akismet/plugin.json',
+    'plugins/akismet/plugin.php',
     'plugins/email-notifications/plugin.json',
     'plugins/email-notifications/plugin.php',
     'plugins/english-language/plugin.json',
@@ -377,6 +388,15 @@ function ensure_schema(PDO $pdo): void
     );
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS post_views(
+            post_id INTEGER NOT NULL,
+            ip_hash TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(post_id, ip_hash),
+            FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
+        ) WITHOUT ROWID"
+    );
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS post_likes(
             post_id INTEGER NOT NULL,
             ip_hash TEXT NOT NULL,
             created_at INTEGER NOT NULL,
@@ -1949,6 +1969,11 @@ function apply_pretty_route(): void
         return;
     }
 
+    if (preg_match('#^/categories/?$#i', $path)) {
+        set_route_params(['a' => 'categories']);
+        return;
+    }
+
     if (preg_match('#^/links/?$#i', $path)) {
         set_route_params(['a' => 'links']);
         return;
@@ -2262,6 +2287,7 @@ function url_for(string $route, array $params = []): string
         'sitemap' => $pretty ? app_path('/sitemap.xml') : script_url() . '?a=sitemap',
         'archives' => $pretty ? app_path('/archives') : script_url() . '?a=archives',
         'tags' => $pretty ? app_path('/tags') : script_url() . '?a=tags',
+        'categories' => $pretty ? app_path('/categories') : script_url() . '?a=categories',
         'links' => $pretty ? app_path('/links') : script_url() . '?a=links',
         'tag' => $pretty ? app_path('/tag/' . rawurlencode((string)($params['slug'] ?? ''))) : script_url() . '?a=tag&slug=' . rawurlencode((string)($params['slug'] ?? '')),
         'category' => $pretty ? app_path('/category/' . rawurlencode((string)($params['slug'] ?? ''))) : script_url() . '?a=category&slug=' . rawurlencode((string)($params['slug'] ?? '')),
@@ -2306,6 +2332,7 @@ function url_for(string $route, array $params = []): string
         'delete_media' => script_url() . '?a=delete_media',
         'delete_post' => script_url() . '?a=delete_post',
         'change_status' => script_url() . '?a=change_status',
+        'like_post' => script_url() . '?a=like_post',
         'submit_comment' => script_url() . '?a=submit_comment',
         'moderate_comments' => script_url() . '?a=moderate_comments',
         'mark_comments_read' => script_url() . '?a=mark_comments_read',
@@ -3460,6 +3487,36 @@ function increment_content_views(array $post): void
     }
 }
 
+function post_like_count(int $postId): int
+{
+    return $postId > 0 ? (int)val('SELECT COUNT(*) FROM post_likes WHERE post_id = ?', [$postId]) : 0;
+}
+
+function visitor_liked_post(int $postId): bool
+{
+    return $postId > 0 && val('SELECT 1 FROM post_likes WHERE post_id = ? AND ip_hash = ? LIMIT 1', [$postId, client_ip_hash()]) !== false;
+}
+
+function like_post_for_visitor(int $postId): array
+{
+    $post = one('SELECT id FROM posts WHERE id = ? AND kind = ? AND status = ? AND published_at > 0 AND published_at <= ?', [$postId, 'post', 'published', time()]);
+    if (!$post) {
+        return ['ok' => false, 'error' => sblog_t('文章不存在')];
+    }
+
+    $database = db();
+    $database->exec('BEGIN IMMEDIATE');
+    try {
+        $inserted = q('INSERT OR IGNORE INTO post_likes(post_id, ip_hash, created_at) VALUES(?,?,?)', [$postId, client_ip_hash(), time()])->rowCount() === 1;
+        $count = (int)val('SELECT COUNT(*) FROM post_likes WHERE post_id = ?', [$postId]);
+        $database->exec('COMMIT');
+        return ['ok' => true, 'liked' => true, 'created' => $inserted, 'count' => $count];
+    } catch (Throwable $exception) {
+        try { $database->exec('ROLLBACK'); } catch (Throwable) {}
+        throw $exception;
+    }
+}
+
 function fetch_categories(): array
 {
     return all_rows(
@@ -3622,9 +3679,9 @@ function public_comments_for_post(int $postId, int $limit = 100): array
 {
     $limit = max(1, min(200, $limit));
     return all_rows(
-        "SELECT id, parent_id, reply_to_name, author_name, author_email, author_url, content, created_at
+        "SELECT id, user_id, parent_id, reply_to_name, author_name, author_email, author_url, content, created_at
          FROM (
-             SELECT id, parent_id, reply_to_name, author_name, author_email, author_url, content, created_at
+             SELECT id, user_id, parent_id, reply_to_name, author_name, author_email, author_url, content, created_at
              FROM comments
              WHERE post_id = ? AND status = 'approved'
              ORDER BY created_at DESC, id DESC
@@ -5367,6 +5424,32 @@ function render_tags_index(): void
     ]);
 }
 
+function render_categories_index(): void
+{
+    $categories = fetch_categories();
+
+    ob_start();
+    ?>
+    <h1 class="post-title" itemprop="name headline"><?= h(sblog_t('分类')) ?></h1>
+    <?php if ($categories): ?>
+      <div class="post-content">
+        <ul class="category-index">
+          <?php foreach ($categories as $category): ?>
+            <li><a href="<?= h(url_for('category', ['slug' => (string)$category['slug']])) ?>"><?= h((string)$category['name']) ?> (<?= h((string)$category['post_count']) ?>)</a></li>
+          <?php endforeach; ?>
+        </ul>
+      </div>
+    <?php else: ?>
+      <div class="empty-notice"><p><?= h(sblog_t('还没有分类。')) ?></p></div>
+    <?php endif; ?>
+    <?php
+    render_layout(sblog_t('分类'), (string)ob_get_clean(), [
+        'active' => 'categories',
+        'mode' => 'public',
+        'description' => sblog_t('文章分类'),
+    ]);
+}
+
 function render_tag_page(string $slug): void
 {
     $label = tag_label_by_slug($slug);
@@ -5862,6 +5945,7 @@ function render_sitemap(): void
     $add(url_for('home'), $now, '1.0');
     $add(url_for('archives'), $now, '0.7');
     $add(url_for('tags'), $now, '0.7');
+    $add(url_for('categories'), $now, '0.7');
     $add(url_for('links'), $now, '0.5');
     foreach ($rows as $row) {
         $route = (string)$row['kind'] === 'page' ? 'page' : 'post';
@@ -7057,6 +7141,10 @@ switch ($action) {
         render_tags_index();
         break;
 
+    case 'categories':
+        render_categories_index();
+        break;
+
     case 'links':
         render_links_page();
         break;
@@ -7067,6 +7155,18 @@ switch ($action) {
 
     case 'category':
         render_category_page(trim((string)($_GET['slug'] ?? '')));
+        break;
+
+    case 'like_post':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            json_response(['ok' => false, 'error' => sblog_t('仅支持 POST 请求。')], 405);
+        }
+        $token = (string)($_POST['csrf_token'] ?? '');
+        $sessionToken = (string)($_SESSION['csrf_token'] ?? '');
+        if ($sessionToken === '' || !hash_equals($sessionToken, $token)) {
+            json_response(['ok' => false, 'error' => sblog_t('请求已失效，请刷新页面后重试。')], 422);
+        }
+        json_response(like_post_for_visitor((int)($_POST['post_id'] ?? 0)));
         break;
 
     case 'submit_comment':

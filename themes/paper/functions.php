@@ -244,6 +244,142 @@ function paper_render_links(): string
     return (string)ob_get_clean();
 }
 
+function paper_comment_tree(array $comments): array
+{
+    $byId = [];
+    foreach ($comments as $comment) {
+        $byId[(int)$comment['id']] = $comment;
+    }
+
+    $children = [];
+    $roots = [];
+    foreach ($comments as $comment) {
+        $id = (int)$comment['id'];
+        $parentId = (int)$comment['parent_id'];
+        if ($parentId > 0 && $parentId !== $id && isset($byId[$parentId])) {
+            $children[$parentId][] = $id;
+        } else {
+            $roots[] = $id;
+        }
+    }
+
+    return [$byId, $children, $roots];
+}
+
+function paper_render_comment_items(array $ids, array $byId, array $children, bool $accepting, int $replyTargetId, array &$visited, int $depth = 0): string
+{
+    ob_start();
+    foreach ($ids as $id):
+        $id = (int)$id;
+        if (isset($visited[$id]) || !isset($byId[$id])) {
+            continue;
+        }
+        $visited[$id] = true;
+        $comment = $byId[$id];
+        $authorUrl = safe_link_url((string)$comment['author_url']);
+        $replyName = trim((string)$comment['reply_to_name']);
+        $parentId = (int)$comment['parent_id'];
+        $replyAnchorVisible = $parentId > 0 && isset($byId[$parentId]);
+        $childIds = array_values(array_filter(
+            $children[$id] ?? [],
+            static fn(int $childId): bool => !isset($visited[$childId])
+        ));
+        ?>
+        <li class="comment-item<?= $depth > 0 ? ' comment-item--reply' : '' ?>" id="comment-<?= h((string)$id) ?>" data-comment-depth="<?= h((string)$depth) ?>">
+          <header class="comment-item__meta">
+            <img class="comment-item__avatar" src="<?= h(gravatar_url((string)$comment['author_email'])) ?>" width="42" height="42" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+            <span class="comment-item__identity">
+              <?php if ($authorUrl !== '#'): ?>
+                <a class="comment-item__author" href="<?= h($authorUrl) ?>" target="_blank" rel="ugc nofollow noopener noreferrer"><?= h((string)$comment['author_name']) ?></a>
+              <?php else: ?>
+                <strong class="comment-item__author"><?= h((string)$comment['author_name']) ?></strong>
+              <?php endif; ?>
+              <time class="comment-item__time" datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
+            </span>
+            <?php if ($accepting): ?>
+              <button class="comment-reply-button" type="button" data-comment-reply data-comment-id="<?= h((string)$id) ?>" data-comment-author="<?= h((string)$comment['author_name']) ?>" aria-controls="comment-form" aria-pressed="<?= $replyTargetId === $id ? 'true' : 'false' ?>" aria-label="<?= h(sblog_t('回复 @{author}', ['author' => (string)$comment['author_name']])) ?>" title="<?= h(sblog_t('回复 @{author}', ['author' => (string)$comment['author_name']])) ?>">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 17-5-5 5-5"></path><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>
+                <span><?= h(sblog_t('回复')) ?></span>
+              </button>
+            <?php endif; ?>
+          </header>
+          <div class="comment-item__body">
+            <?php if ($replyName !== ''): ?>
+              <?php if ($replyAnchorVisible): ?>
+                <a class="comment-item__reply-target" href="#comment-<?= h((string)$parentId) ?>"><span class="sr-only"><?= h(sblog_t('回复给 @{author}', ['author' => $replyName])) ?></span><span class="comment-item__reply-label" aria-hidden="true">@<?= h($replyName) ?></span></a>
+              <?php else: ?>
+                <span class="comment-item__reply-target"><span class="sr-only"><?= h(sblog_t('回复给 @{author}', ['author' => $replyName])) ?></span><span class="comment-item__reply-label" aria-hidden="true">@<?= h($replyName) ?></span></span>
+              <?php endif; ?>
+            <?php endif; ?>
+            <span class="comment-item__content"><?= nl2br(h((string)$comment['content']), false) ?></span>
+          </div>
+          <?php if ($childIds): ?>
+            <ol class="comment-children" aria-label="<?= h(sblog_t('对 {author} 的回复', ['author' => (string)$comment['author_name']])) ?>">
+              <?= paper_render_comment_items($childIds, $byId, $children, $accepting, $replyTargetId, $visited, $depth + 1) ?>
+            </ol>
+          <?php endif; ?>
+        </li>
+        <?php
+    endforeach;
+    return (string)ob_get_clean();
+}
+
+function paper_render_comment_list(int $postId, bool $accepting, int $replyTargetId): string
+{
+    $comments = public_comments_for_post($postId);
+    if ($comments === []) {
+        return '';
+    }
+
+    [$byId, $children, $roots] = paper_comment_tree($comments);
+    $visited = [];
+    $items = paper_render_comment_items($roots, $byId, $children, $accepting, $replyTargetId, $visited);
+
+    // Broken or cyclic parent relationships must not hide an approved comment.
+    $remaining = array_values(array_diff(array_keys($byId), array_keys($visited)));
+    if ($remaining !== []) {
+        $items .= paper_render_comment_items($remaining, $byId, $children, $accepting, $replyTargetId, $visited);
+    }
+
+    return '<ol class="comment-list">' . $items . '</ol>';
+}
+
+function paper_prepare_comments(string $content, int $postId): string
+{
+    if (!str_contains($content, '<ol class="comment-list">')) {
+        return $content;
+    }
+
+    $accepting = str_contains($content, 'id="comment-form"');
+    $replyTargetId = preg_match('/name="parent_id" value="(\d*)"/', $content, $matches) ? (int)$matches[1] : 0;
+    $list = paper_render_comment_list($postId, $accepting, $replyTargetId);
+    if ($list === '') {
+        return $content;
+    }
+
+    return preg_replace_callback(
+        '/<ol class="comment-list">.*?<\/ol>/s',
+        static fn(array $matches): string => $list,
+        $content,
+        1
+    ) ?? $content;
+}
+
+function paper_comment_content_id(array $context): int
+{
+    $action = (string)($_GET['a'] ?? '');
+    $active = (string)($context['active'] ?? '');
+    $slug = (string)($_GET['slug'] ?? '');
+    $content = match (true) {
+        $action === 'post' => fetch_post_by_identifier($slug, true),
+        $action === 'page' => fetch_page_by_identifier($slug, true),
+        str_starts_with($active, 'page:') => fetch_page_by_identifier(substr($active, 5), true),
+        default => null,
+    };
+
+    return (int)($content['id'] ?? 0);
+}
+
 function paper_icon(string $name): string
 {
     $icons = [
@@ -298,9 +434,12 @@ add_theme_filter('content', static function (string $content, array $context): s
         return paper_render_links();
     }
 
-    return preg_replace(
+    $content = preg_replace(
         '/(<a\b[^>]*class="[^"]*\bpost-tag\b[^"]*"[^>]*>)#/i',
         '$1',
         $content
     ) ?? $content;
+
+    $contentId = paper_comment_content_id($context);
+    return $contentId > 0 ? paper_prepare_comments($content, $contentId) : $content;
 });

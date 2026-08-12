@@ -5,7 +5,7 @@ A lightweight blog built around a single-entry-point architecture:
 - The main application is contained in `index.php`
 - The installation flow is contained in `install.php`
 - SQLite storage
-- A narrow, reading-focused frontend inspired by Hugo's `paper` theme
+- Multiple bundled responsive frontend themes
 
 ## Features
 
@@ -15,6 +15,8 @@ A lightweight blog built around a single-entry-point architecture:
 - Standalone pages
 - Archives
 - Tag pages
+- Category index pages
+- Visitor post likes
 - RSS feed
 - Administrator login
 - Post management
@@ -26,6 +28,7 @@ A lightweight blog built around a single-entry-point architecture:
 - An optional bundled English interface plugin
 - Toggleable bundled plugins for AI writing, email notifications, and S3 uploads, each with separate configuration storage
 - Dedicated theme management with previews and frontend theme switching
+- Multiple bundled themes, including Mango and NoJS
 - Automatic GitHub Release checks and one-click application updates
 - Optional pretty URLs
 - Basic Markdown rendering

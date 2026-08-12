@@ -207,6 +207,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$viewsExist) {
                 $changes[] = '新增文章独立访客计数表';
             }
+            $likesExist = (bool)$db->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'post_likes' LIMIT 1")->fetchColumn();
+            $db->exec(
+                "CREATE TABLE IF NOT EXISTS post_likes(
+                    post_id INTEGER NOT NULL,
+                    ip_hash TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    PRIMARY KEY(post_id, ip_hash),
+                    FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
+                ) WITHOUT ROWID"
+            );
+            if (!$likesExist) {
+                $changes[] = '新增文章点赞数据表';
+            }
             $mediaExists = (bool)$db->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'media' LIMIT 1")->fetchColumn();
             $db->exec(
                 "CREATE TABLE IF NOT EXISTS media(

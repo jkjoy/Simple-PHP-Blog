@@ -1,0 +1,7 @@
+{
+  "name": "NoJS",
+  "version": "1.2.0",
+  "author": "Typecho Team / jkjoy",
+  "url": "https://github.com/jkjoy/typecho-theme-nojs",
+  "description": "1:1 移植 typecho-theme-nojs 的极简单栏主题，支持归档、标签、分类、友链、评论与移动端。"
+}

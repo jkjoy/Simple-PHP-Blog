@@ -135,36 +135,6 @@
 
   adaptDoubanCards();
 
-  function adaptPostNavigation() {
-    var source = document.querySelector("ul.post-navigation");
-    if (!source) return;
-    var navigation = document.createElement("nav");
-    navigation.className = "navigation post-navigation is-active";
-    navigation.setAttribute("aria-label", "文章导航");
-    var links = document.createElement("div");
-    links.className = "nav-links";
-    source.querySelectorAll(".page-item").forEach(function (item) {
-      var link = item.querySelector("a");
-      if (!link) return;
-      var wrapper = document.createElement("div");
-      var previous = item.classList.contains("page-previous");
-      wrapper.className = previous ? "nav-previous" : "nav-next";
-      var label = document.createElement("span");
-      label.className = "meta-nav";
-      label.textContent = link.textContent.trim();
-      var title = document.createElement("span");
-      title.className = "post-title";
-      title.textContent = link.dataset.postTitle || link.textContent.trim();
-      link.replaceChildren(label, title);
-      wrapper.appendChild(link);
-      links.appendChild(wrapper);
-    });
-    navigation.appendChild(links);
-    source.replaceWith(navigation);
-  }
-
-  adaptPostNavigation();
-
   function initTableOfContents() {
     var content = document.querySelector(".post--single .graph");
     if (!content || document.getElementById("toc")) return;

@@ -255,6 +255,39 @@ function farallon_post_meta(array $post): string
     return (string)ob_get_clean();
 }
 
+function farallon_render_post_navigation(array $post): string
+{
+    $neighbors = post_neighbors($post);
+    if (!$neighbors['newer'] && !$neighbors['older']) {
+        return '';
+    }
+
+    ob_start();
+    ?>
+    <nav class="navigation post-navigation" aria-label="<?= h(sblog_t('文章导航')) ?>">
+      <div class="nav-links">
+        <?php if ($neighbors['newer']): ?>
+          <div class="nav-previous">
+            <a href="<?= h(content_permalink($neighbors['newer'])) ?>" rel="prev">
+              <span class="meta-nav"><?= h(sblog_t('post_navigation.previous')) ?></span>
+              <span class="post-title"><?= h((string)$neighbors['newer']['title']) ?></span>
+            </a>
+          </div>
+        <?php endif; ?>
+        <?php if ($neighbors['older']): ?>
+          <div class="nav-next">
+            <a href="<?= h(content_permalink($neighbors['older'])) ?>" rel="next">
+              <span class="meta-nav"><?= h(sblog_t('post_navigation.next')) ?></span>
+              <span class="post-title"><?= h((string)$neighbors['older']['title']) ?></span>
+            </a>
+          </div>
+        <?php endif; ?>
+      </div>
+    </nav>
+    <?php
+    return trim((string)ob_get_clean());
+}
+
 function farallon_adapt_article_content(string $content, array $context): string
 {
     $action = (string)($_GET['a'] ?? '');
@@ -275,8 +308,8 @@ function farallon_adapt_article_content(string $content, array $context): string
     $content = str_replace('class="post-content"', 'class="post-content graph"', $content);
     if ($post && content_kind($post) === 'post') {
         $content = preg_replace('/<div class="meta">.*?<\/div>/s', farallon_post_meta($post), $content, 1) ?? $content;
+        $content = preg_replace('/<ul class="pagination">.*?<\/ul>/s', farallon_render_post_navigation($post), $content, 1) ?? $content;
     }
-    $content = str_replace('class="pagination"', 'class="pagination navigation post-navigation is-active"', $content);
     return '<main class="site--main">' . $content . '</main>';
 }
 

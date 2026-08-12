@@ -1,0 +1,7 @@
+{
+  "name": "Mango",
+  "version": "1.0.0",
+  "author": "Simple PHP Blog",
+  "url": "https://github.com/jkjoy/Simple-PHP-Blog",
+  "description": "一比一移植 Typecho-Theme-Mango 的双栏内容主题，适配文章、分类、搜索、归档、标签、友链与评论。"
+}
