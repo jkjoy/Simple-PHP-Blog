@@ -168,14 +168,14 @@ function mango_render_site_stats(): string
     }
     $createdAt = (int)(val('SELECT MIN(created_at) FROM (SELECT created_at FROM users UNION ALL SELECT created_at FROM posts)') ?: time());
     $runningDays = max(1, (int)floor((time() - $createdAt) / 86400) + 1);
-    $commentCount = (int)val('SELECT COUNT(*) FROM comments WHERE status = ?', ['approved']);
+    $linkCount = (int)val('SELECT COUNT(*) FROM links');
     $categoryCount = (int)val('SELECT COUNT(*) FROM categories');
     $tagCount = count(tag_index_data());
     $viewCount = (int)val('SELECT COALESCE(SUM(views), 0) FROM posts WHERE kind = ? AND status = ? AND published_at <= ?', ['post', 'published', time()]);
     $stats = [
         ['icon' => 'clock', 'label' => sblog_t('建站天数'), 'value' => number_format($runningDays), 'suffix' => sblog_t('天')],
         ['icon' => 'text', 'label' => sblog_t('总字数'), 'value' => number_format($wordCount), 'suffix' => sblog_t('字')],
-        ['icon' => 'comment', 'label' => sblog_t('评论数'), 'value' => number_format($commentCount), 'suffix' => sblog_t('条')],
+        ['icon' => 'link', 'label' => sblog_t('友情链接数'), 'value' => number_format($linkCount), 'suffix' => sblog_t('个')],
         ['icon' => 'folder', 'label' => sblog_t('分类数'), 'value' => number_format($categoryCount), 'suffix' => sblog_t('个')],
         ['icon' => 'tag', 'label' => sblog_t('标签数'), 'value' => number_format($tagCount), 'suffix' => sblog_t('个')],
         ['icon' => 'eye', 'label' => sblog_t('总浏览量'), 'value' => number_format($viewCount), 'suffix' => sblog_t('次')],
