@@ -86,37 +86,6 @@ function update_default_settings(): array
     ];
 }
 
-function update_default_mail_settings(): array
-{
-    return [
-        'smtp_enabled' => '0',
-        'smtp_host' => '',
-        'smtp_port' => '465',
-        'smtp_encryption' => 'ssl',
-        'smtp_username' => '',
-        'smtp_password' => '',
-        'smtp_from_email' => '',
-        'smtp_from_name' => '',
-        'smtp_notify_email' => '',
-    ];
-}
-
-function update_default_s3_settings(): array
-{
-    return [
-        's3_enabled' => '0',
-        's3_keep_local' => '1',
-        's3_endpoint' => 'https://s3.amazonaws.com',
-        's3_region' => 'us-east-1',
-        's3_bucket' => '',
-        's3_access_key' => '',
-        's3_secret_key' => '',
-        's3_path_prefix' => 'uploads',
-        's3_public_url' => '',
-        's3_path_style' => '0',
-    ];
-}
-
 function update_write_settings_cache(PDO $db): void
 {
     if (!is_dir(UPDATE_CACHE_DIR)) {
@@ -311,10 +280,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     value TEXT NOT NULL DEFAULT ''
                 )"
             );
-            $mailStatement = $db->prepare('INSERT OR IGNORE INTO mail_settings(name, value) VALUES(?, ?)');
-            foreach (update_default_mail_settings() as $name => $value) {
-                $mailStatement->execute([$name, $value]);
-            }
             if (!$mailSettingsExist) {
                 $changes[] = '新增邮件通知设置表';
             }
@@ -326,10 +291,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     value TEXT NOT NULL DEFAULT ''
                 )"
             );
-            $s3Statement = $db->prepare('INSERT OR IGNORE INTO s3_settings(name, value) VALUES(?, ?)');
-            foreach (update_default_s3_settings() as $name => $value) {
-                $s3Statement->execute([$name, $value]);
-            }
             if (!$s3SettingsExist) {
                 $changes[] = '新增 S3 上传设置表';
             }
