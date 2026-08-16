@@ -183,51 +183,6 @@ function i_default_settings(): array
     ];
 }
 
-function i_default_ai_settings(): array
-{
-    return [
-        'ai_api_url' => 'https://api.deepseek.com',
-        'ai_api_key' => '',
-        'ai_model' => 'deepseek-v4-flash',
-        'ai_auto_slug' => '0',
-        'ai_auto_summary' => '0',
-        'ai_slug_prompt' => 'Translate the title into a concise English URL slug. Output lowercase ASCII words separated only by hyphens. Output the slug only, without quotes or explanation.',
-        'ai_summary_prompt' => '根据文章内容生成不超过100个汉字的中文摘要。只输出摘要正文，不要标题、引号、解释或 Markdown 标记。',
-        'ai_polish_prompt' => '你是专业中文编辑。严格执行用户要求，保留有效 Markdown 结构。只输出处理后的完整正文，不要解释处理过程。',
-    ];
-}
-
-function i_default_mail_settings(): array
-{
-    return [
-        'smtp_enabled' => '0',
-        'smtp_host' => '',
-        'smtp_port' => '465',
-        'smtp_encryption' => 'ssl',
-        'smtp_username' => '',
-        'smtp_password' => '',
-        'smtp_from_email' => '',
-        'smtp_from_name' => '',
-        'smtp_notify_email' => '',
-    ];
-}
-
-function i_default_s3_settings(): array
-{
-    return [
-        's3_enabled' => '0',
-        's3_keep_local' => '1',
-        's3_endpoint' => 'https://s3.amazonaws.com',
-        's3_region' => 'us-east-1',
-        's3_bucket' => '',
-        's3_access_key' => '',
-        's3_secret_key' => '',
-        's3_path_prefix' => 'uploads',
-        's3_public_url' => '',
-        's3_path_style' => '0',
-    ];
-}
-
 function i_db_name(): string
 {
     if (is_file(INSTALL_LOCK_FILE) && is_file(INSTALL_DB_CONFIG_FILE)) {
@@ -827,21 +782,6 @@ $settings['pretty_url'] = $form['pretty_url'];
 $statement = $db->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)');
 foreach ($settings as $name => $value) {
     $statement->execute([$name, $value]);
-}
-
-$aiStatement = $db->prepare('INSERT OR REPLACE INTO ai_settings(name, value) VALUES(?, ?)');
-foreach (i_default_ai_settings() as $name => $value) {
-    $aiStatement->execute([$name, $value]);
-}
-
-$mailStatement = $db->prepare('INSERT OR REPLACE INTO mail_settings(name, value) VALUES(?, ?)');
-foreach (i_default_mail_settings() as $name => $value) {
-    $mailStatement->execute([$name, $value]);
-}
-
-$s3Statement = $db->prepare('INSERT OR REPLACE INTO s3_settings(name, value) VALUES(?, ?)');
-foreach (i_default_s3_settings() as $name => $value) {
-    $s3Statement->execute([$name, $value]);
 }
 
 $db->prepare('INSERT INTO users(username, password_hash, nickname, email, avatar_url, website_url, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)')
