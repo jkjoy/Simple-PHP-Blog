@@ -367,7 +367,7 @@ function i_render_page(string $title, string $body): void
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= i_h($title) ?></title>
-  <link rel="stylesheet" href="<?= i_h(i_asset_url('index.css')) ?>?v=v1.6.0">
+  <link rel="stylesheet" href="<?= i_h(i_asset_url('assets/admin.css')) ?>?v=v1.6.0">
 </head>
 <body>
   <div class="site-frame">

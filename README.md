@@ -77,8 +77,10 @@
 index.php      主入口
 install.php    安装页
 installer.php  单文件自动部署器
-index.css      前后台样式
-index.js       前台交互
+assets/index.css 公共与通用样式
+assets/admin.css 后台管理样式
+assets/index.js  前台交互
+assets/admin.js 后台管理交互
 .htaccess      Apache 重写和目录保护
 data/          SQLite、安装锁、配置
 cache/         设置缓存

@@ -61,7 +61,7 @@ $tagline = trim(setting('site_tagline'));
     <?php theme_action('footer_after', $themeContext); ?>
     <nav class="floating-actions" aria-label="<?= h(sblog_t('快捷操作')) ?>"><button class="floating-action floating-action-top" type="button" data-back-to-top hidden aria-label="<?= h(sblog_t('返回顶部')) ?>" title="<?= h(sblog_t('返回顶部')) ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"></path></svg></button><?php if ($admin): ?><a class="floating-action" href="<?= h(url_for('admin')) ?>" aria-label="<?= h(sblog_t('管理后台')) ?>" title="<?= h(sblog_t('管理后台')) ?>"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><path d="m10 17 5-5-5-5"></path><path d="M15 12H3"></path></svg></a><?php endif; ?></nav>
   </div></div>
-  <script src="<?= h(asset_url('index.js')) ?>?v=<?= h(APP_VERSION) ?>"></script>
+  <script src="<?= h(asset_url('assets/index.js')) ?>?v=<?= h(APP_VERSION) ?>"></script>
   <script src="<?= h(theme_asset_url('script.js')) ?>?v=<?= h($scriptVersion) ?>" defer></script>
   <?php theme_action('body_close', $themeContext); ?>
 </body>

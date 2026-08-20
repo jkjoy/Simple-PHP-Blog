@@ -77,8 +77,10 @@ The installer requires PHP 8.0+ and the `curl`, `zip`, `pdo_sqlite`, and `filein
 index.php      Main entry point
 install.php    Installation page
 installer.php  Single-file automatic deployer
-index.css      Frontend and admin styles
-index.js       Frontend interactions
+assets/index.css Public and shared styles
+assets/admin.css Admin styles
+assets/index.js  Frontend interactions
+assets/admin.js Admin interactions
 .htaccess      Apache rewrite rules and directory protection
 data/          SQLite database, installation lock, and configuration
 cache/         Settings cache

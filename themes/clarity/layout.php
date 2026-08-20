@@ -54,7 +54,7 @@ foreach ($navPages as $page) {
   <?php theme_action('footer_before', $themeContext); ?>
   <footer class="footer"><div class="footer_inner wrap pale"><img src="<?= h(theme_asset_url('assets/icons/apple-touch-icon.png')) ?>" class="icon icon_2 transparent" alt="<?= h($siteName) ?>"><p><?= h($footerText) ?></p><a class="to_top" href="#documentTop" aria-label="回到顶部" title="回到顶部"><?= clarity_icon('top') ?></a></div></footer>
   <?php theme_action('footer_after', $themeContext); ?>
-  <script src="<?= h(asset_url('index.js')) ?>?v=<?= h(APP_VERSION) ?>" defer></script>
+  <script src="<?= h(asset_url('assets/index.js')) ?>?v=<?= h(APP_VERSION) ?>" defer></script>
   <script src="<?= h(theme_asset_url('script.js')) ?>?v=<?= h($scriptVersion) ?>" defer></script>
   <?php theme_action('body_close', $themeContext); ?>
 </body>

@@ -306,7 +306,7 @@ function sbi_deploy_release(array $release): int
             throw new RuntimeException(sbi_t('安装包目录结构无效。', 'The package directory structure is invalid.'));
         }
         $source = $roots[0];
-        foreach (['index.php', 'install.php', 'index.css', 'index.js'] as $required) {
+        foreach (['index.php', 'install.php', 'assets/index.css', 'assets/index.js', 'assets/admin.css', 'assets/admin.js'] as $required) {
             if (!is_file($source . '/' . $required)) {
                 throw new RuntimeException(sbi_t('安装包缺少必要文件：', 'The package is missing a required file: ') . $required);
             }

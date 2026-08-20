@@ -65,7 +65,7 @@ $scriptFile = __DIR__ . '/script.js';
     <span class="footer__item">Copyright&nbsp;<?= h(date('Y')) ?>&nbsp;<?= h($siteName) ?>&nbsp; Powered by <a class="footer__link" href="https://github.com/jkjoy/Simple-PHP-Blog" target="_blank" rel="noopener noreferrer">SBlog</a> &amp; <a class="footer__link" href="https://github.com/jkjoy/typecho-theme-nojs" target="_blank" rel="noopener noreferrer">Nojs</a> <span>&nbsp;本站共计 <?= h((string)$totalViews) ?> 人浏览 运营时间至今有 <small><?= h((string)$siteDays) ?>天</small></span><?php if ($beian !== ''): ?> <a class="footer__link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer"><?= h($beian) ?></a><?php endif; ?></span>
   </footer>
   <?php theme_action('footer_after', $themeContext); ?>
-  <script src="<?= h(asset_url('index.js')) ?>?v=<?= h(APP_VERSION) ?>"></script>
+  <script src="<?= h(asset_url('assets/index.js')) ?>?v=<?= h(APP_VERSION) ?>"></script>
   <script src="<?= h(theme_asset_url('script.js')) ?>?v=<?= h(is_file($scriptFile) ? (string)filemtime($scriptFile) : '1.2.0') ?>" defer></script>
   <?php theme_action('body_close', $themeContext); ?>
 </body>

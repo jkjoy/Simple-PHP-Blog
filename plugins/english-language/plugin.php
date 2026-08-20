@@ -161,6 +161,7 @@ function sblog_english_language_map(): array
         '如果发布时间晚于当前时间，前台会按定时发布处理。' => 'A future publication time schedules the content for public release.',
         '独立页面可以留空，文章会用这些标签生成聚合页。' => 'Optional for standalone pages. Post tags generate archive pages.',
         '可同时上传多个附件，每个最大 30M；图片上传完成后显示缩略图并插入 Markdown。' => 'Upload multiple attachments up to 30 MB each. Uploaded images show a thumbnail and are inserted as Markdown.',
+        '可同时上传多个附件，每个最大 30M；图片上传完成后显示缩略图并插入 Markdown，也可以直接粘贴图片。' => 'Upload multiple attachments up to 30 MB each. Images show a thumbnail and are inserted as Markdown; you can also paste images directly.',
         '选择或拖入附件' => 'Choose or drop attachments',
         '支持 Markdown；将网易云音乐、哔哩哔哩、YouTube 或豆瓣链接单独放在一段可自动解析。' => 'Supports Markdown. NetEase Music, Bilibili, YouTube, and Douban links on their own line are embedded automatically.',
         'API 地址' => 'API URL',

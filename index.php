@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.9.2';
+const APP_VERSION = 'v1.9.3';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -1266,7 +1266,7 @@ function github_update_info(bool $refresh = false): array
 
 function install_release_files(string $source, string $targetRoot, string $backup): void
 {
-    $files = ['index.php', 'index.css', 'index.js', 'install.php', 'update.php', 'README.md', 'README-EN.md', 'logo.png', 'favicon.png', '.htaccess'];
+    $files = ['index.php', 'install.php', 'update.php', 'README.md', 'README-EN.md', 'logo.png', 'favicon.png', '.htaccess', 'assets/index.css', 'assets/index.js', 'assets/admin.css', 'assets/admin.js'];
     foreach (['themes', 'plugins'] as $extensionDirectory) {
         $extensionRoot = $source . '/' . $extensionDirectory;
         if (!is_dir($extensionRoot)) {
@@ -4495,7 +4495,11 @@ function render_layout(string $title, string $content, array $options = []): voi
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="<?= h(asset_url('index.css')) ?>?v=<?= h(APP_VERSION) ?>">
+  <?php if ($mode === 'public'): ?>
+  <link rel="stylesheet" href="<?= h(asset_url('assets/index.css')) ?>?v=<?= h(APP_VERSION) ?>">
+  <?php else: ?>
+  <link rel="stylesheet" href="<?= h(asset_url('assets/admin.css')) ?>?v=<?= h(APP_VERSION) ?>">
+  <?php endif; ?>
   <?php if ($customHeadCode !== ''): ?>
 <?= $customHeadCode . "\n" ?>
   <?php endif; ?>
@@ -4566,7 +4570,6 @@ function render_layout(string $title, string $content, array $options = []): voi
           <?php if ($admin): ?>
             <nav class="site-nav site-nav--admin" aria-label="<?= h(sblog_t('主导航')) ?>">
               <a class="nav-link<?= $active === 'admin' ? ' is-active' : '' ?>" href="<?= h(url_for('admin')) ?>"><?= h(sblog_t('管理后台')) ?></a>
-              <a class="nav-link nav-link--pill<?= in_array($active, ['write', 'edit'], true) ? ' is-active' : '' ?>" href="<?= h(url_for('write')) ?>"><?= h(sblog_t('撰写文章')) ?></a>
               <form class="nav-logout-form" method="post" action="<?= h(url_for('logout')) ?>">
                 <?= csrf_field() ?>
                 <button class="nav-link" type="submit"><?= h(sblog_t('退出')) ?></button>
@@ -4606,7 +4609,7 @@ function render_layout(string $title, string $content, array $options = []): voi
       </footer>
     </div>
   <?php endif; ?>
-  <script src="<?= h(asset_url('index.js')) ?>?v=<?= h(APP_VERSION) ?>"></script>
+  <script src="<?= h(asset_url($mode === 'public' ? 'assets/index.js' : 'assets/admin.js')) ?>?v=<?= h(APP_VERSION) ?>"></script>
   <?php if ($mode === 'public') { theme_action('body_close', $themeContext); } ?>
 </body>
 </html>
@@ -4681,11 +4684,11 @@ function render_admin_sidebar(string $active, array $summary = []): string
             'active' => $active === 'admin',
         ],
         [
-            'label' => '撰写文章',
-            'icon' => 'write',
-            'note' => '发布文章或页面',
-            'href' => url_for('write'),
-            'active' => in_array($active, ['write', 'edit'], true),
+            'label' => '文章管理',
+            'icon' => 'posts',
+            'note' => '列表与发布',
+            'href' => url_for('admin_posts'),
+            'active' => in_array($active, ['posts', 'write', 'edit'], true),
         ],
         [
             'label' => '媒体库',
@@ -4693,13 +4696,6 @@ function render_admin_sidebar(string $active, array $summary = []): string
             'note' => '上传与文件管理',
             'href' => url_for('admin_media'),
             'active' => $active === 'media',
-        ],
-        [
-            'label' => '文章管理',
-            'icon' => 'posts',
-            'note' => '列表与发布',
-            'href' => url_for('admin_posts'),
-            'active' => $active === 'posts',
         ],
         [
             'label' => '评论管理',
@@ -4776,7 +4772,6 @@ function render_admin_sidebar(string $active, array $summary = []): string
             <?php $linkBadge = (int)($link['badge'] ?? 0); ?>
             <?php $linkDisplayLabel = match ((string)$link['label']) {
                 '博客概览' => sblog_t('博客概览'),
-                '撰写文章' => sblog_t('撰写文章'),
                 '媒体库' => sblog_t('媒体库'),
                 '文章管理' => sblog_t('文章管理'),
                 '评论管理' => sblog_t('评论管理'),
@@ -4790,7 +4785,6 @@ function render_admin_sidebar(string $active, array $summary = []): string
             }; ?>
             <?php $linkDisplayNote = match ((string)$link['note']) {
                 '浏览与统计' => sblog_t('浏览与统计'),
-                '发布文章或页面' => sblog_t('发布文章或页面'),
                 '上传与文件管理' => sblog_t('上传与文件管理'),
                 '列表与发布' => sblog_t('列表与发布'),
                 '审核与通知' => sblog_t('审核与通知'),
@@ -6008,6 +6002,7 @@ function render_admin_posts_page(): void
                 <h2><?= h(sblog_t('文章管理')) ?></h2>
                 <p class="panel__meta"><?= h(sblog_t('管理文章、独立页面、分类、状态和浏览量。')) ?></p>
               </div>
+              <a class="button" href="<?= h(url_for('write')) ?>"><?= h(sblog_t('撰写文章')) ?></a>
             </div>
           </div>
           <div class="panel__body panel__body--flush">
@@ -7058,7 +7053,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                   <input id="attachmentInput" class="attachment-input" type="file" name="attachments[]" multiple>
                   <label class="attachment-drop" for="attachmentInput">
                     <span class="attachment-drop__title"><?= h(sblog_t('选择或拖入附件')) ?></span>
-                    <span class="attachment-drop__hint"><?= h(sblog_t('可同时上传多个附件，每个最大 30M；图片上传完成后显示缩略图并插入 Markdown。')) ?></span>
+                    <span class="attachment-drop__hint"><?= h(sblog_t('可同时上传多个附件，每个最大 30M；图片上传完成后显示缩略图并插入 Markdown，也可以直接粘贴图片。')) ?></span>
                   </label>
                   <div class="attachment-list" aria-live="polite"></div>
                 </div>

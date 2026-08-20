@@ -108,7 +108,7 @@ $homeLike = $active === 'home' && (string)($_GET['a'] ?? '') !== 'post';
   <footer class="footbox"><div class="container"><div>© <?= h(date('Y')) ?> <?= h($siteName) ?>. Powered by Simple PHP Blog.</div><a href="<?= h(url_for('rss')) ?>" aria-label="RSS" title="RSS"><?= mango_icon('rss') ?></a></div></footer>
   <?php theme_action('footer_after', $themeContext); ?>
   <button class="scrollToTopBtn" type="button" aria-label="<?= h(sblog_t('回到顶部')) ?>" title="<?= h(sblog_t('回到顶部')) ?>"><?= mango_icon('up') ?></button>
-  <script src="<?= h(asset_url('index.js')) ?>?v=<?= h(APP_VERSION) ?>" defer></script>
+  <script src="<?= h(asset_url('assets/index.js')) ?>?v=<?= h(APP_VERSION) ?>" defer></script>
   <script src="<?= h(theme_asset_url('script.js')) ?>?v=<?= h($scriptVersion) ?>" defer></script>
   <?php theme_action('body_close', $themeContext); ?>
 </body>

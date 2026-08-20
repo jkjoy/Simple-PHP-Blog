@@ -90,7 +90,7 @@ foreach ($navPages as $page) {
   </div>
 
   <button class="backToTop" type="button" aria-label="<?= h(sblog_t('回到顶部')) ?>" title="<?= h(sblog_t('回到顶部')) ?>"><svg class="svgIcon" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M7.5.425A.75.75 0 0 0 6.438.425L.728 6.132a.75.75 0 1 0 1.06 1.06l4.428-4.427v10.259a.75.75 0 0 0 1.5 0V2.765l4.428 4.427a.75.75 0 0 0 1.06-1.06L7.5.425Z"></path></svg></button>
-  <script src="<?= h(asset_url('index.js')) ?>?v=<?= h(APP_VERSION) ?>" defer></script>
+  <script src="<?= h(asset_url('assets/index.js')) ?>?v=<?= h(APP_VERSION) ?>" defer></script>
   <script src="<?= h(theme_asset_url('script.js')) ?>?v=<?= h($scriptVersion) ?>" defer></script>
   <?php theme_action('body_close', $themeContext); ?>
 </body>

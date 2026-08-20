@@ -74,7 +74,7 @@ foreach ($navPages as $page) {
     <?php theme_action('footer_after', $themeContext); ?>
   </div>
   <button class="once-back-top" type="button" data-once-back-top aria-label="<?= h(sblog_t('回到顶部')) ?>" title="<?= h(sblog_t('回到顶部')) ?>"><?= once_icon('arrow-up', 18) ?></button>
-  <script src="<?= h(asset_url('index.js')) ?>?v=<?= h(APP_VERSION) ?>" defer></script>
+  <script src="<?= h(asset_url('assets/index.js')) ?>?v=<?= h(APP_VERSION) ?>" defer></script>
   <script src="<?= h(theme_asset_url('script.js')) ?>?v=<?= h($scriptVersion) ?>" defer></script>
   <?php theme_action('body_close', $themeContext); ?>
 </body>
