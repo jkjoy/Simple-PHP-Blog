@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.9.3';
+const APP_VERSION = 'v1.9.4';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -2052,7 +2052,16 @@ function install_url(): string
 
 function asset_url(string $path): string
 {
-    return app_path('/' . ltrim($path, '/'));
+    $normalized = ltrim($path, '/');
+    $coreAssets = ['assets/index.css', 'assets/index.js', 'assets/admin.css', 'assets/admin.js'];
+    if (in_array($normalized, $coreAssets, true) && !is_file(__DIR__ . '/' . $normalized)) {
+        // Older online updaters copy bundled theme files but do not know about the assets directory.
+        $fallback = 'themes/starter/' . $normalized;
+        if (is_file(__DIR__ . '/' . $fallback)) {
+            $normalized = $fallback;
+        }
+    }
+    return app_path('/' . $normalized);
 }
 
 function theme_manifest(string $slug): ?array
