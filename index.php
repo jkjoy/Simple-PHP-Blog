@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.9.4';
+const APP_VERSION = 'v1.10.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -6442,15 +6442,81 @@ function render_admin_tags_page(array $form = [], array $errors = []): void
     require_admin();
     $tags = tag_index_data(false);
     $old = trim((string)($_GET['tag'] ?? $form['old_tag'] ?? ''));
-    $currentSlug = $old !== '' ? tag_slug_for_label($old) : '';
+    $selectedTag = null;
+    foreach ($tags as $tag) {
+        if ((string)$tag['label'] === $old) {
+            $selectedTag = $tag;
+            break;
+        }
+    }
+    if ($selectedTag === null && !$errors) {
+        $old = '';
+    }
+    $currentSlug = (string)($form['tag_slug'] ?? $selectedTag['slug'] ?? '');
+    $maxTagCount = max(1, ...array_map(static fn(array $tag): int => (int)$tag['count'], $tags));
     $sidebar = render_admin_sidebar('tags');
     ob_start(); ?>
-    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar(sblog_t('标签管理')) ?><div class="admin-grid admin-grid--split">
-      <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h(sblog_t('标签列表')) ?></h2><p class="panel__meta"><?= h(sblog_tn('标签来自文章内容，共 {count} 个标签。', count($tags))) ?></p></div><div class="panel__body panel__body--flush">
-      <?php if ($tags): ?><form method="post" action="<?= h(url_for('delete_tag')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除选中的标签吗？文章本身不会被删除。'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);"><?= csrf_field() ?><div class="table-wrap"><table class="admin-table"><thead><tr><th><input type="checkbox" aria-label="<?= h(sblog_t('全选')) ?>" data-check-all="tag_ids[]"></th><th><?= h(sblog_t('标签')) ?></th><th><?= h(sblog_t('Slug')) ?></th><th><?= h(sblog_t('文章数')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead><tbody><?php foreach ($tags as $tag): ?><tr><td><input type="checkbox" name="tag_ids[]" value="<?= h((string)$tag['label']) ?>" aria-label="<?= h(sblog_t('选择标签 {tag}', ['tag' => (string)$tag['label']])) ?>"></td><td><strong>#<?= h((string)$tag['label']) ?></strong></td><td><?= h((string)$tag['slug']) ?></td><td><?= h((string)$tag['count']) ?></td><td><a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_tags'), ['tag' => (string)$tag['label']])) ?>"><?= h(sblog_t('修改')) ?></a></td></tr><?php endforeach; ?></tbody></table></div><div class="panel__body"><button class="button button--danger" type="submit"><?= h(sblog_t('批量删除')) ?></button></div></form><?php else: ?><div class="empty-state empty-state--inside"><p><?= h(sblog_t('还没有标签。')) ?></p></div><?php endif; ?>
-      </div></section>
-      <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h(sblog_t('修改标签')) ?></h2></div><div class="panel__body"><?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', translated_admin_form_errors($errors))) ?></div><?php endif; ?><form class="form-stack" method="post" action="<?= h(url_for('save_tag')) ?>"><?= csrf_field() ?><div class="field"><label><?= h(sblog_t('原标签')) ?></label><input name="old_tag" value="<?= h($old) ?>" readonly required></div><div class="field"><label><?= h(sblog_t('标签名称')) ?></label><input name="new_tag" value="<?= h((string)($form['new_tag'] ?? $old)) ?>" required></div><div class="field"><label><?= h(sblog_t('Slug')) ?></label><input name="tag_slug" value="<?= h((string)($form['tag_slug'] ?? $currentSlug)) ?>" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required><p class="field-hint"><?= h(sblog_t('仅使用小写字母、数字和连字符。')) ?></p></div><div class="action-row"><button class="button"><?= h(sblog_t('保存修改')) ?></button></div></form></div></section>
-    </div></div></div><?php
+    <div class="admin-shell">
+      <?= $sidebar ?>
+      <div class="admin-main">
+        <?= render_admin_topbar(sblog_t('标签管理')) ?>
+        <div class="admin-grid admin-grid--split tag-manager" data-tag-manager data-base-url="<?= h(url_for('admin_tags')) ?>">
+          <section class="panel admin-list-panel tag-cloud-panel">
+            <div class="panel__header">
+              <h2><?= h(sblog_t('标签列表')) ?></h2>
+              <p class="panel__meta"><?= h(sblog_tn('标签来自文章内容，共 {count} 个标签。', count($tags))) ?></p>
+            </div>
+            <div class="panel__body">
+              <?php if ($tags): ?>
+                <form class="tag-cloud-form" method="post" action="<?= h(url_for('delete_tag')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除选中的标签吗？文章本身不会被删除。'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                  <?= csrf_field() ?>
+                  <div class="tag-cloud__toolbar">
+                    <button class="button button--secondary tag-cloud__select-all" type="button" data-tag-check-all aria-pressed="false"><?= h(sblog_t('全选')) ?></button>
+                    <span class="tag-cloud__selection" data-tag-selection-count aria-live="polite"></span>
+                    <button class="button button--danger" type="submit" data-tag-delete><?= h(sblog_t('批量删除')) ?></button>
+                  </div>
+                  <div class="tag-cloud" role="list">
+                    <?php foreach ($tags as $tag): ?>
+                      <?php
+                      $label = (string)$tag['label'];
+                      $isSelected = $old !== '' && $label === $old;
+                      $weight = $maxTagCount > 1 ? (int)round((((int)$tag['count'] - 1) / ($maxTagCount - 1)) * 3) : 0;
+                      ?>
+                      <div class="tag-cloud__item tag-cloud__item--weight-<?= $weight ?><?= $isSelected ? ' is-active is-marked' : '' ?>" role="listitem" data-tag-item data-tag-label="<?= h($label) ?>" data-tag-slug="<?= h((string)$tag['slug']) ?>">
+                        <input type="hidden" name="tag_ids[]" value="<?= h($label) ?>" data-tag-input<?= $isSelected ? '' : ' disabled' ?>>
+                        <button class="tag-cloud__button" type="button" data-tag-select data-tag-url="<?= h(url_with_query(url_for('admin_tags'), ['tag' => $label])) ?>" aria-pressed="<?= $isSelected ? 'true' : 'false' ?>">
+                          <span class="tag-cloud__name">#<?= h($label) ?></span>
+                          <span class="tag-cloud__count"><?= h(sblog_tn('{count} 篇', (int)$tag['count'])) ?></span>
+                        </button>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </form>
+              <?php else: ?>
+                <div class="empty-state empty-state--inside"><p><?= h(sblog_t('还没有标签。')) ?></p></div>
+              <?php endif; ?>
+            </div>
+          </section>
+
+          <section class="panel admin-list-panel tag-editor" data-tag-editor>
+            <div class="panel__header">
+              <h2><?= h(sblog_t('修改标签')) ?></h2>
+              <p class="panel__meta" data-tag-editor-status><?= h($old !== '' ? '#' . $old : sblog_t('未选择标签')) ?></p>
+            </div>
+            <div class="panel__body">
+              <?php if ($errors): ?><div class="flash flash--error"><?= h(implode(' ', translated_admin_form_errors($errors))) ?></div><?php endif; ?>
+              <form class="form-stack" method="post" action="<?= h(url_for('save_tag')) ?>" data-tag-edit-form>
+                <?= csrf_field() ?>
+                <div class="field"><label><?= h(sblog_t('原标签')) ?></label><input name="old_tag" value="<?= h($old) ?>" readonly required data-tag-old<?= $old === '' ? ' disabled' : '' ?>></div>
+                <div class="field"><label><?= h(sblog_t('标签名称')) ?></label><input name="new_tag" value="<?= h((string)($form['new_tag'] ?? $old)) ?>" required data-tag-name<?= $old === '' ? ' disabled' : '' ?>></div>
+                <div class="field"><label><?= h(sblog_t('Slug')) ?></label><input name="tag_slug" value="<?= h($currentSlug) ?>" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required data-tag-slug<?= $old === '' ? ' disabled' : '' ?>><p class="field-hint"><?= h(sblog_t('仅使用小写字母、数字和连字符。')) ?></p></div>
+                <div class="action-row"><button class="button" data-tag-save<?= $old === '' ? ' disabled' : '' ?>><?= h(sblog_t('保存修改')) ?></button></div>
+              </form>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div><?php
     render_layout(sblog_t('标签管理'), (string)ob_get_clean(), ['active' => 'tags', 'wide' => true, 'description' => sblog_t('标签管理')]);
 }
 

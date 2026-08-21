@@ -1,0 +1,8 @@
+{
+  "name": "Typecho 数据导入",
+  "version": "1.0.0",
+  "author": "Simple PHP Blog",
+  "url": "https://github.com/jkjoy/Simple-PHP-Blog",
+  "description": "预检并选择性导入 Typecho 官方 .dat 备份中的文章、页面、用户、分类、标签、评论和附件元数据。",
+  "settings_action": "admin_typecho_import"
+}

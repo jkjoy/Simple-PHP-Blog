@@ -253,6 +253,132 @@ function initSettingsControls() {
   });
 }
 
+function initTagManager() {
+  const manager = document.querySelector("[data-tag-manager]");
+  if (!(manager instanceof HTMLElement)) return;
+
+  const items = Array.from(manager.querySelectorAll("[data-tag-item]"));
+  const editForm = manager.querySelector("[data-tag-edit-form]");
+  const editor = manager.querySelector("[data-tag-editor]");
+  const oldInput = editForm?.querySelector("[data-tag-old]");
+  const nameInput = editForm?.querySelector("[data-tag-name]");
+  const slugInput = editForm?.querySelector("[data-tag-slug]");
+  const saveButton = editForm?.querySelector("[data-tag-save]");
+  const deleteButton = manager.querySelector("[data-tag-delete]");
+  const selectAllButton = manager.querySelector("[data-tag-check-all]");
+  const selectionCount = manager.querySelector("[data-tag-selection-count]");
+  const editorStatus = manager.querySelector("[data-tag-editor-status]");
+  if (!(editForm instanceof HTMLFormElement) || !items.length) return;
+
+  const controls = [oldInput, nameInput, slugInput].filter((control) => control instanceof HTMLInputElement);
+  const selectedItems = () => items.filter((item) => {
+    const input = item.querySelector("[data-tag-input]");
+    return input instanceof HTMLInputElement && !input.disabled;
+  });
+
+  const setItemSelected = (item, selected) => {
+    const input = item.querySelector("[data-tag-input]");
+    const button = item.querySelector("[data-tag-select]");
+    if (input instanceof HTMLInputElement) input.disabled = !selected;
+    if (button instanceof HTMLButtonElement) button.setAttribute("aria-pressed", selected ? "true" : "false");
+    item.classList.toggle("is-marked", selected);
+  };
+
+  const setEditorEnabled = (enabled) => {
+    controls.forEach((control) => { control.disabled = !enabled; });
+    if (saveButton instanceof HTMLButtonElement) saveButton.disabled = !enabled;
+  };
+
+  const replaceUrl = (url) => {
+    if (typeof window.history?.replaceState !== "function") return;
+    window.history.replaceState(null, "", url);
+  };
+
+  const activateItem = (item, updateUrl = true, revealEditor = false) => {
+    if (!(item instanceof HTMLElement)) return;
+    const label = item.dataset.tagLabel || "";
+    const slug = item.dataset.tagSlug || "";
+    if (!label || !(oldInput instanceof HTMLInputElement) || !(nameInput instanceof HTMLInputElement) || !(slugInput instanceof HTMLInputElement)) return;
+
+    items.forEach((candidate) => {
+      const active = candidate === item;
+      candidate.classList.toggle("is-active", active);
+    });
+    oldInput.value = label;
+    nameInput.value = label;
+    slugInput.value = slug;
+    setEditorEnabled(true);
+    if (editorStatus instanceof HTMLElement) editorStatus.textContent = `#${label}`;
+
+    const button = item.querySelector("[data-tag-select]");
+    if (updateUrl && button instanceof HTMLButtonElement && button.dataset.tagUrl) replaceUrl(button.dataset.tagUrl);
+    if (!revealEditor) return;
+    if (window.matchMedia("(max-width: 760px)").matches && editor instanceof HTMLElement) {
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      editor.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+    } else {
+      nameInput.focus({ preventScroll: true });
+      nameInput.select();
+    }
+  };
+
+  const clearEditor = () => {
+    items.forEach((item) => item.classList.remove("is-active"));
+    controls.forEach((control) => { control.value = ""; });
+    setEditorEnabled(false);
+    if (editorStatus instanceof HTMLElement) editorStatus.textContent = sblogText("no_tag_selected", "未选择标签");
+    replaceUrl(manager.dataset.baseUrl || window.location.pathname);
+  };
+
+  const updateSelectionState = () => {
+    const count = selectedItems().length;
+    if (selectAllButton instanceof HTMLButtonElement) {
+      const allSelected = count === items.length;
+      selectAllButton.setAttribute("aria-pressed", allSelected ? "true" : "false");
+      selectAllButton.textContent = allSelected
+        ? sblogText("clear_selection", "取消全选")
+        : sblogText("select_all", "全选");
+    }
+    if (deleteButton instanceof HTMLButtonElement) deleteButton.disabled = count === 0;
+    if (selectionCount instanceof HTMLElement) {
+      selectionCount.textContent = count > 0
+        ? sblogText("selected_tag_count", "已选择 {count} 个标签", { count })
+        : sblogText("no_tag_selected", "未选择标签");
+    }
+  };
+
+  items.forEach((item) => {
+    const button = item.querySelector("[data-tag-select]");
+    button?.addEventListener("click", () => {
+      const input = item.querySelector("[data-tag-input]");
+      if (!(input instanceof HTMLInputElement)) return;
+      if (input.disabled) {
+        setItemSelected(item, true);
+        activateItem(item, true, true);
+      } else {
+        setItemSelected(item, false);
+        if (!item.classList.contains("is-active")) {
+          updateSelectionState();
+          return;
+        }
+        const next = selectedItems()[0];
+        if (next) activateItem(next);
+        else clearEditor();
+      }
+      updateSelectionState();
+    });
+  });
+
+  selectAllButton?.addEventListener("click", () => {
+    const shouldSelect = selectedItems().length !== items.length;
+    items.forEach((item) => setItemSelected(item, shouldSelect));
+    if (!shouldSelect) clearEditor();
+    updateSelectionState();
+  });
+
+  updateSelectionState();
+}
+
 function initAttachmentUploader() {
   const uploader = document.querySelector(".attachment-uploader");
   if (!uploader) return;
@@ -637,6 +763,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initAdminNavigation();
   initAccountMenus();
   initSettingsControls();
+  initTagManager();
   initMarkdownEditor();
   initAttachmentUploader();
   initAiEditor();
