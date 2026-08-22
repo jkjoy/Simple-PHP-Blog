@@ -59,6 +59,7 @@ add_plugin_filter('output_html', static function (string $html, array $context):
 - `admin_sidebar_links`：修改后台侧边栏链接数组
 - `site_mail_send`：处理站点邮件发送
 - `notification_recipient`：修改评论通知收件邮箱
+- `avatar_url`：修改评论头像 URL；context 包含 `email`、`hash`、`size`、`default_image` 与 `rating`
 - `attachment_storage`：接管编辑器附件的最终存储位置
 - `editor_field_actions_html`：在 `slug`、`excerpt` 或 `content` 标签旁注入编辑器操作
 - `editor_after_form_html`：在文章编辑表单后注入弹窗等插件界面

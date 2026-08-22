@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.10.0';
+const APP_VERSION = 'v1.11.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -39,6 +39,7 @@ const UPDATE_CACHE_FILE = CACHE_DIR . '/github-update.json';
 const BUNDLED_RELEASE_FILES = [
     'themes/adams/theme.json',
     'themes/clarity/theme.json',
+    'themes/clay/theme.json',
     'themes/farallon/theme.json',
     'themes/hammeros/theme.json',
     'themes/jaguar/theme.json',
@@ -55,6 +56,8 @@ const BUNDLED_RELEASE_FILES = [
     'plugins/ai-assistant/plugin.php',
     'plugins/akismet/plugin.json',
     'plugins/akismet/plugin.php',
+    'plugins/avatar-source/plugin.json',
+    'plugins/avatar-source/plugin.php',
     'plugins/email-notifications/plugin.json',
     'plugins/email-notifications/plugin.php',
     'plugins/english-language/plugin.json',
@@ -2563,7 +2566,18 @@ function gravatar_url(string $email, int $size = 72): string
 {
     $hash = md5(strtolower(trim($email)));
     $size = max(16, min(512, $size));
-    return 'https://www.gravatar.com/avatar/' . $hash . '?s=' . $size . '&d=identicon&r=g';
+    $defaultUrl = 'https://www.gravatar.com/avatar/' . $hash . '?s=' . $size . '&d=identicon&r=g';
+    $filteredUrl = plugin_filter('avatar_url', $defaultUrl, [
+        'email' => $email,
+        'hash' => $hash,
+        'size' => $size,
+        'default_image' => 'identicon',
+        'rating' => 'g',
+    ]);
+    $safeUrl = is_string($filteredUrl) || is_numeric($filteredUrl)
+        ? safe_link_url(trim((string)$filteredUrl))
+        : '#';
+    return $safeUrl !== '#' ? $safeUrl : $defaultUrl;
 }
 
 function social_profile_definitions(): array

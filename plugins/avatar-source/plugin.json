@@ -1,0 +1,8 @@
+{
+  "name": "自定义头像源",
+  "version": "1.0.0",
+  "author": "Simple PHP Blog",
+  "url": "https://github.com/jkjoy/Simple-PHP-Blog",
+  "description": "全主题统一自定义评论头像服务，支持 Gravatar、Cravatar、Libravatar 和 URL 模板。",
+  "settings_action": "admin_avatar_source"
+}
