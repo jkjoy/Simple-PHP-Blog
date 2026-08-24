@@ -253,6 +253,18 @@ function initSettingsControls() {
   });
 }
 
+function initPostFormatControl() {
+  const kind = document.getElementById("kind");
+  const field = document.querySelector("[data-post-format-field]");
+  if (!(kind instanceof HTMLSelectElement) || !(field instanceof HTMLElement)) return;
+
+  const syncVisibility = () => {
+    field.hidden = kind.value === "page";
+  };
+  kind.addEventListener("change", syncVisibility);
+  syncVisibility();
+}
+
 function initTagManager() {
   const manager = document.querySelector("[data-tag-manager]");
   if (!(manager instanceof HTMLElement)) return;
@@ -763,6 +775,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initAdminNavigation();
   initAccountMenus();
   initSettingsControls();
+  initPostFormatControl();
   initTagManager();
   initMarkdownEditor();
   initAttachmentUploader();

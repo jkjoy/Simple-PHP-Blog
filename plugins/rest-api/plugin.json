@@ -1,0 +1,8 @@
+{
+  "name": "WordPress REST API",
+  "version": "1.0.1",
+  "author": "Simple PHP Blog",
+  "url": "https://github.com/jkjoy/Simple-PHP-Blog",
+  "description": "为 SBlog 提供兼容 WordPress /wp-json/wp/v2 格式的 REST API 与 Application Password 鉴权。",
+  "settings_action": "admin_rest_api"
+}

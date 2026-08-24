@@ -147,20 +147,20 @@ function sblog_mail_render_settings(): void
     $settings = sblog_mail_settings();
     $encryption = (string)$settings['smtp_encryption'];
     ob_start(); ?>
-    <div class="admin-shell"><?= render_admin_sidebar('plugins') ?><div class="admin-main"><?= render_admin_topbar('邮件通知') ?>
-      <section class="panel admin-list-panel"><div class="panel__header"><h2>SMTP 设置</h2><p class="panel__meta">启用 SMTP 后优先通过 SMTP 发送；关闭时回退到服务器 PHP mail。</p></div><div class="panel__body">
+    <div class="admin-shell"><?= render_admin_sidebar('plugins') ?><div class="admin-main"><?= render_admin_topbar(sblog_t('邮件通知')) ?>
+      <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h(sblog_t('SMTP 设置')) ?></h2><p class="panel__meta"><?= h(sblog_t('启用 SMTP 后优先通过 SMTP 发送；关闭时回退到服务器 PHP mail。')) ?></p></div><div class="panel__body">
         <form class="form-stack" method="post" action="<?= h(url_for('save_mail_settings')) ?>"><?= csrf_field() ?>
-          <label class="setting-option"><input name="smtp_enabled" type="checkbox" value="1"<?= $settings['smtp_enabled'] === '1' ? ' checked' : '' ?>><span>启用 SMTP 邮件通知</span></label>
-          <div class="field-grid"><div class="field"><label for="smtp_host">SMTP 主机</label><input id="smtp_host" name="smtp_host" value="<?= h((string)$settings['smtp_host']) ?>" placeholder="smtp.example.com" maxlength="255"></div><div class="field"><label for="smtp_port">端口</label><input id="smtp_port" name="smtp_port" type="number" min="1" max="65535" value="<?= h((string)$settings['smtp_port']) ?>" placeholder="465"></div></div>
-          <div class="field-grid"><div class="field"><label for="smtp_encryption">加密方式</label><select id="smtp_encryption" name="smtp_encryption"><option value="ssl"<?= $encryption === 'ssl' ? ' selected' : '' ?>>SSL</option><option value="tls"<?= $encryption === 'tls' ? ' selected' : '' ?>>TLS</option><option value="none"<?= $encryption === 'none' ? ' selected' : '' ?>>无</option></select></div><div class="field"><label for="smtp_username">SMTP 账号</label><input id="smtp_username" name="smtp_username" value="<?= h((string)$settings['smtp_username']) ?>" maxlength="255" autocomplete="username"></div></div>
-          <div class="field"><label for="smtp_password">SMTP 密码</label><input id="smtp_password" name="smtp_password" type="password" value="" placeholder="<?= $settings['smtp_password'] !== '' ? '已保存，留空则不修改' : '授权码或密码' ?>" autocomplete="new-password"></div>
-          <div class="field-grid"><div class="field"><label for="smtp_from_email">发件邮箱</label><input id="smtp_from_email" name="smtp_from_email" type="email" value="<?= h((string)$settings['smtp_from_email']) ?>" maxlength="160" placeholder="noreply@example.com"></div><div class="field"><label for="smtp_from_name">发件名称</label><input id="smtp_from_name" name="smtp_from_name" value="<?= h((string)$settings['smtp_from_name']) ?>" maxlength="120" placeholder="<?= h(setting('site_name', default_settings()['site_name'])) ?>"></div></div>
-          <div class="field"><label for="smtp_notify_email">通知收件邮箱</label><input id="smtp_notify_email" name="smtp_notify_email" type="email" value="<?= h((string)$settings['smtp_notify_email']) ?>" maxlength="160" placeholder="admin@example.com"><p class="field-hint">留空时使用管理员账号邮箱作为评论通知收件人。</p></div>
-          <div class="action-row"><button class="button">保存邮件设置</button></div>
+          <label class="setting-option"><input name="smtp_enabled" type="checkbox" value="1"<?= $settings['smtp_enabled'] === '1' ? ' checked' : '' ?>><span><?= h(sblog_t('启用 SMTP 邮件通知')) ?></span></label>
+          <div class="field-grid"><div class="field"><label for="smtp_host"><?= h(sblog_t('SMTP 主机')) ?></label><input id="smtp_host" name="smtp_host" value="<?= h((string)$settings['smtp_host']) ?>" placeholder="smtp.example.com" maxlength="255"></div><div class="field"><label for="smtp_port"><?= h(sblog_t('端口')) ?></label><input id="smtp_port" name="smtp_port" type="number" min="1" max="65535" value="<?= h((string)$settings['smtp_port']) ?>" placeholder="465"></div></div>
+          <div class="field-grid"><div class="field"><label for="smtp_encryption"><?= h(sblog_t('加密方式')) ?></label><select id="smtp_encryption" name="smtp_encryption"><option value="ssl"<?= $encryption === 'ssl' ? ' selected' : '' ?>>SSL</option><option value="tls"<?= $encryption === 'tls' ? ' selected' : '' ?>>TLS</option><option value="none"<?= $encryption === 'none' ? ' selected' : '' ?>><?= h(sblog_t('无')) ?></option></select></div><div class="field"><label for="smtp_username"><?= h(sblog_t('SMTP 账号')) ?></label><input id="smtp_username" name="smtp_username" value="<?= h((string)$settings['smtp_username']) ?>" maxlength="255" autocomplete="username"></div></div>
+          <div class="field"><label for="smtp_password"><?= h(sblog_t('SMTP 密码')) ?></label><input id="smtp_password" name="smtp_password" type="password" value="" placeholder="<?= h($settings['smtp_password'] !== '' ? sblog_t('已保存，留空则不修改') : sblog_t('授权码或密码')) ?>" autocomplete="new-password"></div>
+          <div class="field-grid"><div class="field"><label for="smtp_from_email"><?= h(sblog_t('发件邮箱')) ?></label><input id="smtp_from_email" name="smtp_from_email" type="email" value="<?= h((string)$settings['smtp_from_email']) ?>" maxlength="160" placeholder="noreply@example.com"></div><div class="field"><label for="smtp_from_name"><?= h(sblog_t('发件名称')) ?></label><input id="smtp_from_name" name="smtp_from_name" value="<?= h((string)$settings['smtp_from_name']) ?>" maxlength="120" placeholder="<?= h(setting('site_name', default_settings()['site_name'])) ?>"></div></div>
+          <div class="field"><label for="smtp_notify_email"><?= h(sblog_t('通知收件邮箱')) ?></label><input id="smtp_notify_email" name="smtp_notify_email" type="email" value="<?= h((string)$settings['smtp_notify_email']) ?>" maxlength="160" placeholder="admin@example.com"><p class="field-hint"><?= h(sblog_t('留空时使用管理员账号邮箱作为评论通知收件人。')) ?></p></div>
+          <div class="action-row"><button class="button"><?= h(sblog_t('保存邮件设置')) ?></button></div>
         </form>
       </div></section>
     </div></div><?php
-    render_layout('邮件通知', (string)ob_get_clean(), ['active' => 'plugins', 'wide' => true, 'description' => 'SMTP 邮件通知设置']);
+    render_layout(sblog_t('邮件通知'), (string)ob_get_clean(), ['active' => 'plugins', 'wide' => true, 'description' => sblog_t('SMTP 邮件通知设置')]);
 }
 
 function sblog_mail_handle_request(array $context): void
@@ -187,11 +187,11 @@ function sblog_mail_handle_request(array $context): void
     $fromName = trim((string)($_POST['smtp_from_name'] ?? ''));
     $notifyEmail = str_lower_u(trim((string)($_POST['smtp_notify_email'] ?? '')));
     if ($enabled === '1' && ($host === '' || $fromEmail === '' || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL))) {
-        set_flash('error', '启用 SMTP 时，请填写 SMTP 主机和有效的发件邮箱。');
+        set_flash('error', sblog_t('启用 SMTP 时，请填写 SMTP 主机和有效的发件邮箱。'));
         redirect_to(url_for('admin_mail'));
     }
     if ($notifyEmail !== '' && !filter_var($notifyEmail, FILTER_VALIDATE_EMAIL)) {
-        set_flash('error', '通知收件邮箱格式不正确。');
+        set_flash('error', sblog_t('通知收件邮箱格式不正确。'));
         redirect_to(url_for('admin_mail'));
     }
     $values = [
@@ -208,7 +208,7 @@ function sblog_mail_handle_request(array $context): void
         $values['smtp_password'] = $password;
     }
     sblog_mail_save_settings($values);
-    set_flash('success', '邮件通知设置已保存。');
+    set_flash('success', sblog_t('邮件通知设置已保存。'));
     redirect_to(url_for('admin_mail'));
 }
 

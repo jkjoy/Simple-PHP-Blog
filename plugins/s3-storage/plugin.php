@@ -96,17 +96,17 @@ function sblog_s3_upload(string $file, string $key, string $mime, array $setting
     $secretKey = (string)$settings['s3_secret_key'];
     $target = sblog_s3_request_target($settings, $key);
     if ($target === null || $region === '' || $accessKey === '' || $secretKey === '') {
-        return [false, '', 'S3 配置不完整。'];
+        return [false, '', sblog_t('S3 配置不完整。')];
     }
     if (!function_exists('curl_init')) {
-        return [false, '', '服务器缺少 cURL 扩展，无法上传到 S3。'];
+        return [false, '', sblog_t('服务器缺少 cURL 扩展，无法上传到 S3。')];
     }
 
     $payloadHash = hash_file('sha256', $file);
     $stream = fopen($file, 'rb');
     if ($payloadHash === false || $stream === false) {
         if (is_resource($stream)) { fclose($stream); }
-        return [false, '', '无法读取待上传文件。'];
+        return [false, '', sblog_t('无法读取待上传文件。')];
     }
     $amzDate = gmdate('Ymd\THis\Z');
     $dateStamp = gmdate('Ymd');
@@ -151,10 +151,10 @@ function sblog_s3_upload(string $file, string $key, string $mime, array $setting
     curl_close($curl);
     fclose($stream);
     if ($body === false) {
-        return [false, '', '连接 S3 失败：' . $error];
+        return [false, '', sblog_t('连接 S3 失败：{error}', ['error' => $error])];
     }
     if ($status < 200 || $status >= 300) {
-        $message = 'S3 返回异常（HTTP ' . $status . '）。';
+        $message = sblog_t('S3 返回异常（HTTP {status}）。', ['status' => $status]);
         $xml = function_exists('simplexml_load_string') ? @simplexml_load_string((string)$body, SimpleXMLElement::class, LIBXML_NONET) : false;
         if ($xml instanceof SimpleXMLElement && trim((string)($xml->Message ?? '')) !== '') {
             $message .= ' ' . trim((string)$xml->Message);
@@ -171,10 +171,10 @@ function sblog_s3_delete(string $key, array $settings): array
     $secretKey = (string)$settings['s3_secret_key'];
     $target = sblog_s3_request_target($settings, $key);
     if ($target === null || $region === '' || $accessKey === '' || $secretKey === '') {
-        return [false, 'S3 配置不完整，无法删除对象。'];
+        return [false, sblog_t('S3 配置不完整，无法删除对象。')];
     }
     if (!function_exists('curl_init')) {
-        return [false, '服务器缺少 cURL 扩展，无法删除 S3 对象。'];
+        return [false, sblog_t('服务器缺少 cURL 扩展，无法删除 S3 对象。')];
     }
 
     $payloadHash = hash('sha256', '');
@@ -215,10 +215,10 @@ function sblog_s3_delete(string $key, array $settings): array
     $error = curl_error($curl);
     curl_close($curl);
     if ($body === false) {
-        return [false, '连接 S3 失败：' . $error];
+        return [false, sblog_t('连接 S3 失败：{error}', ['error' => $error])];
     }
     if ($status < 200 || $status >= 300) {
-        return [false, 'S3 删除对象失败（HTTP ' . $status . '）。'];
+        return [false, sblog_t('S3 删除对象失败（HTTP {status}）。', ['status' => $status])];
     }
     return [true, ''];
 }
@@ -228,19 +228,19 @@ function sblog_s3_render_settings(): void
     require_admin();
     $settings = sblog_s3_settings();
     ob_start(); ?>
-    <div class="admin-shell"><?= render_admin_sidebar('plugins') ?><div class="admin-main"><?= render_admin_topbar('S3 存储') ?>
-      <section class="panel admin-list-panel"><div class="panel__header"><h2>S3 上传设置</h2><p class="panel__meta">启用后，新上传的附件将由 S3 接管；密钥不会写入配置缓存。</p></div><div class="panel__body">
+    <div class="admin-shell"><?= render_admin_sidebar('plugins') ?><div class="admin-main"><?= render_admin_topbar(sblog_t('S3 存储')) ?>
+      <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h(sblog_t('S3 上传设置')) ?></h2><p class="panel__meta"><?= h(sblog_t('启用后，新上传的附件将由 S3 接管；密钥不会写入配置缓存。')) ?></p></div><div class="panel__body">
         <form class="form-stack" method="post" action="<?= h(url_for('save_s3_settings')) ?>"><?= csrf_field() ?>
-          <div class="settings-option-list"><label class="setting-option"><input name="s3_enabled" type="checkbox" value="1"<?= $settings['s3_enabled'] === '1' ? ' checked' : '' ?>><span>启用 S3 上传</span></label><label class="setting-option"><input name="s3_keep_local" type="checkbox" value="1"<?= $settings['s3_keep_local'] === '1' ? ' checked' : '' ?>><span>在本地保留上传备份</span></label><label class="setting-option"><input name="s3_path_style" type="checkbox" value="1"<?= $settings['s3_path_style'] === '1' ? ' checked' : '' ?>><span>使用 Path-style 地址（MinIO 等兼容服务常用）</span></label></div>
-          <div class="field"><label for="s3_endpoint">Endpoint</label><input id="s3_endpoint" name="s3_endpoint" type="url" value="<?= h((string)$settings['s3_endpoint']) ?>" placeholder="https://s3.amazonaws.com" maxlength="500"><p class="field-hint">填写服务地址，不要包含 Bucket、查询参数或具体对象路径；生产环境建议使用 HTTPS。</p></div>
+          <div class="settings-option-list"><label class="setting-option"><input name="s3_enabled" type="checkbox" value="1"<?= $settings['s3_enabled'] === '1' ? ' checked' : '' ?>><span><?= h(sblog_t('启用 S3 上传')) ?></span></label><label class="setting-option"><input name="s3_keep_local" type="checkbox" value="1"<?= $settings['s3_keep_local'] === '1' ? ' checked' : '' ?>><span><?= h(sblog_t('在本地保留上传备份')) ?></span></label><label class="setting-option"><input name="s3_path_style" type="checkbox" value="1"<?= $settings['s3_path_style'] === '1' ? ' checked' : '' ?>><span><?= h(sblog_t('使用 Path-style 地址（MinIO 等兼容服务常用）')) ?></span></label></div>
+          <div class="field"><label for="s3_endpoint">Endpoint</label><input id="s3_endpoint" name="s3_endpoint" type="url" value="<?= h((string)$settings['s3_endpoint']) ?>" placeholder="https://s3.amazonaws.com" maxlength="500"><p class="field-hint"><?= h(sblog_t('填写服务地址，不要包含 Bucket、查询参数或具体对象路径；生产环境建议使用 HTTPS。')) ?></p></div>
           <div class="field-grid"><div class="field"><label for="s3_region">Region</label><input id="s3_region" name="s3_region" value="<?= h((string)$settings['s3_region']) ?>" placeholder="us-east-1" maxlength="100"></div><div class="field"><label for="s3_bucket">Bucket</label><input id="s3_bucket" name="s3_bucket" value="<?= h((string)$settings['s3_bucket']) ?>" maxlength="255" autocomplete="off"></div></div>
-          <div class="field-grid"><div class="field"><label for="s3_access_key">Access Key</label><input id="s3_access_key" name="s3_access_key" value="<?= h((string)$settings['s3_access_key']) ?>" maxlength="255" autocomplete="username"></div><div class="field"><label for="s3_secret_key">Secret Key</label><input id="s3_secret_key" name="s3_secret_key" type="password" value="" placeholder="<?= $settings['s3_secret_key'] !== '' ? '已保存，留空则不修改' : 'Secret Access Key' ?>" autocomplete="new-password"></div></div>
-          <div class="field-grid"><div class="field"><label for="s3_path_prefix">对象路径前缀</label><input id="s3_path_prefix" name="s3_path_prefix" value="<?= h((string)$settings['s3_path_prefix']) ?>" placeholder="uploads" maxlength="500"><p class="field-hint">实际对象键会追加年份和随机文件名；可留空。</p></div><div class="field"><label for="s3_public_url">CDN 域名</label><input id="s3_public_url" name="s3_public_url" type="url" value="<?= h((string)$settings['s3_public_url']) ?>" placeholder="https://cdn.example.com" maxlength="500"><p class="field-hint">附件 URL 将使用此地址拼接对象键，留空时使用 S3 Endpoint。</p></div></div>
-          <div class="action-row"><button class="button">保存 S3 设置</button></div>
+          <div class="field-grid"><div class="field"><label for="s3_access_key">Access Key</label><input id="s3_access_key" name="s3_access_key" value="<?= h((string)$settings['s3_access_key']) ?>" maxlength="255" autocomplete="username"></div><div class="field"><label for="s3_secret_key">Secret Key</label><input id="s3_secret_key" name="s3_secret_key" type="password" value="" placeholder="<?= h($settings['s3_secret_key'] !== '' ? sblog_t('已保存，留空则不修改') : 'Secret Access Key') ?>" autocomplete="new-password"></div></div>
+          <div class="field-grid"><div class="field"><label for="s3_path_prefix"><?= h(sblog_t('对象路径前缀')) ?></label><input id="s3_path_prefix" name="s3_path_prefix" value="<?= h((string)$settings['s3_path_prefix']) ?>" placeholder="uploads" maxlength="500"><p class="field-hint"><?= h(sblog_t('实际对象键会追加年份和随机文件名；可留空。')) ?></p></div><div class="field"><label for="s3_public_url"><?= h(sblog_t('CDN 域名')) ?></label><input id="s3_public_url" name="s3_public_url" type="url" value="<?= h((string)$settings['s3_public_url']) ?>" placeholder="https://cdn.example.com" maxlength="500"><p class="field-hint"><?= h(sblog_t('附件 URL 将使用此地址拼接对象键，留空时使用 S3 Endpoint。')) ?></p></div></div>
+          <div class="action-row"><button class="button"><?= h(sblog_t('保存 S3 设置')) ?></button></div>
         </form>
       </div></section>
     </div></div><?php
-    render_layout('S3 存储', (string)ob_get_clean(), ['active' => 'plugins', 'wide' => true, 'description' => 'S3 附件上传设置']);
+    render_layout(sblog_t('S3 存储'), (string)ob_get_clean(), ['active' => 'plugins', 'wide' => true, 'description' => sblog_t('S3 附件上传设置')]);
 }
 
 function sblog_s3_handle_request(array $context): void
@@ -269,11 +269,11 @@ function sblog_s3_handle_request(array $context): void
     $prefixValid = !preg_match('/[\x00-\x1F\x7F]/', $pathPrefix) && !preg_match('#(?:^|/)\.\.?(?:/|$)#', $pathPrefix);
     $credentialsValid = !preg_match('/[\x00-\x1F\x7F]/', $region . $accessKey);
     if ($enabled === '1' && (!$endpointValid || $region === '' || $bucket === '' || $accessKey === '' || $effectiveSecret === '' || !$credentialsValid || !function_exists('curl_init'))) {
-        set_flash('error', '启用 S3 时，请填写有效的 Endpoint、Region、Bucket 和访问密钥，并确认服务器已启用 cURL。');
+        set_flash('error', sblog_t('启用 S3 时，请填写有效的 Endpoint、Region、Bucket 和访问密钥，并确认服务器已启用 cURL。'));
         redirect_to(url_for('admin_s3'));
     }
     if (($bucket !== '' && !preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/', $bucket)) || !$publicUrlValid || !$prefixValid) {
-        set_flash('error', 'Bucket、CDN 域名或对象路径前缀格式不正确。');
+        set_flash('error', sblog_t('Bucket、CDN 域名或对象路径前缀格式不正确。'));
         redirect_to(url_for('admin_s3'));
     }
     $values = [
@@ -291,7 +291,7 @@ function sblog_s3_handle_request(array $context): void
         $values['s3_secret_key'] = $secretKey;
     }
     sblog_s3_save_settings($values);
-    set_flash('success', 'S3 上传设置已保存。');
+    set_flash('success', sblog_t('S3 上传设置已保存。'));
     redirect_to(url_for('admin_s3'));
 }
 
@@ -322,7 +322,7 @@ add_plugin_filter('attachment_delete', static function (array $result, array $co
     }
     $key = trim((string)($context['storage_key'] ?? ''));
     if ($key === '') {
-        return ['ok' => false, 'error' => '媒体资料缺少 S3 对象键，无法安全删除。'];
+        return ['ok' => false, 'error' => sblog_t('媒体资料缺少 S3 对象键，无法安全删除。')];
     }
     [$ok, $error] = sblog_s3_delete($key, sblog_s3_settings());
     return ['ok' => $ok, 'error' => $error];

@@ -99,7 +99,7 @@ function sblog_akismet_request(string $url, array $payload): array
     $error = curl_error($curl);
     curl_close($curl);
     if ($body === false) {
-        return [false, '', $error !== '' ? $error : '连接失败。'];
+        return [false, '', $error !== '' ? $error : sblog_t('连接失败。')];
     }
     if ($status < 200 || $status >= 300) {
         return [false, '', 'HTTP ' . $status];

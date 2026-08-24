@@ -676,6 +676,7 @@ $db->exec(
         excerpt TEXT NOT NULL DEFAULT \'\',
         content TEXT NOT NULL,
         kind TEXT NOT NULL DEFAULT \'post\',
+        post_format TEXT NOT NULL DEFAULT \'text\',
         tags TEXT NOT NULL DEFAULT \'[]\',
         views INTEGER NOT NULL DEFAULT 0,
         is_pinned INTEGER NOT NULL DEFAULT 0,

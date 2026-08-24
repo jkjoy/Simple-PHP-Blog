@@ -16,7 +16,7 @@ function sblog_typecho_import_read_exact($stream, int $length): string
         $buffer .= $chunk;
     }
     if (strlen($buffer) !== $length) {
-        throw new RuntimeException('Typecho 备份文件被截断。');
+        throw new RuntimeException(sblog_t('Typecho 备份文件被截断。'));
     }
     return $buffer;
 }
@@ -26,12 +26,12 @@ function sblog_typecho_import_parse(string $path): array
     $size = is_file($path) ? (int)filesize($path) : 0;
     $headerLength = strlen(SBLOG_TYPECHO_IMPORT_HEADER);
     if ($size < $headerLength * 2 || $size > SBLOG_TYPECHO_IMPORT_MAX_BYTES) {
-        throw new RuntimeException('备份文件大小无效，最大支持 64 MB。');
+        throw new RuntimeException(sblog_t('备份文件大小无效，最大支持 64 MB。'));
     }
 
     $stream = fopen($path, 'rb');
     if ($stream === false) {
-        throw new RuntimeException('无法读取备份文件。');
+        throw new RuntimeException(sblog_t('无法读取备份文件。'));
     }
 
     $tables = [1 => 'contents', 2 => 'comments', 3 => 'metas', 4 => 'relationships', 5 => 'users', 6 => 'fields'];
@@ -42,18 +42,18 @@ function sblog_typecho_import_parse(string $path): array
 
     try {
         if (sblog_typecho_import_read_exact($stream, $headerLength) !== SBLOG_TYPECHO_IMPORT_HEADER) {
-            throw new RuntimeException('不是受支持的 Typecho 0001 备份文件。');
+            throw new RuntimeException(sblog_t('不是受支持的 Typecho 0001 备份文件。'));
         }
         if (fseek($stream, $footerOffset) !== 0
             || sblog_typecho_import_read_exact($stream, $headerLength) !== SBLOG_TYPECHO_IMPORT_HEADER) {
-            throw new RuntimeException('Typecho 备份文件尾无效，文件可能不完整。');
+            throw new RuntimeException(sblog_t('Typecho 备份文件尾无效，文件可能不完整。'));
         }
         fseek($stream, $headerLength);
         $offset = $headerLength;
 
         while ($offset < $footerOffset) {
             if (++$blockCount > 200000 || $footerOffset - $offset < 40) {
-                throw new RuntimeException('Typecho 备份数据块数量或长度无效。');
+                throw new RuntimeException(sblog_t('Typecho 备份数据块数量或长度无效。'));
             }
             $meta = sblog_typecho_import_read_exact($stream, 8);
             $offset += 8;
@@ -63,7 +63,7 @@ function sblog_typecho_import_parse(string $path): array
             $bodyLength = (int)($parts['body_length'] ?? 0);
             if ($schemaLength < 2 || $schemaLength > 1048576 || $bodyLength < 0
                 || $offset + $schemaLength + $bodyLength + 32 > $footerOffset) {
-                throw new RuntimeException('Typecho 备份数据块长度无效。');
+                throw new RuntimeException(sblog_t('Typecho 备份数据块长度无效。'));
             }
 
             $schemaJson = sblog_typecho_import_read_exact($stream, $schemaLength);
@@ -71,36 +71,36 @@ function sblog_typecho_import_parse(string $path): array
             $checksum = sblog_typecho_import_read_exact($stream, 32);
             $offset += $schemaLength + $bodyLength + 32;
             if (!hash_equals(md5($meta . $schemaJson . $body), strtolower($checksum))) {
-                throw new RuntimeException('Typecho 备份数据块校验失败。');
+                throw new RuntimeException(sblog_t('Typecho 备份数据块校验失败。'));
             }
 
             try {
                 $schema = json_decode($schemaJson, true, 64, JSON_THROW_ON_ERROR);
             } catch (JsonException) {
-                throw new RuntimeException('Typecho 备份字段描述无效。');
+                throw new RuntimeException(sblog_t('Typecho 备份字段描述无效。'));
             }
             if (!is_array($schema)) {
-                throw new RuntimeException('Typecho 备份字段描述无效。');
+                throw new RuntimeException(sblog_t('Typecho 备份字段描述无效。'));
             }
 
             $row = [];
             $bodyOffset = 0;
             foreach ($schema as $field => $length) {
                 if (!is_string($field) || ($length !== null && !is_int($length)) || (is_int($length) && $length < 0)) {
-                    throw new RuntimeException('Typecho 备份字段长度无效。');
+                    throw new RuntimeException(sblog_t('Typecho 备份字段长度无效。'));
                 }
                 if ($length === null) {
                     $row[$field] = null;
                     continue;
                 }
                 if ($bodyOffset + $length > $bodyLength) {
-                    throw new RuntimeException('Typecho 备份字段超出数据块边界。');
+                    throw new RuntimeException(sblog_t('Typecho 备份字段超出数据块边界。'));
                 }
                 $row[$field] = substr($body, $bodyOffset, $length);
                 $bodyOffset += $length;
             }
             if ($bodyOffset !== $bodyLength) {
-                throw new RuntimeException('Typecho 备份数据块包含未描述内容。');
+                throw new RuntimeException(sblog_t('Typecho 备份数据块包含未描述内容。'));
             }
 
             if (isset($tables[$type])) {
@@ -111,7 +111,7 @@ function sblog_typecho_import_parse(string $path): array
         }
 
         if ($offset !== $footerOffset) {
-            throw new RuntimeException('Typecho 备份文件边界无效。');
+            throw new RuntimeException(sblog_t('Typecho 备份文件边界无效。'));
         }
     } finally {
         fclose($stream);
@@ -184,7 +184,7 @@ function sblog_typecho_import_normalize_source_url(string $url): string
         return '';
     }
     if (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $url)) {
-        throw new RuntimeException('原 Typecho 站点地址必须是有效的 HTTP 或 HTTPS 地址。');
+        throw new RuntimeException(sblog_t('原 Typecho 站点地址必须是有效的 HTTP 或 HTTPS 地址。'));
     }
     return $url;
 }
@@ -235,12 +235,12 @@ function sblog_typecho_import_store_upload(array $file, string $sourceUrl): stri
     $error = (int)($file['error'] ?? UPLOAD_ERR_NO_FILE);
     if ($error !== UPLOAD_ERR_OK) {
         throw new RuntimeException($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE
-            ? '备份文件超过服务器上传限制。' : '备份文件上传失败。');
+            ? sblog_t('备份文件超过服务器上传限制。') : sblog_t('备份文件上传失败。'));
     }
     $size = (int)($file['size'] ?? 0);
     $temporary = (string)($file['tmp_name'] ?? '');
     if ($size < 1 || $size > SBLOG_TYPECHO_IMPORT_MAX_BYTES || !is_uploaded_file($temporary)) {
-        throw new RuntimeException('备份文件无效，最大支持 64 MB。');
+        throw new RuntimeException(sblog_t('备份文件无效，最大支持 64 MB。'));
     }
 
     ensure_runtime_dirs();
@@ -248,7 +248,7 @@ function sblog_typecho_import_store_upload(array $file, string $sourceUrl): stri
     $token = bin2hex(random_bytes(16));
     $path = CACHE_DIR . '/typecho-import-' . $adminId . '-' . $token . '.dat';
     if (!move_uploaded_file($temporary, $path)) {
-        throw new RuntimeException('无法保存待导入的备份文件。');
+        throw new RuntimeException(sblog_t('无法保存待导入的备份文件。'));
     }
 
     try {
@@ -460,7 +460,7 @@ function sblog_typecho_import_data(array $parsed, string $sourceUrl, array $sele
     $hash = (string)($parsed['hash'] ?? '');
     $records = is_array($parsed['records'] ?? null) ? $parsed['records'] : [];
     if ($hash === '' || !isset($records['contents'], $records['metas'], $records['relationships'])) {
-        throw new RuntimeException('待导入数据无效。');
+        throw new RuntimeException(sblog_t('待导入数据无效。'));
     }
 
     $selection = [];
@@ -468,7 +468,7 @@ function sblog_typecho_import_data(array $parsed, string $sourceUrl, array $sele
         $selection[$type] = !empty($selected[$type]);
     }
     if (!in_array(true, $selection, true)) {
-        throw new RuntimeException('请至少选择一项需要导入的数据。');
+        throw new RuntimeException(sblog_t('请至少选择一项需要导入的数据。'));
     }
 
     sblog_typecho_import_ensure_map_table();
@@ -814,19 +814,21 @@ function sblog_typecho_import_data(array $parsed, string $sourceUrl, array $sele
 
 function sblog_typecho_import_result_message(array $result): string
 {
-    return sprintf(
-        '导入完成：文章 %d，页面 %d，用户 %d，分类 %d，标签 %d，评论 %d，媒体 %d，修正媒体类型 %d；已有或无效记录 %d。',
-        (int)($result['posts_created'] ?? 0),
-        (int)($result['pages_created'] ?? 0),
-        (int)($result['users_created'] ?? 0),
-        (int)($result['categories_created'] ?? 0),
-        (int)($result['tags_created'] ?? 0),
-        (int)($result['comments_created'] ?? 0),
-        (int)($result['media_created'] ?? 0),
-        (int)($result['media_updated'] ?? 0),
-        (int)($result['users_reused'] ?? 0) + (int)($result['categories_reused'] ?? 0)
+    return sblog_t(
+        '导入完成：文章 {posts}，页面 {pages}，用户 {users}，分类 {categories}，标签 {tags}，评论 {comments}，媒体 {media}，修正媒体类型 {media_updated}；已有或无效记录 {skipped}。',
+        [
+            'posts' => (int)($result['posts_created'] ?? 0),
+            'pages' => (int)($result['pages_created'] ?? 0),
+            'users' => (int)($result['users_created'] ?? 0),
+            'categories' => (int)($result['categories_created'] ?? 0),
+            'tags' => (int)($result['tags_created'] ?? 0),
+            'comments' => (int)($result['comments_created'] ?? 0),
+            'media' => (int)($result['media_created'] ?? 0),
+            'media_updated' => (int)($result['media_updated'] ?? 0),
+            'skipped' => (int)($result['users_reused'] ?? 0) + (int)($result['categories_reused'] ?? 0)
             + (int)($result['tags_reused'] ?? 0) + (int)($result['contents_skipped'] ?? 0)
-            + (int)($result['comments_skipped'] ?? 0) + (int)($result['media_skipped'] ?? 0)
+            + (int)($result['comments_skipped'] ?? 0) + (int)($result['media_skipped'] ?? 0),
+        ]
     );
 }
 
@@ -841,7 +843,7 @@ function sblog_typecho_import_render(): void
         try {
             $parsed = sblog_typecho_import_parse((string)$entry['path']);
             if (!hash_equals((string)$entry['hash'], (string)$parsed['hash'])) {
-                throw new RuntimeException('待导入文件已发生变化。');
+                throw new RuntimeException(sblog_t('待导入文件已发生变化。'));
             }
         } catch (Throwable $exception) {
             sblog_typecho_import_forget($token);
@@ -957,7 +959,7 @@ function sblog_typecho_import_handle_request(array $context): void
             $token = sblog_typecho_import_store_upload($file, $sourceUrl);
             redirect_to(sblog_typecho_import_page_url(['token' => $token]));
         } catch (Throwable $exception) {
-            set_flash('error', 'Typecho 备份预检失败：' . $exception->getMessage());
+            set_flash('error', sblog_t('Typecho 备份预检失败：{error}', ['error' => $exception->getMessage()]));
             redirect_to(sblog_typecho_import_page_url());
         }
     }
@@ -965,23 +967,23 @@ function sblog_typecho_import_handle_request(array $context): void
     $token = trim((string)($_POST['token'] ?? ''));
     $entry = sblog_typecho_import_entry($token);
     if ($entry === null) {
-        set_flash('error', '待导入文件不存在或已过期，请重新上传。');
+        set_flash('error', sblog_t('待导入文件不存在或已过期，请重新上传。'));
         redirect_to(sblog_typecho_import_page_url());
     }
     if ($action === 'cancel_typecho_import') {
         sblog_typecho_import_forget($token);
-        set_flash('success', '临时备份文件已删除。');
+        set_flash('success', sblog_t('临时备份文件已删除。'));
         redirect_to(sblog_typecho_import_page_url());
     }
     if ((string)($_POST['confirmed'] ?? '') !== '1') {
-        set_flash('error', '请先确认导入操作。');
+        set_flash('error', sblog_t('请先确认导入操作。'));
         redirect_to(sblog_typecho_import_page_url(['token' => $token]));
     }
 
     try {
         $parsed = sblog_typecho_import_parse((string)$entry['path']);
         if (!hash_equals((string)$entry['hash'], (string)$parsed['hash'])) {
-            throw new RuntimeException('待导入文件已发生变化。');
+            throw new RuntimeException(sblog_t('待导入文件已发生变化。'));
         }
         $sourceUrl = sblog_typecho_import_normalize_source_url((string)($_POST['source_url'] ?? ''));
         $selected = [
@@ -999,7 +1001,7 @@ function sblog_typecho_import_handle_request(array $context): void
         set_flash('success', sblog_typecho_import_result_message($result));
         redirect_to(sblog_typecho_import_page_url());
     } catch (Throwable $exception) {
-        set_flash('error', 'Typecho 数据导入失败，所有写入已回滚：' . $exception->getMessage());
+        set_flash('error', sblog_t('Typecho 数据导入失败，所有写入已回滚：{error}', ['error' => $exception->getMessage()]));
         redirect_to(sblog_typecho_import_page_url(['token' => $token]));
     }
 }
