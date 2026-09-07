@@ -1,6 +1,6 @@
 {
   "name": "Butterfly",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": "JerryC / wehao / Simple PHP Blog",
   "url": "https://github.com/wehaox/Typecho-Butterfly",
   "description": "移植自 Typecho-Butterfly，保留图片页头、交错文章列表、双栏布局、归档时间线与夜间模式，适配原生评论和文章搜索。"
