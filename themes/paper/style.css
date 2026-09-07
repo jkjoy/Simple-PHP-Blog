@@ -1496,6 +1496,15 @@ article > .meta {
   height: 100%;
 }
 
+.media-embed--audio {
+  background: transparent;
+  box-shadow: none;
+}
+
+.media-embed--audio iframe {
+  height: var(--media-height, 86px);
+}
+
 .media-link-card {
   display: grid;
   grid-template-columns: 84px minmax(0, 1fr) auto;

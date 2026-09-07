@@ -392,6 +392,10 @@
   min-width: 100%;
 }
 
+.ying-theme .media-embed--audio {
+  background-color: transparent;
+}
+
 .ying-theme .media-embed--audio iframe {
   height: var(--media-height, 86px);
 }

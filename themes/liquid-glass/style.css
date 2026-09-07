@@ -1230,6 +1230,25 @@ html[data-theme="dark"] .aqua-icon-moon {
   border-radius: 0;
 }
 
+.aqua-theme .post-content .media-embed--audio {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 28px 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.aqua-theme .post-content .media-embed--audio iframe {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: var(--media-height, 86px);
+  margin: 0;
+  border: 0;
+  border-radius: var(--aqua-radius);
+}
+
 .aqua-theme .media-link-card--douban {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr) auto;
