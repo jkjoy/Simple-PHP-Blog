@@ -189,42 +189,6 @@
       if (event.key === "Escape" && menu && menu.classList.contains("open")) setMenu(false, true);
     });
 
-    document.querySelectorAll("form[data-bf-like]").forEach(function (form) {
-      var button = form.querySelector('button[type="submit"], button:not([type])');
-      var count = form.querySelector("[data-bf-like-count]");
-      var status = form.querySelector("[data-bf-like-status]") || (form.parentElement && form.parentElement.querySelector("[data-bf-like-status]"));
-      if (!button) return;
-      form.addEventListener("submit", async function (event) {
-        event.preventDefault();
-        if (button.disabled || button.getAttribute("aria-pressed") === "true") return;
-        button.disabled = true;
-        form.setAttribute("aria-busy", "true");
-        if (status) status.textContent = "";
-        try {
-          var response = await fetch(form.action, {
-            method: "POST",
-            credentials: "same-origin",
-            headers: { Accept: "application/json" },
-            body: new FormData(form)
-          });
-          var result = await response.json();
-          if (!response.ok || !result.ok || !result.liked) {
-            throw new Error(typeof result.error === "string" ? result.error : text("butterfly_like_failed", "\u70b9\u8d5e\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002"));
-          }
-          if (count && Number.isInteger(result.count) && result.count >= 0) count.textContent = String(result.count);
-          button.setAttribute("aria-pressed", "true");
-          var icon = button.querySelector(".ri-heart-line");
-          if (icon) icon.className = icon.className.replace("ri-heart-line", "ri-heart-fill");
-          if (status) status.textContent = text("butterfly_liked", "\u5df2\u70b9\u8d5e");
-        } catch (error) {
-          button.disabled = false;
-          if (status) status.textContent = error instanceof Error && error.message ? error.message : text("butterfly_like_failed", "\u70b9\u8d5e\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
-        } finally {
-          form.removeAttribute("aria-busy");
-        }
-      });
-    });
-
     document.querySelectorAll("img[data-bf-fallback]").forEach(function (image) {
       function fallback() {
         var source = image.dataset.bfFallback;
