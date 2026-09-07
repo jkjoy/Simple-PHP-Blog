@@ -78,7 +78,7 @@ function butterfly_post_meta(array $post): string
     ob_start(); ?>
     <div class="bf-post-meta article-meta">
       <?php if (!empty($post['is_pinned'])): ?><span class="bf-pin sticky article-meta"><i class="post-meta-icon"><?= butterfly_icon('pushpin-line') ?></i><span class="article-meta-label"><?= h(sblog_t('置顶')) ?></span><span class="article-meta-separator">|</span></span><?php endif; ?>
-      <span class="post-meta-date article-meta"><i class="post-meta-icon"><?= butterfly_icon('calendar-line') ?></i><span class="article-meta-label"><?= h(sblog_t('发表于')) ?></span><time datetime="<?= h(date(DATE_ATOM, (int)$post['published_at'])) ?>"><?= h(date('Y-m-d', (int)$post['published_at'])) ?></time></span>
+      <span class="post-meta-date article-meta"><i class="post-meta-icon"><?= butterfly_icon('calendar-line') ?></i><span class="article-meta-label"><?= h(sblog_t('发表于')) ?></span><span class="post-meta-date-created" datetime="<?= h(date('Y-m-d', (int)$post['published_at'])) ?>" style="display:inline"><?= h(date('Y-m-d', (int)$post['published_at'])) ?></span></span>
       <?php if ($category): ?><span class="article-meta"><span class="article-meta-separator">|</span><i class="post-meta-icon"><?= butterfly_icon('folder-2-line') ?></i><a class="article-meta-link" href="<?= h(butterfly_url(url_for('category', ['slug' => (string)$category['slug']]))) ?>"><?= h((string)$category['name']) ?></a></span><?php endif; ?>
     </div>
     <?php return (string)ob_get_clean();
