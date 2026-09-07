@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.12.0';
+const APP_VERSION = 'v1.13.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -38,6 +38,7 @@ const UPDATE_REPOSITORY = 'jkjoy/Simple-PHP-Blog';
 const UPDATE_CACHE_FILE = CACHE_DIR . '/github-update.json';
 const BUNDLED_RELEASE_FILES = [
     'themes/adams/theme.json',
+    'themes/butterfly/theme.json',
     'themes/clarity/theme.json',
     'themes/clay/theme.json',
     'themes/farallon/theme.json',
