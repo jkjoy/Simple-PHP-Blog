@@ -1,0 +1,42 @@
+/* Remix Icon v4.6.0, Copyright RemixIcon.com, Apache-2.0.
+ * Subset of selectors from the project's existing Remix Icon distribution. */
+@font-face{font-family:remixicon;src:url('remixicon.woff2') format('woff2');font-display:block}
+[class^="ri-"],[class*=" ri-"]{font-family:remixicon!important;font-style:normal;font-weight:normal;line-height:1;speak:never;-webkit-font-smoothing:antialiased}
+.ri-archive-line:before{content:"\ea48"}
+.ri-arrow-down-s-line:before{content:"\ea4e"}
+.ri-arrow-left-s-line:before{content:"\ea64"}
+.ri-arrow-right-s-line:before{content:"\ea6e"}
+.ri-arrow-up-line:before{content:"\ea76"}
+.ri-article-line:before{content:"\ea7e"}
+.ri-book-open-line:before{content:"\eadb"}
+.ri-calendar-line:before{content:"\eb27"}
+.ri-chat-3-line:before{content:"\eb51"}
+.ri-close-line:before{content:"\eb99"}
+.ri-eye-line:before{content:"\ecb5"}
+.ri-file-copy-line:before{content:"\ecd5"}
+.ri-file-word-line:before{content:"\ed1d"}
+.ri-folder-2-line:before{content:"\ed52"}
+.ri-github-fill:before{content:"\edca"}
+.ri-heart-fill:before{content:"\ee0e"}
+.ri-heart-line:before{content:"\ee0f"}
+.ri-home-4-line:before{content:"\ee1d"}
+.ri-history-line:before{content:"\ee17"}
+.ri-information-line:before{content:"\ee59"}
+.ri-inbox-line:before{content:"\ee4f"}
+.ri-layout-right-line:before{content:"\ee9b"}
+.ri-line-chart-line:before{content:"\eeab"}
+.ri-links-line:before{content:"\eeb8"}
+.ri-list-check:before{content:"\eeba"}
+.ri-mail-line:before{content:"\eef6"}
+.ri-menu-line:before{content:"\ef3e"}
+.ri-moon-line:before{content:"\ef75"}
+.ri-price-tag-3-line:before{content:"\f023"}
+.ri-pushpin-line:before{content:"\f039"}
+.ri-rss-line:before{content:"\f09f"}
+.ri-search-line:before{content:"\f0d1"}
+.ri-settings-3-line:before{content:"\f0e6"}
+.ri-sun-line:before{content:"\f1bf"}
+.ri-text-wrap:before{content:"\f200"}
+.ri-time-line:before{content:"\f20f"}
+.ri-user-line:before{content:"\f264"}
+.ri-megaphone-line:before{content:"\f385"}

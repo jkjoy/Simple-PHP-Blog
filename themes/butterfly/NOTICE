@@ -1,0 +1,16 @@
+Butterfly for Simple PHP Blog
+
+Based on Typecho-Butterfly 1.8.1 by wehao and contributors:
+https://github.com/wehaox/Typecho-Butterfly
+Original Butterfly design by JerryC and contributors:
+https://github.com/jerryc127/hexo-theme-butterfly
+
+This port rewrites templates, styles and interaction code for Simple PHP Blog.
+The original img/image.png and img/DefualtThumbnail.jpg are redistributed as
+assets/hero.png and assets/default-cover.jpg. The source Apache-2.0 license
+is preserved in LICENSE.
+
+Remix Icon v4.6.0, Copyright RemixIcon.com, Apache License Version 2.0:
+https://github.com/Remix-Design/RemixIcon
+The local font is reused from this project's Ying theme distribution.
+assets/icons.css contains a subset of the original icon selectors.

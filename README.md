@@ -105,6 +105,7 @@ plugins/       功能插件与语言插件
 - 可通过 `style.css` 覆盖前台样式，通过 `functions.php` 注册 action/filter 钩子，也可用 `layout.php` 接管完整前台布局。
 - 后台“主题管理”可预览并启用主题；无效或被删除的主题会回退到内置主题。
 - 主题开发接口与完整钩子列表见 `themes/README.md`。
+- Butterfly 移植主题及默认选项见 `themes/butterfly/README.md`，可在后台主题管理中预览和启用。
 - 一键更新只覆盖程序发布文件，不会清空额外的自定义主题目录。
 
 ## 插件
