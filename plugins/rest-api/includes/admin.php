@@ -29,6 +29,7 @@ function sblog_rest_api_render_admin(): never
     $publicEnabled = sblog_rest_api_setting('public_enabled', '1') === '1';
     $writeEnabled = sblog_rest_api_setting('write_enabled', '1') === '1';
     $allowHttp = sblog_rest_api_setting('allow_http_auth', '0') === '1';
+    $corsAllowedOrigins = sblog_rest_api_setting('cors_allowed_origins', '*');
 
     ob_start(); ?>
     <div class="admin-shell">
@@ -55,6 +56,7 @@ function sblog_rest_api_render_admin(): never
               <label class="setting-option"><input name="public_enabled" type="checkbox" value="1"<?= $publicEnabled ? ' checked' : '' ?>><span><strong><?= h(sblog_t('允许匿名读取公开内容')) ?></strong><small><?= h(sblog_t('关闭后，文章、页面和公开评论也需要 Application Password。')) ?></small></span></label>
               <label class="setting-option"><input name="write_enabled" type="checkbox" value="1"<?= $writeEnabled ? ' checked' : '' ?>><span><strong><?= h(sblog_t('允许 API 写操作')) ?></strong><small><?= h(sblog_t('写操作始终需要有效的 Application Password。')) ?></small></span></label>
               <label class="setting-option"><input name="allow_http_auth" type="checkbox" value="1"<?= $allowHttp ? ' checked' : '' ?>><span><strong><?= h(sblog_t('允许通过普通 HTTP 发送凭据')) ?></strong><small><?= h(sblog_t('仅用于无法配置 HTTPS 的可信内网；密码会以可还原形式经过网络。localhost 始终允许。')) ?></small></span></label>
+              <div class="field"><label for="rest-api-cors-origins"><?= h(sblog_t('跨域允许来源')) ?></label><textarea id="rest-api-cors-origins" name="cors_allowed_origins" rows="4" maxlength="4000" placeholder="https://example.com"><?= h($corsAllowedOrigins) ?></textarea><small class="field-hint"><?= h(sblog_t('每行填写一个完整来源（协议、域名及可选端口）；填写 * 允许所有来源，留空则关闭跨域访问。')) ?></small></div>
               <div class="action-row"><button class="button" type="submit"><?= h(sblog_t('保存设置')) ?></button></div>
             </form>
           </div>
@@ -98,10 +100,12 @@ function sblog_rest_api_handle_admin_request(string $action): bool
     require_admin_post(sblog_rest_api_admin_url());
     $adminId = (int)(current_admin()['id'] ?? 0);
     if ($action === 'save_rest_api_settings') {
+        $corsAllowedOrigins = sblog_rest_api_parse_allowed_origins(str_sub_u((string)($_POST['cors_allowed_origins'] ?? ''), 0, 4000));
         sblog_rest_api_save_settings([
             'public_enabled' => isset($_POST['public_enabled']) ? '1' : '0',
             'write_enabled' => isset($_POST['write_enabled']) ? '1' : '0',
             'allow_http_auth' => isset($_POST['allow_http_auth']) ? '1' : '0',
+            'cors_allowed_origins' => implode("\n", $corsAllowedOrigins),
         ]);
         set_flash('success', sblog_t('REST API 设置已保存。'));
     } elseif ($action === 'create_rest_api_token') {

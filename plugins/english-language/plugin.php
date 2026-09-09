@@ -997,6 +997,8 @@ function sblog_english_language_map(): array
         '该密码只显示一次，请立即保存到需要连接的客户端。' => 'This password is shown only once. Save it now in the client that will connect to the site.',
         '用户名：{username}' => 'Username: {username}',
         '接口设置' => 'API settings',
+        '跨域允许来源' => 'Allowed cross-origin sources',
+        '每行填写一个完整来源（协议、域名及可选端口）；填写 * 允许所有来源，留空则关闭跨域访问。' => 'Enter one complete origin per line (scheme, domain, and optional port). Use * to allow all origins, or leave blank to disable cross-origin access.',
         'WordPress REST API v2 兼容入口' => 'WordPress REST API v2 compatible endpoint',
         '允许匿名读取公开内容' => 'Allow anonymous access to public content',
         '关闭后，文章、页面和公开评论也需要 Application Password。' => 'When disabled, posts, pages, and public comments also require an Application Password.',

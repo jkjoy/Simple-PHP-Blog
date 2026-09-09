@@ -2,7 +2,7 @@
 
 该插件为 SBlog 提供兼容 WordPress REST API v2 常用资源的 JSON 接口，适合连接 WordPress 客户端、迁移脚本和自动化工具。
 
-本文档对应插件清单版本 `1.0.1`。实现以 WordPress 的 URL、字段命名、分页响应头和错误对象为参照，但不是完整的 WordPress REST API。
+本文档对应插件清单版本 `1.0.2`。实现以 WordPress 的 URL、字段命名、分页响应头和错误对象为参照，但不是完整的 WordPress REST API。
 
 ## 启用与入口
 
@@ -10,6 +10,7 @@
 
 - 允许或禁止匿名读取公开内容；
 - 允许或禁止 API 写操作；
+- 配置允许调用 API 的网页来源；
 - 创建、查看使用记录和撤销 Application Password；
 - 在可信内网中临时允许通过 HTTP 发送凭据。
 
@@ -48,6 +49,17 @@ curl --user "admin:xxxx xxxx xxxx xxxx xxxx xxxx" \
 ```
 
 默认仅允许通过 HTTPS 发送凭据。`localhost`、`127.0.0.1`、`::1`，以及后台明确开启的 HTTP 调试环境除外。不要在不可信网络中启用 HTTP 鉴权。
+
+## 浏览器跨域访问
+
+REST API 默认发送 `Access-Control-Allow-Origin: *`，允许部署在其他域名的网页读取公开内容。可在插件设置页的“跨域允许来源”中改为每行一个精确来源，例如：
+
+```text
+https://blog.hb.cn
+https://admin.example.com:8443
+```
+
+填写 `*` 允许所有网页来源，留空则关闭跨域访问。来源只接受 `http` 或 `https` 协议、域名以及可选端口，不接受路径。API 不使用 Cookie 登录态，写操作仍必须显式提供有效的 Application Password。
 
 ## 请求约定
 

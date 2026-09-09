@@ -90,6 +90,62 @@ function sblog_rest_api_save_settings(array $values): void
     }
 }
 
+function sblog_rest_api_normalize_origin(string $origin): ?string
+{
+    $origin = trim($origin);
+    if ($origin === '*') {
+        return '*';
+    }
+    $parts = parse_url($origin);
+    if (!is_array($parts)
+        || !in_array(strtolower((string)($parts['scheme'] ?? '')), ['http', 'https'], true)
+        || trim((string)($parts['host'] ?? '')) === ''
+        || isset($parts['user'])
+        || isset($parts['pass'])
+        || isset($parts['query'])
+        || isset($parts['fragment'])
+        || (isset($parts['path']) && !in_array($parts['path'], ['', '/'], true))) {
+        return null;
+    }
+    $scheme = strtolower((string)$parts['scheme']);
+    $host = strtolower((string)$parts['host']);
+    $port = isset($parts['port']) ? (int)$parts['port'] : null;
+    if ($port !== null && ($port < 1 || $port > 65535)) {
+        return null;
+    }
+    $defaultPort = ($scheme === 'https' && $port === 443) || ($scheme === 'http' && $port === 80);
+    return $scheme . '://' . $host . ($port !== null && !$defaultPort ? ':' . $port : '');
+}
+
+function sblog_rest_api_parse_allowed_origins(string $value): array
+{
+    $items = preg_split('/[\s,]+/', trim($value)) ?: [];
+    $origins = [];
+    foreach ($items as $item) {
+        $origin = sblog_rest_api_normalize_origin($item);
+        if ($origin === '*') {
+            return ['*'];
+        }
+        if ($origin !== null) {
+            $origins[$origin] = true;
+        }
+    }
+    return array_keys($origins);
+}
+
+function sblog_rest_api_cors_origin(): ?string
+{
+    $requestOrigin = sblog_rest_api_normalize_origin((string)($_SERVER['HTTP_ORIGIN'] ?? ''));
+    if ($requestOrigin === null || $requestOrigin === '*') {
+        return null;
+    }
+    $allowed = sblog_rest_api_parse_allowed_origins(sblog_rest_api_setting('cors_allowed_origins', '*'));
+    if (in_array('*', $allowed, true)) {
+        return '*';
+    }
+    return in_array($requestOrigin, $allowed, true) ? $requestOrigin : null;
+}
+
 function sblog_rest_api_base_url(): string
 {
     return rtrim(site_root_url(), '/') . '/wp-json';
@@ -263,7 +319,15 @@ function sblog_rest_api_send(mixed $data, int $status = 200, array $headers = []
     header('Content-Type: application/json; charset=UTF-8');
     header('X-Robots-Tag: noindex');
     header('X-Content-Type-Options: nosniff');
-    header('Vary: Authorization');
+    header('Vary: Authorization, Origin, Access-Control-Request-Headers');
+    $corsOrigin = sblog_rest_api_cors_origin();
+    if ($corsOrigin !== null) {
+        header('Access-Control-Allow-Origin: ' . $corsOrigin);
+        header('Access-Control-Allow-Methods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Authorization, Content-Type, X-HTTP-Method-Override');
+        header('Access-Control-Expose-Headers: X-WP-Total, X-WP-TotalPages, Link, Location');
+        header('Access-Control-Max-Age: 600');
+    }
     foreach ($headers as $name => $value) {
         header($name . ': ' . $value);
     }

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const SBLOG_REST_API_VERSION = '1.0.0';
+const SBLOG_REST_API_VERSION = '1.0.2';
 const SBLOG_REST_API_ACTION = 'sblog_rest_api';
 
 require_once __DIR__ . '/includes/http.php';
