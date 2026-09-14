@@ -49,13 +49,13 @@ function adams_render_pager(int $page, int $totalPages): string
     ob_start();
     ?>
     <nav class="reade_more" aria-label="<?= h(sblog_t('分页')) ?>">
-      <?php if ($page > 1): ?><a class="page-numbers prev" href="<?= h(home_page_url($page - 1)) ?>">«</a><?php endif; ?>
+      <?php if ($page > 1): ?><a class="page-numbers prev" href="<?= h(home_page_url($page - 1)) ?>" aria-label="<?= h(sblog_t('上一页')) ?>">«</a><?php endif; ?>
       <?php $previous = 0; foreach ($numbers as $number): ?>
-        <?php if ($number - $previous > 1): ?><span class="page-numbers dots">…</span><?php endif; ?>
-        <?php if ($number === $page): ?><span class="page-numbers current"><?= h((string)$number) ?></span><?php else: ?><a class="page-numbers" href="<?= h(home_page_url($number)) ?>"><?= h((string)$number) ?></a><?php endif; ?>
+        <?php if ($number - $previous > 1): ?><span class="page-numbers dots" aria-hidden="true">…</span><?php endif; ?>
+        <?php if ($number === $page): ?><span class="page-numbers current" aria-current="page"><?= h((string)$number) ?></span><?php else: ?><a class="page-numbers" href="<?= h(home_page_url($number)) ?>"><?= h((string)$number) ?></a><?php endif; ?>
         <?php $previous = $number; ?>
       <?php endforeach; ?>
-      <?php if ($page < $totalPages): ?><a class="page-numbers next" href="<?= h(home_page_url($page + 1)) ?>">»</a><?php endif; ?>
+      <?php if ($page < $totalPages): ?><a class="page-numbers next" href="<?= h(home_page_url($page + 1)) ?>" aria-label="<?= h(sblog_t('下一页')) ?>">»</a><?php endif; ?>
     </nav>
     <?php
     return (string)ob_get_clean();
@@ -151,13 +151,23 @@ function adams_render_tags(): string
     ob_start();
     ?>
     <section class="container">
-      <article class="post_article archives tag-archive" itemscope itemtype="https://schema.org/Article">
-        <h3><?= h(sblog_t('标签')) ?></h3>
-        <?php if ($tags): ?><table><tbody>
-          <?php foreach ($tags as $tag): ?>
-            <tr><td width="80">#</td><td><a href="<?= h(url_for('tag', ['slug' => (string)$tag['slug']])) ?>"><?= h((string)$tag['label']) ?> - <?= h((string)$tag['count']) ?></a></td></tr>
-          <?php endforeach; ?>
-        </tbody></table><?php else: ?><p><?= h(sblog_t('还没有标签。')) ?></p><?php endif; ?>
+      <article class="post_article tag-index" itemscope itemtype="https://schema.org/CollectionPage">
+        <header class="tag-index__header">
+          <h2><?= h(sblog_t('标签')) ?></h2>
+          <?php if ($tags): ?><span><b><?= h((string)count($tags)) ?></b> <?= h(sblog_t('个标签')) ?></span><?php endif; ?>
+        </header>
+        <?php if ($tags): ?>
+          <ul class="tag-index__list">
+            <?php foreach ($tags as $tag): ?>
+              <li>
+                <a href="<?= h(url_for('tag', ['slug' => (string)$tag['slug']])) ?>">
+                  <span class="tag-index__name">#<?= h((string)$tag['label']) ?></span>
+                  <span class="tag-index__count"><?= h(sblog_tn('{count} 篇', (int)$tag['count'])) ?></span>
+                </a>
+              </li>
+            <?php endforeach; ?>
+          </ul>
+        <?php else: ?><p class="tag-index__empty"><?= h(sblog_t('还没有标签。')) ?></p><?php endif; ?>
       </article>
     </section>
     <?php
@@ -166,7 +176,29 @@ function adams_render_tags(): string
 
 function adams_render_tag_page(string $slug): string
 {
-    return adams_render_post_list(fetch_posts_by_tag_slug($slug));
+    $posts = fetch_posts_by_tag_slug($slug);
+    $label = tag_label_by_slug($slug) ?? $slug;
+
+    ob_start();
+    ?>
+    <section class="posts main-load adams-tag-results">
+      <div class="container">
+        <header class="adams-list-header">
+          <a href="<?= h(url_for('tags')) ?>"><?= h(sblog_t('标签')) ?></a>
+          <h2>#<?= h($label) ?></h2>
+          <p><?= h(sblog_tn('{count} 篇文章', count($posts))) ?></p>
+        </header>
+        <div class="post-list">
+          <?php if ($posts): ?>
+            <?= adams_render_post_items($posts) ?>
+          <?php else: ?>
+            <article class="meta"><h3 class="empty-title">Sorry!</h3><p><?= h(sblog_t('这个标签下还没有文章。')) ?></p></article>
+          <?php endif; ?>
+        </div>
+      </div>
+    </section>
+    <?php
+    return (string)ob_get_clean();
 }
 
 function adams_render_category_page(string $slug): string
