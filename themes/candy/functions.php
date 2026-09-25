@@ -44,17 +44,42 @@ function candy_post_cards(array $posts): string
         ?>
         <article class="candy-card candy-tone-<?= $tone ?> candy-reveal">
           <div class="candy-card__art" aria-hidden="true">
-            <?php if ($cover !== ''): ?><img src="<?= h($cover) ?>" alt="" loading="<?= $index === 0 ? 'eager' : 'lazy' ?>" decoding="async" onerror="this.remove()"> <?php endif; ?>
-            <svg class="candy-card__pattern" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
-              <defs><pattern id="candy-dots-<?= $index ?>" width="19" height="19" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="2" fill="#0a0a0a"/></pattern></defs>
-              <rect x="0" y="0" width="400" height="220" fill="url(#candy-dots-<?= $index ?>)" opacity=".14"/>
-              <?php if ($cover === ''): ?>
-              <path d="m155 220 245-62v62Z" fill="var(--tone-light)" stroke="#000" stroke-width="3"/>
-              <circle cx="302" cy="106" r="80" fill="none" stroke="#0a0a0a" stroke-width="3"/>
-              <circle cx="302" cy="106" r="57" fill="none" stroke="#0a0a0a" stroke-width="3"/>
-              <path d="M278 130 326 82m-40 0h40v40" fill="none" stroke="#0a0a0a" stroke-width="8" stroke-linejoin="miter"/>
-              <?php endif; ?>
-            </svg>
+            <?php if ($cover !== ''): ?><img src="<?= h($cover) ?>" alt="" loading="<?= $index === 0 ? 'eager' : 'lazy' ?>" decoding="async" onerror="this.remove()"> <?php else: ?>
+              <svg class="candy-card__pattern" viewBox="0 0 400 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+                <defs>
+                  <pattern id="candy-dots-<?= $index ?>" width="19" height="19" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="2" fill="#0a0a0a"/></pattern>
+                  <pattern id="candy-lines-<?= $index ?>" width="15" height="15" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="15" height="15" fill="var(--tone-light)"/><rect width="4" height="15" fill="#000"/></pattern>
+                </defs>
+                <circle cx="330" cy="48" r="72" fill="url(#candy-dots-<?= $index ?>)" opacity=".32"/>
+                <path d="M0 192h400" stroke="#000" stroke-width="3"/>
+                <?php if ($tone === 1): ?>
+                  <path d="M95 31h190v161H95z" fill="#fff" stroke="#000" stroke-width="4" transform="rotate(-8 190 111)"/>
+                  <path d="M122 30h190v161H122z" fill="var(--tone)" stroke="#000" stroke-width="4" transform="rotate(5 217 111)"/>
+                  <path d="M160 70h120v95H160z" fill="#FFE135" stroke="#000" stroke-width="4"/>
+                  <path d="M179 91h82m-82 20h67m-67 20h82" stroke="#000" stroke-width="5"/>
+                <?php elseif ($tone === 2): ?>
+                  <circle cx="202" cy="110" r="75" fill="var(--tone)" stroke="#000" stroke-width="4"/>
+                  <path d="M125 115c38-29 72-29 111 0s72 29 111 0v77H125z" fill="#fff" stroke="#000" stroke-width="4"/>
+                  <path d="M64 69h55v55H64z" fill="url(#candy-lines-<?= $index ?>)" stroke="#000" stroke-width="4"/>
+                <?php elseif ($tone === 3): ?>
+                  <circle cx="226" cy="109" r="78" fill="var(--tone)" stroke="#000" stroke-width="4"/>
+                  <path d="M169 117h114l-12 59H181z" fill="#fff" stroke="#000" stroke-width="4"/>
+                  <path d="M280 128h20c27 0 27 38-6 38h-18M194 92c-11-12 8-23 0-34m31 34c-11-12 8-23 0-34m31 34c-11-12 8-23 0-34" fill="none" stroke="#000" stroke-width="4"/>
+                <?php elseif ($tone === 4): ?>
+                  <path d="M108 37h195v150H108z" fill="var(--tone)" stroke="#000" stroke-width="4"/>
+                  <path d="M122 53h165v102H122z" fill="#fff" stroke="#000" stroke-width="4"/>
+                  <path d="M151 132V85h32v47m15 0V69h39v63m16 0V96h19v36" fill="var(--tone-light)" stroke="#000" stroke-width="4"/>
+                <?php elseif ($tone === 5): ?>
+                  <path d="M136 51h140l-16 126H152z" fill="#fff" stroke="#000" stroke-width="4"/>
+                  <path d="M181 79c15-20 38-20 53 0 15-20 38-20 53 0-3 37-53 70-53 70s-50-33-53-70Z" fill="var(--tone)" stroke="#000" stroke-width="4"/>
+                  <path d="M111 78h-30m30 21H65m267 37h37m-37 21h55" stroke="#000" stroke-width="5"/>
+                <?php else: ?>
+                  <path d="M100 61h210v126H100z" fill="#fff" stroke="#000" stroke-width="4" transform="rotate(-7 205 124)"/>
+                  <path d="M109 69h210v126H109z" fill="var(--tone)" stroke="#000" stroke-width="4"/>
+                  <path d="m109 70 105 83L319 70M109 195l83-69m127 69-83-69" fill="none" stroke="#000" stroke-width="4"/>
+                <?php endif; ?>
+              </svg>
+            <?php endif; ?>
             <span class="candy-card__number"><?= h(str_pad((string)($index + 1), 2, '0', STR_PAD_LEFT)) ?></span>
             <?php if (!empty($post['is_pinned'])): ?><span class="candy-pin"><?= h(sblog_t('置顶')) ?></span><?php endif; ?>
           </div>
@@ -62,7 +87,7 @@ function candy_post_cards(array $posts): string
             <div class="candy-card__meta"><time datetime="<?= h(date(DATE_ATOM, (int)$post['published_at'])) ?>"><?= h(date('Y.m.d', (int)$post['published_at'])) ?></time><?php if ($tags): ?><a href="<?= h(url_for('tag', ['slug' => (string)$tags[0]['slug']])) ?>">#<?= h((string)$tags[0]['label']) ?></a><?php endif; ?></div>
             <h3><a href="<?= h($url) ?>"><?= h((string)$post['title']) ?></a></h3>
             <p><?= h($excerpt) ?></p>
-            <a class="candy-card__read" href="<?= h($url) ?>" aria-label="<?= h(sblog_t('阅读文章：{title}', ['title' => (string)$post['title']])) ?>"><span><?= h(sblog_t('继续阅读')) ?></span><?= candy_icon('arrow') ?></a>
+            <a class="candy-card__read" href="<?= h($url) ?>" aria-label="<?= h(sblog_t('阅读文章：{title}', ['title' => (string)$post['title']])) ?>"><span><?= h(sblog_t('继续阅读')) ?></span><span class="candy-card__arrow"><?= candy_icon('arrow') ?></span></a>
           </div>
         </article>
       <?php endforeach; ?>
@@ -83,6 +108,30 @@ function candy_empty(string $message): string
     return '<div class="candy-empty candy-reveal"><p>' . h($message) . '</p></div>';
 }
 
+function candy_category_nav(string $currentSlug = ''): string
+{
+    $categories = all_rows(
+        'SELECT c.name, c.slug, COUNT(p.id) AS post_count FROM categories c
+         JOIN posts p ON p.category_id = c.id AND p.kind = ? AND p.status = ? AND p.published_at <= ?
+         GROUP BY c.id ORDER BY c.sort_order ASC, c.id DESC',
+        ['post', 'published', time()]
+    );
+    if (count($categories) < 2) {
+        return '';
+    }
+
+    ob_start();
+    ?>
+    <nav class="candy-category-nav candy-reveal" aria-label="<?= h(sblog_t('文章分类')) ?>">
+      <a href="<?= h(url_for('home')) ?>"<?= $currentSlug === '' ? ' aria-current="page"' : '' ?>><?= h(sblog_t('全部')) ?></a>
+      <?php foreach ($categories as $category): ?>
+        <a href="<?= h(url_for('category', ['slug' => (string)$category['slug']])) ?>"<?= $currentSlug === (string)$category['slug'] ? ' aria-current="page"' : '' ?>><?= h((string)$category['name']) ?><span><?= h((string)$category['post_count']) ?></span></a>
+      <?php endforeach; ?>
+    </nav>
+    <?php
+    return (string)ob_get_clean();
+}
+
 function candy_render_home(): string
 {
     $page = max(1, (int)($_GET['p'] ?? 1));
@@ -93,6 +142,7 @@ function candy_render_home(): string
     ob_start();
     ?><section class="candy-feed" id="candy-feed" aria-labelledby="candy-feed-title">
       <div class="candy-feed__head candy-reveal"><div><span class="candy-kicker"><?= h(sblog_t('THE LATEST')) ?></span><h2 id="candy-feed-title"><?= h($page > 1 ? sblog_t('第 {page} 页', ['page' => $page]) : sblog_t('最新文章')) ?></h2></div><a href="<?= h(url_for('archives')) ?>"><?= h(sblog_t('全部归档')) ?><?= candy_icon('up-right') ?></a></div>
+      <?= candy_category_nav() ?>
       <?= $posts ? candy_post_cards($posts) : candy_empty(sblog_t('还没有已发布的文章。')) ?>
       <?php if ($pages > 1): ?><nav class="candy-pager" aria-label="<?= h(sblog_t('分页')) ?>">
         <?php if ($page > 1): ?><a href="<?= h(home_page_url($page - 1)) ?>"><?= h(sblog_t('上一页')) ?></a><?php endif; ?>
@@ -183,7 +233,9 @@ add_theme_filter('content', static function (string $content, array $context): s
         $category = one('SELECT * FROM categories WHERE slug = ?', [trim($slug)]);
         if ($category) {
             $posts = all_rows('SELECT * FROM posts WHERE kind = ? AND category_id = ? AND status = ? AND published_at <= ? ORDER BY is_pinned DESC, published_at DESC, id DESC', ['post', (int)$category['id'], 'published', time()]);
-            return candy_render_listing('CATEGORY', (string)$category['name'], (string)$category['description'], $posts);
+            return candy_heading('CATEGORY', (string)$category['name'], (string)$category['description'])
+                . candy_category_nav($slug)
+                . ($posts ? candy_post_cards($posts) : candy_empty(sblog_t('这里还没有文章。')));
         }
     }
     if ($action === 'tag') {
