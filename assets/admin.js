@@ -70,8 +70,8 @@ function initThemeManager() {
       const isActive = card.dataset.themeSlug === slug;
       card.classList.toggle("is-active", isActive);
       card.querySelector("[data-theme-current]")?.toggleAttribute("hidden", !isActive);
+      card.querySelector("[data-theme-inactive]")?.toggleAttribute("hidden", isActive);
       card.querySelector("[data-theme-activate]")?.toggleAttribute("hidden", isActive);
-      card.querySelector("[data-theme-active]")?.toggleAttribute("hidden", !isActive);
     });
   };
 

@@ -7335,84 +7335,82 @@ function render_admin_themes_page(): void
       <div class="admin-main">
         <?= render_admin_topbar(sblog_t('主题管理')) ?>
 
-        <section class="theme-manager admin-animate admin-animate--2" aria-labelledby="theme-manager-title" data-theme-manager>
-          <header class="theme-manager__header">
-            <div>
-              <p class="admin-masthead__eyebrow"><?= h(sblog_t('外观')) ?></p>
-              <h1 id="theme-manager-title"><?= h(sblog_t('主题管理')) ?></h1>
-              <p><?= h(sblog_t('预览已安装主题，并为博客前台启用新的外观。')) ?></p>
+        <section class="panel admin-list-panel admin-animate admin-animate--2" aria-labelledby="theme-manager-title" data-theme-manager>
+          <div class="panel__header">
+            <div class="admin-head admin-head--with-actions">
+              <div class="admin-head-left">
+                <h2 id="theme-manager-title"><?= h(sblog_t('主题管理')) ?></h2>
+                <p class="panel__meta"><?= h(sblog_tn('{count} 个主题', count($themes))) ?></p>
+              </div>
+              <div class="admin-head-actions">
+                <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_themes'), ['check_updates' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('检查更新')) ?></a>
+                <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_store'), ['type' => 'theme'])) ?>"><?= admin_icon('store') ?><?= h(sblog_t('获取主题')) ?></a>
+              </div>
             </div>
-            <div class="theme-manager__actions">
-              <span class="theme-manager__count"><?= h(sblog_tn('{count} 个主题', count($themes))) ?></span>
-              <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_themes'), ['check_updates' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('检查更新')) ?></a>
-              <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_store'), ['type' => 'theme'])) ?>"><?= admin_icon('store') ?><?= h(sblog_t('获取主题')) ?></a>
-            </div>
-          </header>
-
-          <?php if ((string)$updateState['error'] !== ''): ?><div class="flash flash--error extension-update-error" role="alert"><?= h(sblog_t('检查主题更新失败：{error}', ['error' => (string)$updateState['error']])) ?></div><?php endif; ?>
-
-          <div class="theme-grid">
-            <?php foreach ($themes as $slug => $theme): ?>
-              <?php
-              $isActive = $slug === $activeSlug;
-              $previewUrl = url_with_query(url_for('home'), ['theme_preview' => (string)$slug]);
-              $displayMetadata = theme_display_metadata((string)$slug, $theme);
-              $themeName = $displayMetadata['name'];
-              $themeDescription = $displayMetadata['description'];
-              $previewLabel = sblog_t('预览主题 {theme}', ['theme' => $themeName]);
-              $update = $updates[$slug] ?? null;
-              $updateCompatible = is_array($update) && extension_is_compatible($update);
-              ?>
-              <article class="theme-card<?= $isActive ? ' is-active' : '' ?>" data-theme-card data-theme-slug="<?= h((string)$slug) ?>">
-                <a class="theme-card__preview" href="<?= h($previewUrl) ?>" target="_blank" rel="noopener" aria-label="<?= h($previewLabel) ?>" title="<?= h($previewLabel) ?>">
-                  <iframe src="<?= h($previewUrl) ?>" loading="lazy" tabindex="-1" aria-hidden="true" title="<?= h($previewLabel) ?>"></iframe>
-                  <span><?= h(sblog_t('打开预览')) ?></span>
-                </a>
-                <div class="theme-card__body">
-                  <div class="theme-card__heading">
-                    <div>
-                      <h2><?= h($themeName) ?></h2>
-                      <p><?= h((string)$slug) ?><?= $theme['version'] !== '' ? ' · ' . h((string)$theme['version']) : '' ?></p>
-                    </div>
-                    <div class="theme-card__badges">
-                      <?php if (is_array($update)): ?><span class="status-badge status-badge--scheduled"><?= h(sblog_t('可更新至 {version}', ['version' => (string)$update['version']])) ?></span><?php endif; ?>
-                      <span class="status-badge status-badge--published" data-theme-current<?= $isActive ? '' : ' hidden' ?>><?= h(sblog_t('当前主题')) ?></span>
-                    </div>
-                  </div>
-                  <p class="theme-card__description"><?= h($themeDescription !== '' ? $themeDescription : sblog_t('该主题没有提供说明。')) ?></p>
-                  <div class="theme-card__footer">
-                    <span class="theme-card__author">
-                      <?php if ($theme['author'] !== ''): ?>
-                        <?= h(sblog_t('作者：')) ?><?php if ($theme['url'] !== ''): ?><a href="<?= h((string)$theme['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$theme['author']) ?></a><?php else: ?><?= h((string)$theme['author']) ?><?php endif; ?>
-                      <?php else: ?>
-                        <?= h(sblog_t('作者未注明')) ?>
-                      <?php endif; ?>
-                    </span>
-                    <div class="theme-card__actions">
-                      <?php if (is_array($update)): ?>
-                        <?php if ($updateCompatible): ?>
-                          <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install>
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="type" value="theme">
-                            <input type="hidden" name="slug" value="<?= h((string)$slug) ?>">
-                            <input type="hidden" name="return_to" value="themes">
-                            <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><?= h(sblog_t('升级')) ?></button>
-                          </form>
-                        <?php else: ?>
-                          <span class="button button--ghost is-disabled" aria-disabled="true" title="<?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) ?>"><?= h(sblog_t('版本不兼容')) ?></span>
+          </div>
+          <div class="panel__body panel__body--flush">
+            <?php if ((string)$updateState['error'] !== ''): ?><div class="flash flash--error extension-update-error" role="alert"><?= h(sblog_t('检查主题更新失败：{error}', ['error' => (string)$updateState['error']])) ?></div><?php endif; ?>
+            <div class="table-wrap table-wrap--plugins">
+              <table class="admin-table plugin-table theme-table">
+                <thead><tr><th><?= h(sblog_t('主题')) ?></th><th><?= h(sblog_t('作者')) ?></th><th><?= h(sblog_t('版本')) ?></th><th><?= h(sblog_t('状态')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead>
+                <tbody>
+                <?php foreach ($themes as $slug => $theme): ?>
+                  <?php
+                  $isActive = $slug === $activeSlug;
+                  $previewUrl = url_with_query(url_for('home'), ['theme_preview' => (string)$slug]);
+                  $displayMetadata = theme_display_metadata((string)$slug, $theme);
+                  $themeName = $displayMetadata['name'];
+                  $themeDescription = $displayMetadata['description'];
+                  $previewLabel = sblog_t('预览主题 {theme}', ['theme' => $themeName]);
+                  $update = $updates[$slug] ?? null;
+                  $updateCompatible = is_array($update) && extension_is_compatible($update);
+                  ?>
+                  <tr class="<?= $isActive ? 'is-active' : '' ?>" data-theme-card data-theme-slug="<?= h((string)$slug) ?>">
+                    <td>
+                      <div class="table-title">
+                        <strong><?= h($themeName) ?></strong>
+                        <span><?= h($themeDescription !== '' ? $themeDescription : sblog_t('该主题没有提供说明。')) ?></span>
+                      </div>
+                    </td>
+                    <td data-label="<?= h(sblog_t('作者')) ?>"><?php if ($theme['author'] !== ''): ?><?php if ($theme['url'] !== ''): ?><a href="<?= h((string)$theme['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$theme['author']) ?></a><?php else: ?><?= h((string)$theme['author']) ?><?php endif; ?><?php else: ?>—<?php endif; ?></td>
+                    <td data-label="<?= h(sblog_t('版本')) ?>">
+                      <div class="extension-version">
+                        <span><?= h((string)($theme['version'] ?: '—')) ?></span>
+                        <?php if (is_array($update)): ?><span class="status-badge status-badge--scheduled"><?= h(sblog_t('新版本 {version}', ['version' => (string)$update['version']])) ?></span><?php endif; ?>
+                      </div>
+                    </td>
+                    <td data-label="<?= h(sblog_t('状态')) ?>">
+                      <span class="status-badge status-badge--published" data-theme-current<?= $isActive ? '' : ' hidden' ?>><?= h(sblog_t('已启用')) ?></span>
+                      <span class="status-badge status-badge--draft" data-theme-inactive<?= $isActive ? ' hidden' : '' ?>><?= h(sblog_t('未启用')) ?></span>
+                    </td>
+                    <td data-label="<?= h(sblog_t('操作')) ?>">
+                      <div class="table-actions">
+                        <a class="button button--secondary" href="<?= h($previewUrl) ?>" target="_blank" rel="noopener noreferrer" aria-label="<?= h($previewLabel) ?>"><?= h(sblog_t('打开预览')) ?></a>
+                        <?php if (is_array($update)): ?>
+                          <?php if ($updateCompatible): ?>
+                            <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install>
+                              <?= csrf_field() ?>
+                              <input type="hidden" name="type" value="theme">
+                              <input type="hidden" name="slug" value="<?= h((string)$slug) ?>">
+                              <input type="hidden" name="return_to" value="themes">
+                              <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><?= h(sblog_t('升级')) ?></button>
+                            </form>
+                          <?php else: ?>
+                            <span class="button button--ghost is-disabled" aria-disabled="true" title="<?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) ?>"><?= h(sblog_t('版本不兼容')) ?></span>
+                          <?php endif; ?>
                         <?php endif; ?>
-                      <?php endif; ?>
-                      <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-activate<?= $isActive ? ' hidden' : '' ?>>
-                        <?= csrf_field() ?>
-                        <input type="hidden" name="theme" value="<?= h((string)$slug) ?>">
-                        <button class="button<?= is_array($update) ? ' button--secondary' : '' ?>" type="submit"><?= h(sblog_t('启用')) ?></button>
-                      </form>
-                      <span class="button button--ghost is-disabled" aria-disabled="true" data-theme-active<?= $isActive ? '' : ' hidden' ?>><?= h(sblog_t('已启用')) ?></span>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            <?php endforeach; ?>
+                        <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-activate<?= $isActive ? ' hidden' : '' ?>>
+                          <?= csrf_field() ?>
+                          <input type="hidden" name="theme" value="<?= h((string)$slug) ?>">
+                          <button class="button<?= is_array($update) ? ' button--secondary' : '' ?>" type="submit"><?= h(sblog_t('启用')) ?></button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       </div>
