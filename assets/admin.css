@@ -1631,7 +1631,8 @@ textarea {
   margin: 24px 24px 0;
 }
 
-.theme-admin:not(.theme-admin--guest) .theme-manager {
+.theme-admin:not(.theme-admin--guest) .theme-manager,
+.theme-admin:not(.theme-admin--guest) .extension-store {
   margin: 24px 24px 0;
 }
 
@@ -2975,7 +2976,7 @@ textarea {
 }
 
 .theme-admin .extension-card__footer {
-  justify-content: space-between;
+  justify-content: flex-end;
   min-height: 41px;
   gap: 12px;
   padding-top: 11px;
@@ -2984,22 +2985,6 @@ textarea {
 
 .theme-admin .extension-card__footer form {
   margin: 0;
-}
-
-.theme-admin .extension-card__link {
-  display: inline-grid;
-  min-width: 40px;
-  min-height: 40px;
-  place-items: center start;
-  color: var(--admin-accent);
-  font: 600 13px/1 var(--font-ui);
-  text-underline-offset: 3px;
-}
-
-.theme-admin .extension-card__link:focus-visible {
-  border-radius: 4px;
-  outline: 2px solid var(--admin-accent);
-  outline-offset: 2px;
 }
 
 .theme-admin .extension-card button:active,
@@ -3510,7 +3495,8 @@ textarea {
     margin: 16px 12px 0;
   }
 
-  .theme-admin:not(.theme-admin--guest) .theme-manager {
+  .theme-admin:not(.theme-admin--guest) .theme-manager,
+  .theme-admin:not(.theme-admin--guest) .extension-store {
     margin: 16px 12px 0;
   }
 

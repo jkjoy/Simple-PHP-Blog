@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.0';
+const APP_VERSION = 'v1.14.1';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -7108,7 +7108,6 @@ function render_admin_store_page(): void
         <section class="extension-store admin-animate admin-animate--2" aria-labelledby="extension-store-title">
           <header class="extension-store__header">
             <div>
-              <p class="admin-masthead__eyebrow"><?= h(sblog_t('扩展')) ?></p>
               <h1 id="extension-store-title"><?= h(sblog_t('扩展商店')) ?></h1>
               <p><?= h(sblog_t('从远程商店安装和更新 SBlog 主题与插件。')) ?></p>
             </div>
@@ -7167,11 +7166,6 @@ function render_admin_store_page(): void
                       <?php if ($installed !== null): ?><span><?= h(sblog_t('已安装 {version}', ['version' => $installedVersion !== '' ? $installedVersion : sblog_t('未知版本')])) ?></span><?php endif; ?>
                     </div>
                     <div class="extension-card__footer">
-                      <?php if ((string)$extension['homepage'] !== ''): ?>
-                        <a class="extension-card__link" href="<?= h((string)$extension['homepage']) ?>" target="_blank" rel="noopener noreferrer"><?= h(sblog_t('详情')) ?></a>
-                      <?php else: ?>
-                        <span></span>
-                      <?php endif; ?>
                       <?php if (!$compatible): ?>
                         <span class="button button--ghost is-disabled" aria-disabled="true"><?= h(sblog_t('版本不兼容')) ?></span>
                       <?php elseif ($isCurrent): ?>
