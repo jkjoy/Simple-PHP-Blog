@@ -5,7 +5,7 @@ A lightweight blog built around a single-entry-point architecture:
 - The main application is contained in `index.php`
 - The installation flow is contained in `install.php`
 - SQLite storage
-- Multiple bundled responsive frontend themes
+- A lightweight built-in default theme; other themes and plugins ship independently from the core
 
 ## Features
 
@@ -25,10 +25,8 @@ A lightweight blog built around a single-entry-point architecture:
 - Basic site settings
 - Extensible frontend themes, theme assets, and action/filter hooks
 - Toggleable plugins, plugin action/filter hooks, and administration UI
-- An optional bundled English interface plugin
-- Toggleable bundled plugins for AI writing, email notifications, and S3 uploads, each with separate configuration storage
 - Dedicated theme management with previews and frontend theme switching
-- Multiple bundled themes, including Mango and NoJS
+- An admin extension store for remotely listing, verifying, installing, and updating themes and plugins
 - Automatic GitHub Release checks and one-click application updates
 - Optional pretty URLs
 - Basic Markdown rendering
@@ -49,7 +47,7 @@ URLs must include the full `http://` or `https://` scheme. A URL placed in the s
 - PHP 8.0+
 - The `pdo_sqlite` extension
 - The `fileinfo` extension
-- The `curl` extension when using S3 uploads
+- The `curl` and `zip` extensions for remote extension installation
 - Apache, Nginx, Caddy, or PHP's built-in web server
 
 ## Installation
@@ -87,6 +85,7 @@ cache/         Settings cache
 uploads/       Local uploads and optional S3 backups
 themes/        Custom frontend themes
 plugins/       Feature and language plugins
+store/         Extension-store catalog protocol documentation (not deployed to the site)
 ```
 
 ## Configuration and Cache
@@ -103,19 +102,28 @@ plugins/       Feature and language plugins
 
 - Place each theme in `themes/<theme-directory>/` and include a `theme.json` file.
 - A theme can override frontend styles with `style.css`, register action/filter hooks in `functions.php`, or take over the complete frontend layout with `layout.php`.
-- Preview and enable themes under **Themes** in the admin panel. If the selected theme is invalid or has been removed, the application falls back to the built-in theme.
+- Install themes remotely under **Extension Store**, then preview and enable them under **Themes**. If the selected theme is invalid or has been removed, the application falls back to the default theme.
+- **Themes** compares installed versions with the store and provides an in-place update action when a newer version is available.
 - See `themes/README.md` for the theme development API and the complete hook reference.
-- One-click updates replace release files but do not delete additional custom theme directories.
+- Themes ship independently from the core. One-click core updates do not replace or delete installed themes.
 
 ## Plugins
 
 - Place each plugin in `plugins/<plugin-directory>/` with both `plugin.json` and `plugin.php`.
-- Plugins can be enabled, disabled, and configured under **Plugins** in the admin panel. Bundled feature plugins do not add separate sidebar entries.
+- Install plugins remotely under **Extension Store**, then enable, disable, and configure them under **Plugins**.
+- **Plugins** shows newer store versions and provides an in-place update action in the installed plugin list.
 - Priority-based actions and filters can extend requests, post saves, comment creation, the admin sidebar, and final HTML output.
-- All bundled plugins are disabled on new installations and can be enabled as needed under **Plugins** in the admin panel.
-- The bundled `english-language` and `russian-language` plugins translate the public site, sign-in pages, and administration interface without changing post content in the database. Language plugins are mutually exclusive.
 - See `plugins/README.md` for the plugin API and complete hook reference.
 - Plugins execute trusted server-side PHP. Install plugins only from sources you trust.
+
+## Extension Store
+
+- The default catalog comes from the `catalog` branch of the standalone [`jkjoy/SBlog-Extensions`](https://github.com/jkjoy/SBlog-Extensions) repository. It falls back to jsDelivr when GitHub Raw is unavailable, and successful responses are cached for six hours.
+- Set `SBLOG_EXTENSION_STORE_URL` to use a self-hosted repository or CDN catalog. Cache entries are tied to the catalog URL, so changing sources never reuses data from the previous source.
+- GitHub Actions in the official repository validates manifests and versions, creates an independent ZIP and Release for every theme and plugin, and publishes `catalog.json` only after all assets pass verification.
+- The installer limits download size, file count, and extracted size; rejects absolute paths, traversal paths, and symlinks; and verifies the ZIP SHA-256.
+- Before updating an installed extension, its current directory is moved to `cache/extension-backup-*`. Failed installs are rolled back.
+- See `store/README.md` for the catalog protocol and standalone deployment notes.
 
 ## S3 Uploads
 
@@ -196,4 +204,4 @@ location ~ \.php$ {
 - The `ai_settings`, `mail_settings`, and `s3_settings` tables contain sensitive backend credentials. Modify them only through the admin panel.
 - To reinstall the application, delete `data/install.lock` first.
 - If an application update includes database schema changes, sign in to the admin panel and then open `update.php` to run the migration.
-- One-click updates preserve `data/`, `cache/`, `uploads/`, and user-created themes and plugins. Release files under `themes/` and `plugins/` are merged recursively, and overwritten application, theme, and plugin files are backed up to `cache/update-backup-*`. If bundled themes or plugins are missing after an upgrade, the updater automatically reads the current release again to restore them.
+- One-click updates replace core application files only and preserve `data/`, `cache/`, `uploads/`, `themes/`, and `plugins/`. Themes and plugins are updated independently through the extension store.

@@ -75,13 +75,16 @@ function i_t(string $key, array $replace = []): string
             'env_php' => 'PHP 8.0 或更高版本',
             'env_pdo' => 'PDO 扩展',
             'env_sqlite' => 'PDO SQLite 驱动',
-            'env_curl' => 'cURL 扩展（AI 与 S3 接口）',
+            'env_curl' => 'cURL 扩展（AI、S3 与扩展商店）',
+            'env_zip' => 'ZipArchive 扩展（主题与插件商店）',
             'env_json' => 'JSON 扩展',
             'env_fileinfo' => 'Fileinfo 扩展（安全识别上传文件）',
             'env_random' => '安全随机数支持',
             'env_data' => 'data 目录可写',
             'env_cache' => 'cache 目录可写',
             'env_uploads' => 'uploads 目录可写',
+            'env_themes' => 'themes 目录可写',
+            'env_plugins' => 'plugins 目录可写',
             'error_environment' => '当前服务器环境未满足安装要求。',
             'error_site_name' => '站点名称不能为空。',
             'error_site_tagline' => '首页副标题不能为空。',
@@ -134,13 +137,16 @@ function i_t(string $key, array $replace = []): string
             'env_php' => 'PHP 8.0 or newer',
             'env_pdo' => 'PDO extension',
             'env_sqlite' => 'PDO SQLite driver',
-            'env_curl' => 'cURL extension (AI and S3 integrations)',
+            'env_curl' => 'cURL extension (AI, S3, and extension store)',
+            'env_zip' => 'ZipArchive extension (theme and plugin store)',
             'env_json' => 'JSON extension',
             'env_fileinfo' => 'Fileinfo extension (secure upload detection)',
             'env_random' => 'Secure random number support',
             'env_data' => 'Writable data directory',
             'env_cache' => 'Writable cache directory',
             'env_uploads' => 'Writable uploads directory',
+            'env_themes' => 'Writable themes directory',
+            'env_plugins' => 'Writable plugins directory',
             'error_environment' => 'The server does not meet the installation requirements.',
             'error_site_name' => 'Site name is required.',
             'error_site_tagline' => 'Homepage tagline is required.',
@@ -171,7 +177,7 @@ function i_default_settings(): array
         'site_keywords' => '',
         'site_footer' => '',
         'custom_head_code' => '',
-        'active_theme' => 'nebula',
+        'active_theme' => 'default',
         'active_plugins' => '[]',
         'favicon_url' => 'favicon.png',
         'footer_beian' => '',
@@ -222,6 +228,14 @@ function i_ensure_dirs(): void
     if (!is_dir(__DIR__ . '/uploads')) {
         mkdir(__DIR__ . '/uploads', 0755, true);
     }
+
+    if (!is_dir(__DIR__ . '/themes')) {
+        mkdir(__DIR__ . '/themes', 0755, true);
+    }
+
+    if (!is_dir(__DIR__ . '/plugins')) {
+        mkdir(__DIR__ . '/plugins', 0755, true);
+    }
 }
 
 function i_environment_checks(): array
@@ -232,12 +246,15 @@ function i_environment_checks(): array
         ['label' => i_t('env_pdo'), 'ok' => extension_loaded('pdo')],
         ['label' => i_t('env_sqlite'), 'ok' => extension_loaded('pdo_sqlite') && in_array('sqlite', PDO::getAvailableDrivers(), true)],
         ['label' => i_t('env_curl'), 'ok' => extension_loaded('curl')],
+        ['label' => i_t('env_zip'), 'ok' => class_exists('ZipArchive')],
         ['label' => i_t('env_json'), 'ok' => extension_loaded('json')],
         ['label' => i_t('env_fileinfo'), 'ok' => extension_loaded('fileinfo')],
         ['label' => i_t('env_random'), 'ok' => function_exists('random_bytes')],
         ['label' => i_t('env_data'), 'ok' => is_dir(INSTALL_DATA_DIR) && is_writable(INSTALL_DATA_DIR)],
         ['label' => i_t('env_cache'), 'ok' => is_dir(INSTALL_CACHE_DIR) && is_writable(INSTALL_CACHE_DIR)],
         ['label' => i_t('env_uploads'), 'ok' => is_dir(__DIR__ . '/uploads') && is_writable(__DIR__ . '/uploads')],
+        ['label' => i_t('env_themes'), 'ok' => is_dir(__DIR__ . '/themes') && is_writable(__DIR__ . '/themes')],
+        ['label' => i_t('env_plugins'), 'ok' => is_dir(__DIR__ . '/plugins') && is_writable(__DIR__ . '/plugins')],
     ];
 }
 

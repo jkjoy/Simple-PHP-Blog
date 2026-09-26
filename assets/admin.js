@@ -122,6 +122,24 @@ function initThemeManager() {
   });
 }
 
+function initExtensionInstalls() {
+  document.querySelectorAll("[data-extension-install]").forEach((form) => {
+    if (!(form instanceof HTMLFormElement)) return;
+    form.addEventListener("submit", (event) => {
+      if (form.getAttribute("aria-busy") === "true") {
+        event.preventDefault();
+        return;
+      }
+      const button = form.querySelector('button[type="submit"]');
+      form.setAttribute("aria-busy", "true");
+      if (button instanceof HTMLButtonElement) {
+        button.disabled = true;
+        button.textContent = button.dataset.installLabel || "Installing...";
+      }
+    });
+  });
+}
+
 function initPasswordToggles() {
   document.querySelectorAll("[data-password-toggle]").forEach((control) => {
     if (!(control instanceof HTMLButtonElement)) return;
@@ -187,7 +205,26 @@ function initAdminNavigation() {
   const toggle = document.querySelector("[data-admin-nav-toggle]");
   const closeControls = document.querySelectorAll("[data-admin-nav-close]");
   const mobile = window.matchMedia("(max-width: 760px)");
+  const compact = window.matchMedia("(min-width: 761px) and (max-width: 1280px)");
+  const expand = sidebar?.querySelector("[data-admin-side-expand]");
   if (!(sidebar instanceof HTMLElement) || !(toggle instanceof HTMLButtonElement)) return;
+
+  let sidebarExpanded = false;
+  try {
+    sidebarExpanded = localStorage.getItem("sblog-admin-sidebar-expanded") === "1";
+  } catch (error) {
+    // The control remains usable when storage is unavailable.
+  }
+  const syncSidebar = () => {
+    const expanded = compact.matches && sidebarExpanded;
+    body.classList.toggle("admin-side-expanded", expanded);
+    if (expand instanceof HTMLButtonElement) {
+      const label = expanded ? expand.dataset.collapseLabel : expand.dataset.expandLabel;
+      expand.setAttribute("aria-expanded", expanded ? "true" : "false");
+      expand.setAttribute("aria-label", label);
+      expand.setAttribute("title", label);
+    }
+  };
 
   const setOpen = (open, restoreFocus = false) => {
     const mobileOpen = mobile.matches && open;
@@ -218,6 +255,17 @@ function initAdminNavigation() {
   };
 
   toggle.addEventListener("click", () => setOpen(!body.classList.contains("admin-nav-open"), true));
+  if (expand instanceof HTMLButtonElement) {
+    expand.addEventListener("click", () => {
+      sidebarExpanded = !sidebarExpanded;
+      try {
+        localStorage.setItem("sblog-admin-sidebar-expanded", sidebarExpanded ? "1" : "0");
+      } catch (error) {
+        // Keep the current page state even when storage is unavailable.
+      }
+      syncSidebar();
+    });
+  }
   closeControls.forEach((control) => control.addEventListener("click", () => setOpen(false, true)));
   sidebar.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => setOpen(false)));
   document.addEventListener("keydown", (event) => {
@@ -229,6 +277,12 @@ function initAdminNavigation() {
   } else {
     mobile.addListener(handleViewportChange);
   }
+  if (typeof compact.addEventListener === "function") {
+    compact.addEventListener("change", syncSidebar);
+  } else {
+    compact.addListener(syncSidebar);
+  }
+  syncSidebar();
   setOpen(false);
 }
 
@@ -771,6 +825,7 @@ function initAiEditor() {
 document.addEventListener("DOMContentLoaded", () => {
   initAdminTheme();
   initThemeManager();
+  initExtensionInstalls();
   initPasswordToggles();
   initAdminNavigation();
   initAccountMenus();

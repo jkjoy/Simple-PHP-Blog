@@ -5,7 +5,7 @@
 - 主程序集中在 `index.php`
 - 安装流程集中在 `install.php`
 - SQLite 存储
-- 内置多套可切换的响应式前台主题
+- 内置轻量默认主题，其他主题和插件与核心独立发布
 
 ## 功能
 
@@ -25,10 +25,8 @@
 - 站点基础设置
 - 可扩展前台主题、主题资源与 action/filter 钩子
 - 可启停插件、插件 action/filter 钩子与后台插件管理
-- 内置可选的英文界面语言插件
-- 内置可启停的 AI 辅助、邮件通知与 S3 附件上传插件，配置分别独立保存
 - 独立主题管理，可预览并切换前台主题
-- 内置 Mango 与 NoJS 等多套前台主题
+- 后台扩展商店，可远程获取、校验、安装和更新主题与插件
 - 后台自动检查 GitHub Release 并一键更新程序
 - 可选伪静态 URL
 - 基础 Markdown 渲染
@@ -49,7 +47,7 @@
 - PHP 8.0+
 - `pdo_sqlite` 扩展
 - `fileinfo` 扩展
-- 使用 S3 上传时需要 `curl` 扩展
+- `curl` 与 `zip` 扩展（扩展商店远程安装）
 - Apache / Nginx / Caddy / PHP 内置服务器
 
 ## 安装
@@ -87,6 +85,7 @@ cache/         设置缓存
 uploads/       本地上传文件及可选的 S3 备份
 themes/        自定义前台主题
 plugins/       功能插件与语言插件
+store/         扩展商店索引协议说明（不部署到站点）
 ```
 
 ## 配置与缓存
@@ -103,20 +102,28 @@ plugins/       功能插件与语言插件
 
 - 每个主题放在 `themes/<主题目录>/`，并提供 `theme.json`。
 - 可通过 `style.css` 覆盖前台样式，通过 `functions.php` 注册 action/filter 钩子，也可用 `layout.php` 接管完整前台布局。
-- 后台“主题管理”可预览并启用主题；无效或被删除的主题会回退到内置主题。
+- 可从后台“扩展商店”远程安装主题，再到“主题管理”预览和启用；无效或被删除的主题会回退到默认主题。
+- “主题管理”会对比商店版本，发现新版本时可直接在主题卡片中升级。
 - 主题开发接口与完整钩子列表见 `themes/README.md`。
-- Butterfly 移植主题及默认选项见 `themes/butterfly/README.md`，可在后台主题管理中预览和启用。
-- 一键更新只覆盖程序发布文件，不会清空额外的自定义主题目录。
+- 主题独立于核心发布；一键更新只覆盖核心程序文件，不会覆盖或删除已安装主题。
 
 ## 插件
 
 - 每个插件放在 `plugins/<插件目录>/`，并提供 `plugin.json` 和 `plugin.php`。
-- 后台“插件管理”可以启用、停用和设置插件；内置功能插件不再占用独立侧边栏入口。
+- 可从后台“扩展商店”远程安装插件，再到“插件管理”启用、停用和设置。
+- “插件管理”会显示商店中的新版本，并可在插件列表中直接升级。
 - 插件可使用带优先级的 action/filter 扩展请求、文章保存、评论创建、后台菜单和最终 HTML 输出。
-- 所有内置插件在新安装时默认停用，可按需在后台“插件管理”中启用。
-- 项目内置 `english-language` 与 `russian-language` 插件，启用后会将前台、登录页和后台系统界面翻译为对应语言，不修改数据库中的文章内容；语言插件之间互斥。
 - 插件开发接口与完整钩子列表见 `plugins/README.md`。
 - 插件 PHP 是服务器端可信代码，只安装来源可信的插件。
+
+## 扩展商店
+
+- 默认索引来自独立仓库 [`jkjoy/SBlog-Extensions`](https://github.com/jkjoy/SBlog-Extensions) 的 `catalog` 分支，GitHub Raw 不可用时自动回退到 jsDelivr，列表缓存 6 小时。
+- 可通过服务器环境变量 `SBLOG_EXTENSION_STORE_URL` 切换到自建仓库或 CDN 索引；缓存与索引 URL 绑定，切换源后不会复用旧源数据。
+- 官方仓库的 GitHub Actions 会校验扩展清单和版本，为每个主题、插件生成独立 ZIP 与 Release，并在资产校验通过后发布 `catalog.json`。
+- 安装器限制下载大小、文件数量与解压体积，拒绝绝对路径、目录穿越和符号链接，并强制校验 ZIP 的 SHA-256。
+- 更新已安装扩展前会将旧目录移动到 `cache/extension-backup-*`，安装失败时自动回滚。
+- 索引协议与独立部署方法见 `store/README.md`。
 
 ## S3 上传
 
@@ -197,4 +204,4 @@ location ~ \.php$ {
 - `ai_settings`、`mail_settings` 和 `s3_settings` 中包含后端密钥类配置，请只通过后台修改
 - 如果要重装，先删除 `data/install.lock`
 - 更新程序后如涉及数据库结构变更，请先登录后台，再访问 `update.php` 执行升级
-- 一键更新会保留 `data/`、`cache/`、`uploads/`、用户自建主题和插件，递归合并发布包中的 `themes/` 与 `plugins/`，并将被覆盖的程序、主题与插件文件备份到 `cache/update-backup-*`。升级后若检测到内置主题或插件缺失，会自动再次读取当前 Release 补齐文件
+- 一键更新只覆盖核心程序文件并保留 `data/`、`cache/`、`uploads/`、`themes/` 与 `plugins/`；主题和插件通过扩展商店独立更新

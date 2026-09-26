@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.13.6';
+const APP_VERSION = 'v1.14.0';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -36,46 +36,12 @@ const INSTALL_LOCK_FILE = DATA_DIR . '/install.lock';
 const SETTINGS_CACHE_FILE = CACHE_DIR . '/settings.php';
 const UPDATE_REPOSITORY = 'jkjoy/Simple-PHP-Blog';
 const UPDATE_CACHE_FILE = CACHE_DIR . '/github-update.json';
-const BUNDLED_RELEASE_FILES = [
-    'themes/adams/theme.json',
-    'themes/butterfly/theme.json',
-    'themes/clarity/theme.json',
-    'themes/clay/theme.json',
-    'themes/farallon/theme.json',
-    'themes/hammeros/theme.json',
-    'themes/jaguar/theme.json',
-    'themes/liquid-glass/theme.json',
-    'themes/mango/theme.json',
-    'themes/nebula/theme.json',
-    'themes/nojs/theme.json',
-    'themes/once/theme.json',
-    'themes/paper/theme.json',
-    'themes/photograph/theme.json',
-    'themes/starter/theme.json',
-    'themes/timellow/theme.json',
-    'themes/ying/theme.json',
-    'plugins/ai-assistant/plugin.json',
-    'plugins/ai-assistant/plugin.php',
-    'plugins/akismet/plugin.json',
-    'plugins/akismet/plugin.php',
-    'plugins/avatar-source/plugin.json',
-    'plugins/avatar-source/plugin.php',
-    'plugins/email-notifications/plugin.json',
-    'plugins/email-notifications/plugin.php',
-    'plugins/english-language/plugin.json',
-    'plugins/english-language/plugin.php',
-    'plugins/russian-language/plugin.json',
-    'plugins/russian-language/plugin.php',
-    'plugins/rest-api/plugin.json',
-    'plugins/rest-api/plugin.php',
-    'plugins/rest-api/includes/admin.php',
-    'plugins/rest-api/includes/http.php',
-    'plugins/rest-api/includes/resources.php',
-    'plugins/s3-storage/plugin.json',
-    'plugins/s3-storage/plugin.php',
-    'plugins/typecho-importer/plugin.json',
-    'plugins/typecho-importer/plugin.php',
-];
+const EXTENSION_STORE_URL = 'https://raw.githubusercontent.com/jkjoy/SBlog-Extensions/catalog/catalog.json';
+const EXTENSION_STORE_FALLBACK_URL = 'https://cdn.jsdelivr.net/gh/jkjoy/SBlog-Extensions@catalog/catalog.json';
+const EXTENSION_STORE_CACHE_FILE = CACHE_DIR . '/extension-store.json';
+const EXTENSION_PACKAGE_MAX_BYTES = 67108864;
+const EXTENSION_PACKAGE_MAX_EXTRACTED_BYTES = 134217728;
+const EXTENSION_PACKAGE_MAX_FILES = 3000;
 
 function db_file_path(): string
 {
@@ -109,6 +75,14 @@ function ensure_runtime_dirs(): void
 
     if (!is_dir(UPLOAD_DIR)) {
         mkdir(UPLOAD_DIR, 0755, true);
+    }
+
+    if (!is_dir(THEMES_DIR)) {
+        mkdir(THEMES_DIR, 0755, true);
+    }
+
+    if (!is_dir(PLUGINS_DIR)) {
+        mkdir(PLUGINS_DIR, 0755, true);
     }
 }
 
@@ -603,7 +577,7 @@ function default_settings(): array
         'site_keywords' => '',
         'site_footer' => '',
         'custom_head_code' => '',
-        'active_theme' => 'nebula',
+        'active_theme' => 'default',
         'active_plugins' => '[]',
         'favicon_url' => 'favicon.png',
         'footer_beian' => '',
@@ -796,38 +770,8 @@ function sblog_default_translations(): array
         'post_navigation.next' => '下一篇',
         'post_navigation.previous_label' => '上一篇：{title}',
         'post_navigation.next_label' => '下一篇：{title}',
-        'plugin.ai-assistant.name' => 'AI 助手',
-        'plugin.ai-assistant.description' => '为文章提供 Slug 生成、摘要生成和正文润色功能。',
-        'plugin.akismet.name' => 'Akismet 垃圾评论拦截',
-        'plugin.akismet.description' => '提交评论前通过 Akismet 检测垃圾内容，并提供连接状态与拦截统计。',
-        'plugin.avatar-source.name' => '自定义头像源',
-        'plugin.avatar-source.description' => '全主题统一自定义评论头像服务，支持 Gravatar、Cravatar、Libravatar 和 URL 模板。',
-        'plugin.email-notifications.name' => '邮件通知',
-        'plugin.email-notifications.description' => '通过 SMTP 或 PHP mail 发送密码重置和评论通知邮件。',
-        'plugin.english-language.name' => '英文语言包',
-        'plugin.english-language.description' => '将博客前台、登录页面和后台管理界面翻译为英文。',
-        'plugin.russian-language.name' => '俄语语言包',
-        'plugin.russian-language.description' => '将博客前台、登录页面和后台管理界面翻译为俄语。',
-        'plugin.rest-api.name' => 'WordPress REST API',
-        'plugin.rest-api.description' => '为 SBlog 提供兼容 WordPress /wp-json/wp/v2 格式的 REST API 与 Application Password 鉴权。',
-        'plugin.s3-storage.name' => 'S3 存储',
-        'plugin.s3-storage.description' => '将编辑器新上传的附件保存到 Amazon S3 或兼容的对象存储。',
-        'plugin.typecho-importer.name' => 'Typecho 数据导入',
-        'plugin.typecho-importer.description' => '预检并选择性导入 Typecho 官方 .dat 备份中的文章、页面、用户、分类、标签、评论和附件元数据。',
-        'theme.default.name' => '内置终端主题',
-        'theme.default.description' => '程序自带的终端风格前台主题。',
-        'theme.hammeros.name' => 'HammerOS 锤伴',
-        'theme.hammeros.description' => '拟人化内容主题：瓷白机身、实体键感、系统管家与安静的阅读工作台。',
-        'theme.liquid-glass.name' => 'Aqua Glass 液态玻璃',
-        'theme.liquid-glass.description' => '明亮、通透的苹果风格阅读主题。支持深浅模式、响应式导航、文章封面、玻璃质感控件与完整内容页面。',
-        'theme.nebula.name' => 'Nebula 星云',
-        'theme.nebula.description' => '深空极光 · 玻璃拟态 · 暗色优先。星空粒子背景、渐变封面卡片、时间轴归档与标签云，支持亮暗主题切换。',
-        'theme.once.name' => 'Once',
-        'theme.once.description' => '1:1 复刻 Typecho-Theme-Once 的双栏博客主题，适配 SBlog 首页、文章、归档、标签、友链与评论。',
-        'theme.starter.name' => 'Starter Contrast',
-        'theme.starter.description' => '演示样式覆盖、head action 与 body_class filter 的入门主题。',
-        'theme.ying.name' => 'Ying',
-        'theme.ying.description' => '移植自 Halo Theme Ying 的白色极简内容主题，适配当前博客的文章、评论、归档、标签与友链。',
+        'theme.default.name' => 'Default 黑白文字',
+        'theme.default.description' => '程序内置的极简黑白文字主题，专注清晰阅读与内容本身。',
     ];
 }
 
@@ -950,47 +894,7 @@ function sblog_tn(string $key, int $count, array $parameters = []): string
 
 function plugin_display_metadata(string $slug, array $manifest): array
 {
-    $translated = match ($slug) {
-        'ai-assistant' => [
-            'name' => sblog_t('plugin.ai-assistant.name'),
-            'description' => sblog_t('plugin.ai-assistant.description'),
-        ],
-        'akismet' => [
-            'name' => sblog_t('plugin.akismet.name'),
-            'description' => sblog_t('plugin.akismet.description'),
-        ],
-        'avatar-source' => [
-            'name' => sblog_t('plugin.avatar-source.name'),
-            'description' => sblog_t('plugin.avatar-source.description'),
-        ],
-        'email-notifications' => [
-            'name' => sblog_t('plugin.email-notifications.name'),
-            'description' => sblog_t('plugin.email-notifications.description'),
-        ],
-        'english-language' => [
-            'name' => sblog_t('plugin.english-language.name'),
-            'description' => sblog_t('plugin.english-language.description'),
-        ],
-        'russian-language' => [
-            'name' => sblog_t('plugin.russian-language.name'),
-            'description' => sblog_t('plugin.russian-language.description'),
-        ],
-        'rest-api' => [
-            'name' => sblog_t('plugin.rest-api.name'),
-            'description' => sblog_t('plugin.rest-api.description'),
-        ],
-        's3-storage' => [
-            'name' => sblog_t('plugin.s3-storage.name'),
-            'description' => sblog_t('plugin.s3-storage.description'),
-        ],
-        'typecho-importer' => [
-            'name' => sblog_t('plugin.typecho-importer.name'),
-            'description' => sblog_t('plugin.typecho-importer.description'),
-        ],
-        default => null,
-    };
-
-    return $translated ?? [
+    return [
         'name' => (string)($manifest['name'] ?? ''),
         'description' => (string)($manifest['description'] ?? ''),
     ];
@@ -998,42 +902,15 @@ function plugin_display_metadata(string $slug, array $manifest): array
 
 function theme_display_metadata(string $slug, array $manifest): array
 {
-    $translated = match ($slug) {
-        'default' => [
+    return $slug === 'default'
+        ? [
             'name' => sblog_t('theme.default.name'),
             'description' => sblog_t('theme.default.description'),
-        ],
-        'hammeros' => [
-            'name' => sblog_t('theme.hammeros.name'),
-            'description' => sblog_t('theme.hammeros.description'),
-        ],
-        'liquid-glass' => [
-            'name' => sblog_t('theme.liquid-glass.name'),
-            'description' => sblog_t('theme.liquid-glass.description'),
-        ],
-        'nebula' => [
-            'name' => sblog_t('theme.nebula.name'),
-            'description' => sblog_t('theme.nebula.description'),
-        ],
-        'once' => [
-            'name' => sblog_t('theme.once.name'),
-            'description' => sblog_t('theme.once.description'),
-        ],
-        'starter' => [
-            'name' => sblog_t('theme.starter.name'),
-            'description' => sblog_t('theme.starter.description'),
-        ],
-        'ying' => [
-            'name' => sblog_t('theme.ying.name'),
-            'description' => sblog_t('theme.ying.description'),
-        ],
-        default => null,
-    };
-
-    return $translated ?? [
-        'name' => (string)($manifest['name'] ?? ''),
-        'description' => (string)($manifest['description'] ?? ''),
-    ];
+        ]
+        : [
+            'name' => (string)($manifest['name'] ?? ''),
+            'description' => (string)($manifest['description'] ?? ''),
+        ];
 }
 
 function sblog_i18n_register_client(string $locale, array $messages): void
@@ -1224,14 +1101,6 @@ function update_available_for(string $latest, string $current = APP_VERSION): bo
     return $latest !== $current && version_compare($latest, $current, '>');
 }
 
-function bundled_release_files_missing(): bool
-{
-    foreach (BUNDLED_RELEASE_FILES as $file) {
-        if (!is_file(__DIR__ . '/' . $file)) { return true; }
-    }
-    return false;
-}
-
 function curl_trust_options(): array
 {
     static $options = null;
@@ -1270,13 +1139,10 @@ function github_update_info(bool $refresh = false): array
         if (is_array($cached)) {
             $cached['current'] = APP_VERSION;
             $cached['available'] = update_available_for((string)($cached['latest'] ?? ''));
-            $cached['repair'] = !$cached['available']
-                && normalize_version((string)($cached['latest'] ?? '')) === normalize_version(APP_VERSION)
-                && bundled_release_files_missing();
             return $cached;
         }
     }
-    $result = ['available' => false, 'repair' => false, 'current' => APP_VERSION, 'latest' => '', 'download_url' => '', 'error' => ''];
+    $result = ['available' => false, 'current' => APP_VERSION, 'latest' => '', 'download_url' => '', 'error' => ''];
     if (!function_exists('curl_init')) {
         $result['error'] = sblog_t('服务器未启用 cURL，无法检查更新。');
         return $result;
@@ -1285,8 +1151,8 @@ function github_update_info(bool $refresh = false): array
     curl_setopt_array($curl, array_replace([
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_TIMEOUT => 8,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 20,
         CURLOPT_USERAGENT => 'Simple-PHP-Blog/' . APP_VERSION,
         CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json'],
     ], curl_trust_options()));
@@ -1304,9 +1170,6 @@ function github_update_info(bool $refresh = false): array
             $result['latest'] = $latest;
             $result['download_url'] = $download;
             $result['available'] = update_available_for($latest);
-            $result['repair'] = !$result['available']
-                && normalize_version($latest) === normalize_version(APP_VERSION)
-                && bundled_release_files_missing();
         }
     }
     file_put_contents(UPDATE_CACHE_FILE, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
@@ -1316,19 +1179,6 @@ function github_update_info(bool $refresh = false): array
 function install_release_files(string $source, string $targetRoot, string $backup): void
 {
     $files = ['index.php', 'install.php', 'update.php', 'README.md', 'README-EN.md', 'logo.png', 'favicon.png', '.htaccess', 'assets/index.css', 'assets/index.js', 'assets/admin.css', 'assets/admin.js'];
-    foreach (['themes', 'plugins'] as $extensionDirectory) {
-        $extensionRoot = $source . '/' . $extensionDirectory;
-        if (!is_dir($extensionRoot)) {
-            continue;
-        }
-        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($extensionRoot, FilesystemIterator::SKIP_DOTS));
-        foreach ($iterator as $item) {
-            if ($item->isFile()) {
-                $relative = substr($item->getPathname(), strlen($extensionRoot) + 1);
-                $files[] = $extensionDirectory . '/' . str_replace('\\', '/', $relative);
-            }
-        }
-    }
 
     $targetRoot = rtrim($targetRoot, '/\\');
     $replaced = [];
@@ -1375,8 +1225,7 @@ function install_release_files(string $source, string $targetRoot, string $backu
 
 function install_github_update(array $update): string
 {
-    $isRepair = !empty($update['repair']);
-    if ((empty($update['available']) && !$isRepair) || !filter_var((string)($update['download_url'] ?? ''), FILTER_VALIDATE_URL)) { throw new RuntimeException(sblog_t('当前没有可安装的更新。')); }
+    if (empty($update['available']) || !filter_var((string)($update['download_url'] ?? ''), FILTER_VALIDATE_URL)) { throw new RuntimeException(sblog_t('当前没有可安装的更新。')); }
     if (!class_exists('ZipArchive')) { throw new RuntimeException(sblog_t('服务器未启用 ZipArchive，无法解压更新包。')); }
     ensure_runtime_dirs();
     $workDir = CACHE_DIR . '/update-' . bin2hex(random_bytes(6));
@@ -1409,10 +1258,7 @@ function install_github_update(array $update): string
         $code = (string)file_get_contents($newIndex);
         if (!preg_match("/const APP_VERSION = '([^']+)'/", $code, $match)) { throw new RuntimeException(sblog_t('更新包版本无效。')); }
         $packageVersion = (string)$match[1];
-        $versionIsValid = $isRepair
-            ? normalize_version($packageVersion) === normalize_version(APP_VERSION)
-            : update_available_for($packageVersion);
-        if (!$versionIsValid) { throw new RuntimeException(sblog_t('更新包版本无效或不高于当前版本。')); }
+        if (!update_available_for($packageVersion)) { throw new RuntimeException(sblog_t('更新包版本无效或不高于当前版本。')); }
         $backup = CACHE_DIR . '/update-backup-' . date('Ymd-His');
         mkdir($backup, 0755, true);
         install_release_files($source, __DIR__, $backup);
@@ -1422,6 +1268,483 @@ function install_github_update(array $update): string
         $items = is_dir($workDir) ? new RecursiveIteratorIterator(new RecursiveDirectoryIterator($workDir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) : [];
         foreach ($items as $item) { $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname()); }
         if (is_dir($workDir)) { @rmdir($workDir); }
+    }
+}
+
+function extension_store_url(): string
+{
+    $configured = trim((string)(getenv('SBLOG_EXTENSION_STORE_URL') ?: ''));
+    return $configured !== '' ? $configured : EXTENSION_STORE_URL;
+}
+
+function extension_remote_url_is_safe(string $url): bool
+{
+    if (strlen($url) > 1000 || !filter_var($url, FILTER_VALIDATE_URL)) {
+        return false;
+    }
+    $parts = parse_url($url);
+    if (!is_array($parts) || isset($parts['user']) || isset($parts['pass'])) {
+        return false;
+    }
+    $scheme = strtolower((string)($parts['scheme'] ?? ''));
+    $host = strtolower(trim((string)($parts['host'] ?? ''), '[]'));
+    if ($scheme === 'https' && $host !== '') {
+        return true;
+    }
+    return $scheme === 'http' && in_array($host, ['localhost', '127.0.0.1', '::1'], true);
+}
+
+function extension_remote_get(string $url, int $maxBytes, int $timeout): string
+{
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException(sblog_t('服务器未启用 cURL，无法连接扩展商店。'));
+    }
+    if (!extension_remote_url_is_safe($url)) {
+        throw new RuntimeException(sblog_t('扩展商店返回了不安全的下载地址。'));
+    }
+
+    $body = '';
+    $tooLarge = false;
+    $curl = curl_init($url);
+    $options = [
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_USERAGENT => 'Simple-PHP-Blog/' . APP_VERSION . ' Extension Store',
+        CURLOPT_HTTPHEADER => ['Accept: application/json, application/zip, application/octet-stream;q=0.9'],
+        CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body, &$tooLarge, $maxBytes): int {
+            if (strlen($body) + strlen($chunk) > $maxBytes) {
+                $tooLarge = true;
+                return 0;
+            }
+            $body .= $chunk;
+            return strlen($chunk);
+        },
+    ];
+    if (defined('CURLOPT_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+        $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+        $options[CURLOPT_REDIR_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+    }
+    curl_setopt_array($curl, array_replace($options, curl_trust_options()));
+    $ok = curl_exec($curl);
+    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+
+    if ($tooLarge) {
+        throw new RuntimeException(sblog_t('远程文件超过允许的大小。'));
+    }
+    if (!$ok || $status !== 200 || $body === '') {
+        throw new RuntimeException(sblog_t('扩展商店请求失败：{error}', ['error' => $error !== '' ? $error : 'HTTP ' . $status]));
+    }
+    return $body;
+}
+
+function extension_remote_download(string $url, string $target, int $maxBytes, int $timeout): void
+{
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException(sblog_t('服务器未启用 cURL，无法下载扩展。'));
+    }
+    if (!extension_remote_url_is_safe($url)) {
+        throw new RuntimeException(sblog_t('扩展商店返回了不安全的下载地址。'));
+    }
+    $file = fopen($target, 'wb');
+    if ($file === false) {
+        throw new RuntimeException(sblog_t('无法创建扩展安装包。'));
+    }
+
+    $downloaded = 0;
+    $tooLarge = false;
+    $curl = curl_init($url);
+    $options = [
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_USERAGENT => 'Simple-PHP-Blog/' . APP_VERSION . ' Extension Store',
+        CURLOPT_HTTPHEADER => ['Accept: application/zip, application/octet-stream;q=0.9'],
+        CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use ($file, &$downloaded, &$tooLarge, $maxBytes): int {
+            $length = strlen($chunk);
+            $downloaded += $length;
+            if ($downloaded > $maxBytes) {
+                $tooLarge = true;
+                return 0;
+            }
+            $written = fwrite($file, $chunk);
+            return $written === false ? 0 : $written;
+        },
+    ];
+    if (defined('CURLOPT_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+        $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+        $options[CURLOPT_REDIR_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+    }
+    curl_setopt_array($curl, array_replace($options, curl_trust_options()));
+    $ok = curl_exec($curl);
+    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+    $error = curl_error($curl);
+    curl_close($curl);
+    fclose($file);
+
+    if ($tooLarge) {
+        throw new RuntimeException(sblog_t('扩展安装包超过 64 MB 安全限制。'));
+    }
+    if (!$ok || $status !== 200 || $downloaded === 0) {
+        throw new RuntimeException(sblog_t('扩展包下载失败：{error}', ['error' => $error !== '' ? $error : 'HTTP ' . $status]));
+    }
+}
+
+function extension_catalog_path(string $path): string
+{
+    $path = trim(str_replace('\\', '/', $path), '/');
+    if ($path === '' || strlen($path) > 500) {
+        return '';
+    }
+    foreach (explode('/', $path) as $segment) {
+        if ($segment === '' || $segment === '.' || $segment === '..' || str_contains($segment, ':')) {
+            return '';
+        }
+    }
+    return $path;
+}
+
+function normalize_extension_catalog(array $catalog): array
+{
+    if ((int)($catalog['schema'] ?? 0) !== 1 || !is_array($catalog['extensions'] ?? null)) {
+        throw new RuntimeException(sblog_t('扩展商店索引格式无效。'));
+    }
+
+    $defaults = is_array($catalog['package_defaults'] ?? null) ? $catalog['package_defaults'] : [];
+    $extensions = [];
+    foreach (array_slice($catalog['extensions'], 0, 500) as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $type = strtolower(trim((string)($item['type'] ?? '')));
+        $slug = strtolower(trim((string)($item['slug'] ?? '')));
+        $name = trim((string)($item['name'] ?? ''));
+        $version = trim((string)($item['version'] ?? ''));
+        $downloadUrl = trim((string)($item['download_url'] ?? $defaults['download_url'] ?? ''));
+        $sha256 = strtolower(trim((string)($item['sha256'] ?? $defaults['sha256'] ?? '')));
+        $archivePath = extension_catalog_path((string)($item['archive_path'] ?? ''));
+        if (!in_array($type, ['theme', 'plugin'], true)
+            || !preg_match('/^[a-z0-9][a-z0-9_-]*$/', $slug)
+            || $name === '' || $version === '' || !extension_remote_url_is_safe($downloadUrl)
+            || !preg_match('/^[a-f0-9]{64}$/', $sha256)) {
+            continue;
+        }
+        $homepage = trim((string)($item['homepage'] ?? ''));
+        if ($homepage !== '' && !extension_remote_url_is_safe($homepage)) {
+            $homepage = '';
+        }
+        $key = $type . ':' . $slug;
+        $extensions[$key] = [
+            'type' => $type,
+            'slug' => $slug,
+            'name' => str_sub_u($name, 0, 100),
+            'version' => str_sub_u($version, 0, 40),
+            'author' => str_sub_u(trim((string)($item['author'] ?? '')), 0, 100),
+            'description' => str_sub_u(trim((string)($item['description'] ?? '')), 0, 500),
+            'homepage' => $homepage,
+            'requires' => str_sub_u(trim((string)($item['requires'] ?? '')), 0, 40),
+            'tested' => str_sub_u(trim((string)($item['tested'] ?? '')), 0, 40),
+            'download_url' => $downloadUrl,
+            'sha256' => $sha256,
+            'archive_path' => $archivePath,
+        ];
+    }
+    uasort($extensions, static fn(array $left, array $right): int => strcasecmp((string)$left['name'], (string)$right['name']));
+    return [
+        'updated_at' => str_sub_u(trim((string)($catalog['updated_at'] ?? '')), 0, 40),
+        'extensions' => $extensions,
+    ];
+}
+
+function extension_store_catalog(bool $refresh = false, bool $cacheOnly = false): array
+{
+    ensure_runtime_dirs();
+    $sourceUrl = extension_store_url();
+    $cached = null;
+    if (is_file(EXTENSION_STORE_CACHE_FILE)) {
+        $decoded = json_decode((string)file_get_contents(EXTENSION_STORE_CACHE_FILE), true);
+        if (is_array($decoded)
+            && ($decoded['source_url'] ?? null) === $sourceUrl
+            && is_array($decoded['catalog'] ?? null)) {
+            $cached = $decoded;
+        }
+    }
+    if (!$refresh && is_array($cached) && time() - (int)($cached['fetched_at'] ?? 0) < 21600) {
+        return $cached['catalog'] + ['error' => '', 'stale' => false];
+    }
+    if ($cacheOnly) {
+        return is_array($cached)
+            ? $cached['catalog'] + ['error' => '', 'stale' => true]
+            : ['updated_at' => '', 'extensions' => [], 'error' => '', 'stale' => false];
+    }
+
+    try {
+        $catalogUrls = [$sourceUrl];
+        if ($sourceUrl === EXTENSION_STORE_URL) {
+            $catalogUrls[] = EXTENSION_STORE_FALLBACK_URL;
+        }
+        $normalized = null;
+        $fetchedUrl = '';
+        $lastException = null;
+        foreach (array_unique($catalogUrls) as $catalogUrl) {
+            try {
+                $timeout = count($catalogUrls) > 1 && $catalogUrl === $sourceUrl ? 8 : 20;
+                $raw = extension_remote_get($catalogUrl, 1048576, $timeout);
+                $decoded = json_decode($raw, true, 32, JSON_THROW_ON_ERROR);
+                if (!is_array($decoded)) {
+                    throw new RuntimeException(sblog_t('扩展商店索引格式无效。'));
+                }
+                $normalized = normalize_extension_catalog($decoded);
+                $fetchedUrl = $catalogUrl;
+                break;
+            } catch (Throwable $exception) {
+                $lastException = $exception;
+            }
+        }
+        if (!is_array($normalized)) {
+            throw $lastException ?? new RuntimeException(sblog_t('扩展商店请求失败。'));
+        }
+        file_put_contents(EXTENSION_STORE_CACHE_FILE, json_encode([
+            'fetched_at' => time(),
+            'source_url' => $sourceUrl,
+            'fetched_url' => $fetchedUrl,
+            'catalog' => $normalized,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
+        return $normalized + ['error' => '', 'stale' => false];
+    } catch (Throwable $exception) {
+        if (is_array($cached)) {
+            return $cached['catalog'] + ['error' => $exception->getMessage(), 'stale' => true];
+        }
+        return ['updated_at' => '', 'extensions' => [], 'error' => $exception->getMessage(), 'stale' => false];
+    }
+}
+
+function extension_installed_manifest(string $type, string $slug): ?array
+{
+    return $type === 'theme' ? theme_manifest($slug) : plugin_manifest($slug);
+}
+
+function extension_is_compatible(array $extension): bool
+{
+    $requires = trim((string)($extension['requires'] ?? ''));
+    return $requires === '' || version_compare(normalize_version(APP_VERSION), normalize_version($requires), '>=');
+}
+
+function extension_updates_for(string $type, array $installed, bool $refresh = false): array
+{
+    $catalog = extension_store_catalog($refresh, !$refresh);
+    $updates = [];
+    foreach ($installed as $slug => $manifest) {
+        $extension = $catalog['extensions'][$type . ':' . $slug] ?? null;
+        if (!is_array($extension)) {
+            continue;
+        }
+        $installedVersion = normalize_version((string)($manifest['version'] ?? ''));
+        $storeVersion = normalize_version((string)($extension['version'] ?? ''));
+        if (version_compare($storeVersion, $installedVersion, '>')) {
+            $updates[$slug] = $extension;
+        }
+    }
+    return ['items' => $updates, 'error' => (string)($catalog['error'] ?? '')];
+}
+
+function remove_extension_tree(string $directory): void
+{
+    if (!is_dir($directory)) {
+        return;
+    }
+    $items = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($items as $item) {
+        $item->isDir() && !$item->isLink() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+    }
+    @rmdir($directory);
+}
+
+function validate_extension_zip(ZipArchive $zip): void
+{
+    if ($zip->numFiles < 1 || $zip->numFiles > EXTENSION_PACKAGE_MAX_FILES) {
+        throw new RuntimeException(sblog_t('扩展包文件数量超出安全限制。'));
+    }
+    $extractedBytes = 0;
+    for ($index = 0; $index < $zip->numFiles; $index++) {
+        $name = str_replace('\\', '/', (string)$zip->getNameIndex($index));
+        if ($name === '' || str_contains($name, "\0") || str_starts_with($name, '/') || preg_match('/^[A-Za-z]:\//', $name)) {
+            throw new RuntimeException(sblog_t('扩展包包含不安全的文件路径。'));
+        }
+        foreach (explode('/', trim($name, '/')) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..' || str_contains($segment, ':')) {
+                throw new RuntimeException(sblog_t('扩展包包含目录穿越路径。'));
+            }
+        }
+        $attributes = 0;
+        if ($zip->getExternalAttributesIndex($index, $system, $attributes) && (($attributes >> 16) & 0xF000) === 0xA000) {
+            throw new RuntimeException(sblog_t('扩展包不能包含符号链接。'));
+        }
+        $stat = $zip->statIndex($index);
+        $extractedBytes += is_array($stat) ? max(0, (int)($stat['size'] ?? 0)) : 0;
+        if ($extractedBytes > EXTENSION_PACKAGE_MAX_EXTRACTED_BYTES) {
+            throw new RuntimeException(sblog_t('扩展包解压后超过 128 MB 安全限制。'));
+        }
+    }
+}
+
+function extension_source_directory(string $extractDirectory, array $extension): string
+{
+    $manifestName = $extension['type'] === 'theme' ? 'theme.json' : 'plugin.json';
+    $archivePath = (string)$extension['archive_path'];
+    if ($archivePath !== '') {
+        $candidate = $extractDirectory . '/' . $archivePath;
+        if (is_dir($candidate) && is_file($candidate . '/' . $manifestName)) {
+            return $candidate;
+        }
+        throw new RuntimeException(sblog_t('扩展包中找不到商店索引指定的目录。'));
+    }
+
+    $matches = [];
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($extractDirectory, FilesystemIterator::SKIP_DOTS));
+    foreach ($iterator as $item) {
+        if ($item->isFile() && $item->getFilename() === $manifestName && basename($item->getPath()) === $extension['slug']) {
+            $matches[] = $item->getPath();
+        }
+    }
+    if (count($matches) !== 1) {
+        throw new RuntimeException(sblog_t('扩展包必须包含唯一且目录名匹配的 {manifest}。', ['manifest' => $manifestName]));
+    }
+    return $matches[0];
+}
+
+function validate_extension_source(string $source, array $extension): void
+{
+    $manifestName = $extension['type'] === 'theme' ? 'theme.json' : 'plugin.json';
+    $manifestFile = $source . '/' . $manifestName;
+    if (!is_file($manifestFile) || filesize($manifestFile) > 65536) {
+        throw new RuntimeException(sblog_t('扩展清单缺失或无效。'));
+    }
+    $manifest = json_decode((string)file_get_contents($manifestFile), true);
+    if (!is_array($manifest) || trim((string)($manifest['name'] ?? '')) === '') {
+        throw new RuntimeException(sblog_t('扩展清单缺少名称。'));
+    }
+    if (normalize_version((string)($manifest['version'] ?? '')) !== normalize_version((string)$extension['version'])) {
+        throw new RuntimeException(sblog_t('扩展包版本与商店索引不一致。'));
+    }
+    if ($extension['type'] === 'plugin' && !is_file($source . '/plugin.php')) {
+        throw new RuntimeException(sblog_t('插件包缺少 plugin.php。'));
+    }
+}
+
+function copy_extension_tree(string $source, string $target): void
+{
+    if (!mkdir($target, 0755, true) && !is_dir($target)) {
+        throw new RuntimeException(sblog_t('无法创建扩展安装目录。'));
+    }
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($source, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+    $sourceLength = strlen(rtrim($source, '/\\')) + 1;
+    foreach ($iterator as $item) {
+        if ($item->isLink()) {
+            throw new RuntimeException(sblog_t('扩展目录不能包含符号链接。'));
+        }
+        $relative = substr($item->getPathname(), $sourceLength);
+        $destination = $target . '/' . str_replace('\\', '/', $relative);
+        if ($item->isDir()) {
+            if (!is_dir($destination) && !mkdir($destination, 0755, true) && !is_dir($destination)) {
+                throw new RuntimeException(sblog_t('无法创建扩展子目录。'));
+            }
+        } elseif (!copy($item->getPathname(), $destination)) {
+            throw new RuntimeException(sblog_t('无法写入扩展文件 {file}。', ['file' => $relative]));
+        }
+    }
+}
+
+function install_store_extension(array $extension): array
+{
+    if (!class_exists('ZipArchive')) {
+        throw new RuntimeException(sblog_t('服务器未启用 ZipArchive，无法安装扩展。'));
+    }
+    if (!extension_is_compatible($extension)) {
+        throw new RuntimeException(sblog_t('该扩展要求 SBlog {version} 或更高版本。', ['version' => (string)$extension['requires']]));
+    }
+
+    ensure_runtime_dirs();
+    $lock = fopen(CACHE_DIR . '/extension-install.lock', 'c');
+    if ($lock === false || !flock($lock, LOCK_EX)) {
+        if (is_resource($lock)) {
+            fclose($lock);
+        }
+        throw new RuntimeException(sblog_t('无法锁定扩展安装流程，请稍后重试。'));
+    }
+    $workDirectory = CACHE_DIR . '/extension-' . bin2hex(random_bytes(6));
+    $zipFile = $workDirectory . '/package.zip';
+    $extractDirectory = $workDirectory . '/source';
+    $root = $extension['type'] === 'theme' ? THEMES_DIR : PLUGINS_DIR;
+    $slug = (string)$extension['slug'];
+    $target = $root . '/' . $slug;
+    $staging = $root . '/.' . $slug . '-install-' . bin2hex(random_bytes(4));
+    $backup = '';
+    try {
+        if (!mkdir($workDirectory, 0700, true)) {
+            throw new RuntimeException(sblog_t('无法创建扩展安装临时目录。'));
+        }
+        if (!mkdir($extractDirectory, 0700, true)) {
+            throw new RuntimeException(sblog_t('无法创建扩展解压目录。'));
+        }
+        extension_remote_download((string)$extension['download_url'], $zipFile, EXTENSION_PACKAGE_MAX_BYTES, 120);
+        if (!hash_equals((string)$extension['sha256'], strtolower(hash_file('sha256', $zipFile)))) {
+            throw new RuntimeException(sblog_t('扩展包校验失败，文件可能已被篡改。'));
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipFile) !== true) {
+            throw new RuntimeException(sblog_t('下载内容不是有效的 ZIP 扩展包。'));
+        }
+        validate_extension_zip($zip);
+        if (!$zip->extractTo($extractDirectory)) {
+            $zip->close();
+            throw new RuntimeException(sblog_t('扩展包解压失败。'));
+        }
+        $zip->close();
+
+        $source = extension_source_directory($extractDirectory, $extension);
+        validate_extension_source($source, $extension);
+        copy_extension_tree($source, $staging);
+        validate_extension_source($staging, $extension);
+
+        if (file_exists($target)) {
+            if (!is_dir($target) || is_link($target)) {
+                throw new RuntimeException(sblog_t('扩展目标路径不是可替换的目录。'));
+            }
+            $backup = CACHE_DIR . '/extension-backup-' . $extension['type'] . '-' . $slug . '-' . date('Ymd-His') . '-' . bin2hex(random_bytes(2));
+            if (!rename($target, $backup)) {
+                throw new RuntimeException(sblog_t('无法备份当前扩展。'));
+            }
+        }
+        if (!rename($staging, $target)) {
+            if ($backup !== '' && !file_exists($target)) {
+                @rename($backup, $target);
+                $backup = '';
+            }
+            throw new RuntimeException(sblog_t('无法启用新扩展文件。'));
+        }
+        return ['backup' => $backup !== '' ? basename($backup) : ''];
+    } catch (Throwable $exception) {
+        remove_extension_tree($staging);
+        if ($backup !== '' && !file_exists($target)) {
+            @rename($backup, $target);
+        }
+        throw $exception;
+    } finally {
+        remove_extension_tree($workDirectory);
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
 }
 
@@ -2032,7 +2355,7 @@ function apply_pretty_route(): void
         return;
     }
 
-    if (preg_match('#^/admin/(posts|comments|categories|tags|links|users|media|ai|mail|s3|themes|settings|plugins)/?$#i', $path, $matches)) {
+    if (preg_match('#^/admin/(posts|comments|categories|tags|links|users|media|ai|mail|s3|themes|settings|plugins|store)/?$#i', $path, $matches)) {
         set_route_params(['a' => 'admin_' . str_lower_u($matches[1])]);
         return;
     }
@@ -2101,16 +2424,7 @@ function install_url(): string
 
 function asset_url(string $path): string
 {
-    $normalized = ltrim($path, '/');
-    $coreAssets = ['assets/index.css', 'assets/index.js', 'assets/admin.css', 'assets/admin.js'];
-    if (in_array($normalized, $coreAssets, true) && !is_file(__DIR__ . '/' . $normalized)) {
-        // Older online updaters copy bundled theme files but do not know about the assets directory.
-        $fallback = 'themes/starter/' . $normalized;
-        if (is_file(__DIR__ . '/' . $fallback)) {
-            $normalized = $fallback;
-        }
-    }
-    return app_path('/' . $normalized);
+    return app_path('/' . ltrim($path, '/'));
 }
 
 function theme_manifest(string $slug): ?array
@@ -2118,11 +2432,11 @@ function theme_manifest(string $slug): ?array
     if ($slug === 'default') {
         return [
             'slug' => 'default',
-            'name' => '内置终端主题',
+            'name' => 'Default 黑白文字',
             'version' => APP_VERSION,
             'author' => 'Simple PHP Blog',
             'url' => 'https://github.com/jkjoy/Simple-PHP-Blog',
-            'description' => '程序自带的终端风格前台主题。',
+            'description' => '程序内置的极简黑白文字主题，专注清晰阅读与内容本身。',
         ];
     }
 
@@ -2352,6 +2666,7 @@ function url_for(string $route, array $params = []): string
         'admin_themes' => $pretty ? app_path('/admin/themes') : script_url() . '?a=admin_themes',
         'admin_settings' => $pretty ? app_path('/admin/settings') : script_url() . '?a=admin_settings',
         'admin_plugins' => $pretty ? app_path('/admin/plugins') : script_url() . '?a=admin_plugins',
+        'admin_store' => $pretty ? app_path('/admin/store') : script_url() . '?a=admin_store',
         'write' => $pretty ? app_path('/write') : script_url() . '?a=write',
         'edit' => $pretty ? app_path('/edit/' . (int)($params['id'] ?? 0)) : script_url() . '?a=edit&id=' . (int)($params['id'] ?? 0),
         'post' => $pretty ? app_path('/archive/' . rawurlencode((string)($params['slug'] ?? ''))) : script_url() . '?a=post&slug=' . rawurlencode((string)($params['slug'] ?? '')),
@@ -2361,6 +2676,7 @@ function url_for(string $route, array $params = []): string
         'save_s3_settings' => script_url() . '?a=save_s3_settings',
         'activate_theme' => script_url() . '?a=activate_theme',
         'toggle_plugin' => script_url() . '?a=toggle_plugin',
+        'install_extension' => script_url() . '?a=install_extension',
         'ai_generate' => script_url() . '?a=ai_generate',
         'save_category' => script_url() . '?a=save_category',
         'delete_category' => script_url() . '?a=delete_category',
@@ -4566,9 +4882,6 @@ function render_layout(string $title, string $content, array $options = []): voi
   <?php endif; ?>
   <?= sblog_i18n_head() ?>
   <link rel="icon" href="<?= h(theme_favicon_url()) ?>">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <?php if ($mode === 'public'): ?>
   <link rel="stylesheet" href="<?= h(asset_url('assets/index.css')) ?>?v=<?= h(APP_VERSION) ?>">
   <?php else: ?>
@@ -4582,53 +4895,45 @@ function render_layout(string $title, string $content, array $options = []): voi
 <body class="<?= h($bodyClass) ?>">
   <?php if ($mode === 'public'): ?>
     <?php theme_action('body_open', $themeContext); ?>
-    <div class="crt-turn-on" id="turn-on"></div><div class="crt-vignette"></div><div class="scanlines" id="scanlines"></div><div class="crt-flicker"></div>
-    <div class="terminal" data-home="<?= h(url_for('home')) ?>" data-tags="<?= h(url_for('tags')) ?>" data-links="<?= h(url_for('links')) ?>" data-archives="<?= h(url_for('archives')) ?>">
+    <div class="text-site">
       <?php theme_action('header_before', $themeContext); ?>
-      <header class="terminal-header"><div class="window-controls"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div><div class="title">visitor@<?= h($siteName) ?>: ~ — devlog-sh 0.9</div><div class="info"><span class="signal"></span><span id="term-info">80×24</span></div></header>
+      <header class="text-header">
+        <div class="text-header__inner">
+          <div class="text-brand">
+            <a href="<?= h(url_for('home')) ?>"><?= h($siteName) ?></a>
+            <?php $tagline = trim(setting('site_tagline')); ?>
+            <?php if ($tagline !== ''): ?><p><?= h($tagline) ?></p><?php endif; ?>
+          </div>
+          <nav class="text-nav" aria-label="<?= h(sblog_t('主菜单')) ?>">
+            <a<?= $active === 'home' ? ' aria-current="page"' : '' ?> href="<?= h(url_for('home')) ?>"><?= h(sblog_t('首页')) ?></a>
+            <a<?= $active === 'archives' ? ' aria-current="page"' : '' ?> href="<?= h(url_for('archives')) ?>"><?= h(sblog_t('归档')) ?></a>
+            <a<?= $active === 'tags' ? ' aria-current="page"' : '' ?> href="<?= h(url_for('tags')) ?>"><?= h(sblog_t('标签')) ?></a>
+            <a<?= $active === 'links' ? ' aria-current="page"' : '' ?> href="<?= h(url_for('links')) ?>"><?= h(sblog_t('链接')) ?></a>
+            <?php foreach ($navPages as $page): ?>
+              <a<?= $active === 'page:' . $page['slug'] ? ' aria-current="page"' : '' ?> href="<?= h(content_permalink($page)) ?>"><?= h((string)$page['title']) ?></a>
+            <?php endforeach; ?>
+            <?php if ($admin): ?><a href="<?= h(url_for('admin')) ?>"><?= h(sblog_t('管理')) ?></a><?php endif; ?>
+          </nav>
+        </div>
+      </header>
       <?php theme_action('header_after', $themeContext); ?>
-      <main class="output" id="output" aria-live="polite">
-        <div class="boot-banner"><b><?= h($siteName) ?> <?= h(APP_VERSION) ?> — <?= h(public_quote()) ?></b><br><span>type "help" to begin · type "ls" to look around</span></div>
-        <nav class="terminal-menu" aria-label="<?= h(sblog_t('主菜单')) ?>">
-          <span class="terminal-menu__label">menu:</span>
-          <a class="<?= $active === 'home' ? 'is-active' : '' ?>" href="<?= h(url_for('home')) ?>">[<?= h(sblog_t('首页')) ?>]</a>
-          <a class="<?= $active === 'tags' ? 'is-active' : '' ?>" href="<?= h(url_for('tags')) ?>">[<?= h(sblog_t('标签')) ?>]</a>
-          <a class="<?= $active === 'archives' ? 'is-active' : '' ?>" href="<?= h(url_for('archives')) ?>">[<?= h(sblog_t('归档')) ?>]</a>
-          <a class="<?= $active === 'links' ? 'is-active' : '' ?>" href="<?= h(url_for('links')) ?>">[<?= h(sblog_t('链接')) ?>]</a>
-          <?php $adminLinkRendered = false; ?>
-          <?php foreach ($navPages as $page): ?>
-            <a class="<?= $active === 'page:' . $page['slug'] ? 'is-active' : '' ?>" href="<?= h(content_permalink($page)) ?>">[<?= h($page['title']) ?>]</a>
-            <?php if ($admin && !$adminLinkRendered && (strtolower((string)$page['slug']) === 'about' || trim((string)$page['title']) === '关于')): ?>
-              <a class="<?= $active === 'admin' ? 'is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">[<?= h(sblog_t('管理')) ?>]</a>
-              <?php $adminLinkRendered = true; ?>
-            <?php endif; ?>
-          <?php endforeach; ?>
-          <?php if ($admin && !$adminLinkRendered): ?>
-            <a class="<?= $active === 'admin' ? 'is-active' : '' ?>" href="<?= h(url_for('admin')) ?>">[<?= h(sblog_t('管理')) ?>]</a>
-          <?php endif; ?>
-        </nav>
-        <div class="cmd-echo"><span class="prompt-part">visitor@<?= h($siteName) ?></span><span class="path-part">:~</span>$ cat <?= h(strtolower(str_replace(' ', '-', $title))) ?>.md</div>
-        <?php if ($flash): ?><div class="line amber"><?= h((string)$flash['message']) ?></div><?php endif; ?>
+      <main class="text-main" id="content">
+        <?php if ($flash): ?><div class="text-notice" role="status"><?= h((string)$flash['message']) ?></div><?php endif; ?>
         <?php theme_action('content_before', $themeContext); ?>
-        <section class="md-content"><?= $content ?></section>
+        <div class="text-content"><?= $content ?></div>
         <?php theme_action('content_after', $themeContext); ?>
-        <div class="line dim">-- EOF --</div>
-        <?php theme_action('footer_before', $themeContext); ?>
-        <footer class="terminal-footer">
+      </main>
+      <?php theme_action('footer_before', $themeContext); ?>
+      <footer class="text-footer">
+        <div class="text-footer__inner">
           <span><?= h(site_footer_text()) ?></span>
           <?php $beian = trim(setting('footer_beian')); ?>
-          <?php if ($beian !== ''): ?>
-            <span class="terminal-footer__separator">·</span>
-            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer"><?= h($beian) ?></a>
-          <?php endif; ?>
-          <span class="terminal-footer__separator">·</span>
+          <?php if ($beian !== ''): ?><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer"><?= h($beian) ?></a><?php endif; ?>
           <a href="<?= h(url_for('rss')) ?>"><?= h(sblog_t('RSS')) ?></a>
-          <span class="terminal-footer__separator">·</span>
           <a href="<?= h(url_for('sitemap')) ?>"><?= h(sblog_t('Sitemap')) ?></a>
-        </footer>
-        <?php theme_action('footer_after', $themeContext); ?>
-      </main>
-      <footer class="prompt-line"><span class="prompt"><span>visitor@<?= h($siteName) ?></span><span class="path" id="prompt-path">:~</span><span class="symbol">$</span>&nbsp;</span><span class="input-text" id="input-text"></span><span class="cursor"></span><span class="ghost-text" id="ghost-text"></span><input id="input" type="text" autofocus autocomplete="off" spellcheck="false" aria-label="<?= h(sblog_t('终端输入')) ?>"></footer>
+        </div>
+      </footer>
+      <?php theme_action('footer_after', $themeContext); ?>
     </div>
   <?php else: ?>
     <div class="site-frame">
@@ -4711,8 +5016,10 @@ function admin_icon(string $name): string
         'mail' => '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"></path><path d="m22 6-10 7L2 6"></path>',
         'storage' => '<ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M3 5v6c0 1.7 4 3 9 3s9-1.3 9-3V5"></path><path d="M3 11v6c0 1.7 4 3 9 3s9-1.3 9-3v-6"></path>',
         'themes' => '<path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a2 2 0 0 1 0-4h2a7 7 0 0 0 0-14h-2z"></path><circle cx="7.5" cy="10" r=".5"></circle><circle cx="9" cy="6.5" r=".5"></circle><circle cx="14" cy="6.5" r=".5"></circle><circle cx="16.5" cy="10" r=".5"></circle>',
+        'store' => '<path d="M3 9h18l-1-5H4L3 9z"></path><path d="M5 9v11h14V9M9 20v-6h6v6"></path><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"></path>',
         'settings' => '<path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>',
         'menu' => '<path d="M4 6h16M4 12h16M4 18h16"></path>',
+        'chevron-right' => '<path d="m9 18 6-6-6-6"></path>',
         'close' => '<path d="m6 6 12 12M18 6 6 18"></path>',
         'sun' => '<circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path>',
         'moon' => '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
@@ -4815,6 +5122,13 @@ function render_admin_sidebar(string $active, array $summary = []): string
             'active' => $active === 'plugins',
         ],
         [
+            'label' => '扩展商店',
+            'icon' => 'store',
+            'note' => '主题与插件',
+            'href' => url_for('admin_store'),
+            'active' => $active === 'store',
+        ],
+        [
             'label' => '站点设置',
             'icon' => 'settings',
             'note' => '基础配置',
@@ -4883,6 +5197,9 @@ function render_admin_sidebar(string $active, array $summary = []): string
             </a>
           <?php endforeach; ?>
         </nav>
+        <button class="admin-side__expand" type="button" data-admin-side-expand aria-controls="admin-sidebar" aria-expanded="false" data-expand-label="<?= h(sblog_t('展开侧边栏')) ?>" data-collapse-label="<?= h(sblog_t('收起侧边栏')) ?>" aria-label="<?= h(sblog_t('展开侧边栏')) ?>" title="<?= h(sblog_t('展开侧边栏')) ?>">
+          <?= admin_icon('chevron-right') ?>
+        </button>
       </section>
 
       <?php if ($summary !== []): ?>
@@ -5101,7 +5418,10 @@ function render_home(int $page): void
 
 function render_archives(): void
 {
-    $groups = archive_groups();
+    $groups = [];
+    foreach (fetch_archive_posts() as $post) {
+        $groups[date('Y', (int)$post['published_at'])][] = $post;
+    }
 
     ob_start();
     ?>
@@ -5186,13 +5506,13 @@ function render_comments_section(array $post, array $form = [], array $errors = 
 
     load_active_theme();
     $defaultLabels = [
-        'title' => 'comments.log',
-        'form_title' => 'new-comment',
-        'submit' => '[' . sblog_t('提交评论') . ']',
-        'cancel_reply' => '[' . sblog_t('取消回复') . ']',
+        'title' => sblog_t('评论'),
+        'form_title' => sblog_t('发表评论'),
+        'submit' => sblog_t('提交评论'),
+        'cancel_reply' => sblog_t('取消回复'),
         'cancel_reply_aria' => sblog_t('取消回复'),
-        'empty' => '// ' . sblog_t('暂无评论'),
-        'closed' => '// ' . sblog_t('评论已关闭'),
+        'empty' => sblog_t('暂无评论'),
+        'closed' => sblog_t('评论已关闭'),
     ];
     $filteredLabels = theme_filter('comments_labels', $defaultLabels, [
         'post' => $post,
@@ -5608,10 +5928,7 @@ function render_login_page(string $error = '', array $form = []): void
               <input id="username" name="username" type="text" value="<?= h((string)($form['username'] ?? '')) ?>" autocomplete="username" required autofocus>
             </div>
             <div class="field">
-              <div class="auth-field-row">
-                <label for="password"><?= h(sblog_t('密码')) ?></label>
-                <a href="<?= h(url_for('forgot_password')) ?>"><?= h(sblog_t('忘记密码？')) ?></a>
-              </div>
+              <label for="password"><?= h(sblog_t('密码')) ?></label>
               <div class="auth-password">
                 <input id="password" name="password" type="password" autocomplete="current-password" required>
                 <button class="auth-password-toggle" type="button" data-password-toggle="password" aria-label="<?= h(sblog_t('显示密码')) ?>" aria-pressed="false" title="<?= h(sblog_t('显示密码')) ?>">
@@ -5623,6 +5940,7 @@ function render_login_page(string $error = '', array $form = []): void
             <div class="action-row auth-actions">
               <button class="button" type="submit"><?= h(sblog_t('登录后台')) ?></button>
             </div>
+            <p class="auth-link-row"><a href="<?= h(url_for('forgot_password')) ?>"><?= h(sblog_t('忘记密码？')) ?></a></p>
           </form>
         </div>
       </section>
@@ -5876,16 +6194,15 @@ function render_admin_page(): void
         <?= render_admin_topbar(sblog_t('博客数据预览')) ?>
 
         <div class="admin-grid">
-          <?php if (!empty($update['available']) || !empty($update['repair'])): ?>
+          <?php if (!empty($update['available'])): ?>
             <section class="panel update-notice admin-animate">
               <div class="panel__body">
                 <div>
-                  <strong><?= h(!empty($update['repair']) ? sblog_t('发布文件需要补全') : sblog_t('发现新版本 {version}', ['version' => (string)$update['latest']])) ?></strong>
-                  <p><?= h(!empty($update['repair']) ? sblog_t('当前程序版本完整，但发布包中的内置主题或插件尚未同步。') : sblog_t('当前版本 {version}。更新会自动备份并覆盖程序、内置主题和内置插件文件，站点数据、上传文件及其他自定义主题和插件不受影响。', ['version' => APP_VERSION])) ?></p>
+                  <strong><?= h(sblog_t('发现新版本 {version}', ['version' => (string)$update['latest']])) ?></strong>
+                  <p><?= h(sblog_t('当前版本 {version}。更新会自动备份并覆盖核心程序文件，站点数据、上传文件以及已安装的主题和插件不受影响。', ['version' => APP_VERSION])) ?></p>
                 </div>
-                <?php $updateConfirm = !empty($update['repair']) ? sblog_t('确定从当前发布包补全内置主题和插件吗？') : sblog_t('确定更新到 {version} 吗？更新期间请勿关闭页面。', ['version' => (string)$update['latest']]); ?>
-                <form method="post" action="<?= h(url_for('install_update')) ?>" onsubmit="return confirm(<?= h(json_encode($updateConfirm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
-                  <?= csrf_field() ?><button class="button button--primary" type="submit"><?= h(!empty($update['repair']) ? sblog_t('同步发布文件') : sblog_t('立即更新')) ?></button>
+                <form method="post" action="<?= h(url_for('install_update')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定更新到 {version} 吗？更新期间请勿关闭页面。', ['version' => (string)$update['latest']]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                  <?= csrf_field() ?><button class="button button--primary" type="submit"><?= h(sblog_t('立即更新')) ?></button>
                 </form>
               </div>
             </section>
@@ -6764,11 +7081,139 @@ function render_admin_media_page(): void
     render_layout(sblog_t('媒体库'), (string)ob_get_clean(), ['active' => 'media', 'wide' => true, 'description' => sblog_t('媒体资料管理')]);
 }
 
+function render_admin_store_page(): void
+{
+    require_admin();
+
+    $filter = strtolower(trim((string)($_GET['type'] ?? 'all')));
+    if (!in_array($filter, ['all', 'theme', 'plugin'], true)) {
+        $filter = 'all';
+    }
+    $catalog = extension_store_catalog((string)($_GET['refresh'] ?? '') === '1');
+    $extensions = is_array($catalog['extensions'] ?? null) ? $catalog['extensions'] : [];
+    $visible = array_filter($extensions, static fn(array $extension): bool => $filter === 'all' || $extension['type'] === $filter);
+    $activeTheme = active_theme_slug();
+    $activePlugins = active_plugin_slugs(true);
+    $sidebar = render_admin_sidebar('store');
+    $storeUrl = url_for('admin_store');
+
+    ob_start();
+    ?>
+    <div class="admin-shell">
+      <?= $sidebar ?>
+
+      <div class="admin-main">
+        <?= render_admin_topbar(sblog_t('扩展商店')) ?>
+
+        <section class="extension-store admin-animate admin-animate--2" aria-labelledby="extension-store-title">
+          <header class="extension-store__header">
+            <div>
+              <p class="admin-masthead__eyebrow"><?= h(sblog_t('扩展')) ?></p>
+              <h1 id="extension-store-title"><?= h(sblog_t('扩展商店')) ?></h1>
+              <p><?= h(sblog_t('从远程商店安装和更新 SBlog 主题与插件。')) ?></p>
+            </div>
+            <a class="button button--secondary" href="<?= h(url_with_query($storeUrl, ['type' => $filter, 'refresh' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('刷新列表')) ?></a>
+          </header>
+
+          <?php if ((string)($catalog['error'] ?? '') !== ''): ?>
+            <div class="extension-store__notice <?= !empty($catalog['stale']) ? 'is-warning' : 'is-error' ?>" role="status">
+              <strong><?= h(!empty($catalog['stale']) ? sblog_t('正在显示缓存列表') : sblog_t('商店暂时不可用')) ?></strong>
+              <span><?= h((string)$catalog['error']) ?></span>
+            </div>
+          <?php endif; ?>
+
+          <div class="extension-store__toolbar">
+            <nav class="extension-store__tabs" aria-label="<?= h(sblog_t('扩展类型')) ?>">
+              <?php foreach (['all' => sblog_t('全部'), 'theme' => sblog_t('主题'), 'plugin' => sblog_t('插件')] as $type => $label): ?>
+                <a href="<?= h(url_with_query($storeUrl, ['type' => $type])) ?>"<?= $filter === $type ? ' aria-current="page"' : '' ?>><?= h($label) ?></a>
+              <?php endforeach; ?>
+            </nav>
+            <span class="extension-store__count"><?= h(sblog_tn('{count} 个扩展', count($visible))) ?></span>
+          </div>
+
+          <?php if ($visible): ?>
+            <div class="extension-store__grid">
+              <?php foreach ($visible as $extension): ?>
+                <?php
+                $type = (string)$extension['type'];
+                $slug = (string)$extension['slug'];
+                $installed = extension_installed_manifest($type, $slug);
+                $installedVersion = trim((string)($installed['version'] ?? ''));
+                $storeVersion = (string)$extension['version'];
+                $isCurrent = $installed !== null && normalize_version($installedVersion) === normalize_version($storeVersion);
+                $isUpdate = $installed !== null && version_compare(normalize_version($storeVersion), normalize_version($installedVersion), '>');
+                $isActive = $type === 'theme' ? $activeTheme === $slug : in_array($slug, $activePlugins, true);
+                $compatible = extension_is_compatible($extension);
+                $actionLabel = $installed === null ? sblog_t('安装') : ($isUpdate ? sblog_t('更新') : sblog_t('重新安装'));
+                ?>
+                <article class="extension-card<?= $isActive ? ' is-active' : '' ?>">
+                  <div class="extension-card__icon" aria-hidden="true"><?= admin_icon($type === 'theme' ? 'themes' : 'plugins') ?></div>
+                  <div class="extension-card__body">
+                    <div class="extension-card__heading">
+                      <div>
+                        <h2><?= h((string)$extension['name']) ?></h2>
+                        <p><?= h($slug) ?> · <?= h($storeVersion) ?></p>
+                      </div>
+                      <div class="extension-card__badges">
+                        <span class="status-badge status-badge--draft"><?= h($type === 'theme' ? sblog_t('主题') : sblog_t('插件')) ?></span>
+                        <?php if ($isActive): ?><span class="status-badge status-badge--published"><?= h(sblog_t('使用中')) ?></span><?php endif; ?>
+                        <?php if ($isUpdate): ?><span class="status-badge status-badge--scheduled"><?= h(sblog_t('可更新')) ?></span><?php endif; ?>
+                      </div>
+                    </div>
+                    <p class="extension-card__description"><?= h((string)($extension['description'] ?: sblog_t('该扩展没有提供说明。'))) ?></p>
+                    <div class="extension-card__meta">
+                      <span><?= h((string)($extension['author'] ?: sblog_t('作者未注明'))) ?></span>
+                      <?php if ((string)$extension['requires'] !== ''): ?><span><?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$extension['requires']])) ?></span><?php endif; ?>
+                      <?php if ($installed !== null): ?><span><?= h(sblog_t('已安装 {version}', ['version' => $installedVersion !== '' ? $installedVersion : sblog_t('未知版本')])) ?></span><?php endif; ?>
+                    </div>
+                    <div class="extension-card__footer">
+                      <?php if ((string)$extension['homepage'] !== ''): ?>
+                        <a class="extension-card__link" href="<?= h((string)$extension['homepage']) ?>" target="_blank" rel="noopener noreferrer"><?= h(sblog_t('详情')) ?></a>
+                      <?php else: ?>
+                        <span></span>
+                      <?php endif; ?>
+                      <?php if (!$compatible): ?>
+                        <span class="button button--ghost is-disabled" aria-disabled="true"><?= h(sblog_t('版本不兼容')) ?></span>
+                      <?php elseif ($isCurrent): ?>
+                        <span class="button button--ghost is-disabled" aria-disabled="true"><?= h(sblog_t('已安装')) ?></span>
+                      <?php else: ?>
+                        <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install>
+                          <?= csrf_field() ?>
+                          <input type="hidden" name="type" value="<?= h($type) ?>">
+                          <input type="hidden" name="slug" value="<?= h($slug) ?>">
+                          <input type="hidden" name="return_type" value="<?= h($filter) ?>">
+                          <input type="hidden" name="return_to" value="store">
+                          <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在安装…')) ?>"><?= h($actionLabel) ?></button>
+                        </form>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                </article>
+              <?php endforeach; ?>
+            </div>
+          <?php else: ?>
+            <div class="empty-state extension-store__empty"><p><?= h((string)($catalog['error'] ?? '') !== '' ? sblog_t('无法获取扩展列表，请稍后刷新。') : sblog_t('当前分类暂无可用扩展。')) ?></p></div>
+          <?php endif; ?>
+
+          <p class="extension-store__trust"><?= h(sblog_t('主题和插件会在服务器上执行代码。仅安装来自可信商店的扩展。')) ?></p>
+        </section>
+      </div>
+    </div>
+    <?php
+    render_layout(sblog_t('扩展商店'), (string)ob_get_clean(), [
+        'active' => 'store',
+        'wide' => true,
+        'description' => sblog_t('主题与插件商店'),
+    ]);
+}
+
 function render_admin_plugins_page(): void
 {
     require_admin();
 
     $plugins = available_plugins();
+    $updateState = extension_updates_for('plugin', $plugins, (string)($_GET['check_updates'] ?? '') === '1');
+    $updates = $updateState['items'];
     $active = active_plugin_slugs(true);
     $errors = is_array($GLOBALS['sblog_plugin_errors'] ?? null) ? $GLOBALS['sblog_plugin_errors'] : [];
     $sidebar = render_admin_sidebar('plugins');
@@ -6783,19 +7228,30 @@ function render_admin_plugins_page(): void
 
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
-            <h2><?= h(sblog_t('插件管理')) ?></h2>
-            <p class="panel__meta"><?= h(sblog_t('启用可信插件，为博客增加功能或语言支持。')) ?></p>
+            <div class="admin-head admin-head--with-actions">
+              <div class="admin-head-left">
+                <h2><?= h(sblog_t('插件管理')) ?></h2>
+                <p class="panel__meta"><?= h(sblog_t('启用可信插件，为博客增加功能或语言支持。')) ?></p>
+              </div>
+              <div class="admin-head-actions">
+                <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_plugins'), ['check_updates' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('检查更新')) ?></a>
+                <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_store'), ['type' => 'plugin'])) ?>"><?= admin_icon('store') ?><?= h(sblog_t('获取插件')) ?></a>
+              </div>
+            </div>
           </div>
           <div class="panel__body panel__body--flush">
+            <?php if ((string)$updateState['error'] !== ''): ?><div class="flash flash--error extension-update-error" role="alert"><?= h(sblog_t('检查插件更新失败：{error}', ['error' => (string)$updateState['error']])) ?></div><?php endif; ?>
             <?php if ($plugins): ?>
-              <div class="table-wrap">
-                <table class="admin-table">
+              <div class="table-wrap table-wrap--plugins">
+                <table class="admin-table plugin-table">
                   <thead><tr><th><?= h(sblog_t('插件')) ?></th><th><?= h(sblog_t('作者')) ?></th><th><?= h(sblog_t('版本')) ?></th><th><?= h(sblog_t('状态')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead>
                   <tbody>
                   <?php foreach ($plugins as $slug => $plugin): ?>
                     <?php
                     $isActive = in_array($slug, $active, true);
                     $displayMetadata = plugin_display_metadata((string)$slug, $plugin);
+                    $update = $updates[$slug] ?? null;
+                    $updateCompatible = is_array($update) && extension_is_compatible($update);
                     ?>
                     <tr>
                       <td>
@@ -6804,9 +7260,14 @@ function render_admin_plugins_page(): void
                           <span><?= h($displayMetadata['description']) ?></span>
                         </div>
                       </td>
-                      <td><?php if ($plugin['author'] !== ''): ?><?php if ($plugin['url'] !== ''): ?><a href="<?= h((string)$plugin['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$plugin['author']) ?></a><?php else: ?><?= h((string)$plugin['author']) ?><?php endif; ?><?php else: ?>—<?php endif; ?></td>
-                      <td><?= h((string)($plugin['version'] ?: '—')) ?></td>
-                      <td>
+                      <td data-label="<?= h(sblog_t('作者')) ?>"><?php if ($plugin['author'] !== ''): ?><?php if ($plugin['url'] !== ''): ?><a href="<?= h((string)$plugin['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h((string)$plugin['author']) ?></a><?php else: ?><?= h((string)$plugin['author']) ?><?php endif; ?><?php else: ?>—<?php endif; ?></td>
+                      <td data-label="<?= h(sblog_t('版本')) ?>">
+                        <div class="extension-version">
+                          <span><?= h((string)($plugin['version'] ?: '—')) ?></span>
+                          <?php if (is_array($update)): ?><span class="status-badge status-badge--scheduled"><?= h(sblog_t('新版本 {version}', ['version' => (string)$update['version']])) ?></span><?php endif; ?>
+                        </div>
+                      </td>
+                      <td data-label="<?= h(sblog_t('状态')) ?>">
                         <?php if (isset($errors[$slug])): ?>
                           <span class="status-badge status-badge--draft" title="<?= h((string)$errors[$slug]) ?>"><?= h(sblog_t('加载失败')) ?></span>
                         <?php elseif ($isActive): ?>
@@ -6815,10 +7276,23 @@ function render_admin_plugins_page(): void
                           <span class="status-badge status-badge--draft"><?= h(sblog_t('未启用')) ?></span>
                         <?php endif; ?>
                       </td>
-                      <td>
+                      <td data-label="<?= h(sblog_t('操作')) ?>">
                         <div class="table-actions">
                           <?php if ($isActive && (string)$plugin['settings_action'] !== ''): ?>
                             <a class="button button--secondary" href="<?= h(script_url() . '?a=' . rawurlencode((string)$plugin['settings_action'])) ?>"><?= h(sblog_t('设置')) ?></a>
+                          <?php endif; ?>
+                          <?php if (is_array($update)): ?>
+                            <?php if ($updateCompatible): ?>
+                              <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install>
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="type" value="plugin">
+                                <input type="hidden" name="slug" value="<?= h((string)$slug) ?>">
+                                <input type="hidden" name="return_to" value="plugins">
+                                <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><?= h(sblog_t('升级')) ?></button>
+                              </form>
+                            <?php else: ?>
+                              <span class="button button--ghost is-disabled" aria-disabled="true" title="<?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) ?>"><?= h(sblog_t('版本不兼容')) ?></span>
+                            <?php endif; ?>
                           <?php endif; ?>
                           <form method="post" action="<?= h(url_for('toggle_plugin')) ?>">
                             <?= csrf_field() ?>
@@ -6834,7 +7308,7 @@ function render_admin_plugins_page(): void
                 </table>
               </div>
             <?php else: ?>
-              <div class="empty-state empty-state--inside"><p><?= h(sblog_t('没有发现有效插件。请将插件放入 {path}。', ['path' => 'plugins/插件目录'])) ?></p></div>
+              <div class="empty-state empty-state--inside"><p><?= h(sblog_t('尚未安装插件。')) ?> <a href="<?= h(url_with_query(url_for('admin_store'), ['type' => 'plugin'])) ?>"><?= h(sblog_t('前往扩展商店')) ?></a></p></div>
             <?php endif; ?>
           </div>
         </section>
@@ -6853,6 +7327,8 @@ function render_admin_themes_page(): void
     require_admin();
 
     $themes = available_themes();
+    $updateState = extension_updates_for('theme', $themes, (string)($_GET['check_updates'] ?? '') === '1');
+    $updates = $updateState['items'];
     $configuredSlug = trim(setting('active_theme', 'default'));
     $activeSlug = isset($themes[$configuredSlug]) ? $configuredSlug : 'default';
     $sidebar = render_admin_sidebar('themes');
@@ -6872,8 +7348,14 @@ function render_admin_themes_page(): void
               <h1 id="theme-manager-title"><?= h(sblog_t('主题管理')) ?></h1>
               <p><?= h(sblog_t('预览已安装主题，并为博客前台启用新的外观。')) ?></p>
             </div>
-            <span class="theme-manager__count"><?= h(sblog_tn('{count} 个主题', count($themes))) ?></span>
+            <div class="theme-manager__actions">
+              <span class="theme-manager__count"><?= h(sblog_tn('{count} 个主题', count($themes))) ?></span>
+              <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_themes'), ['check_updates' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('检查更新')) ?></a>
+              <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_store'), ['type' => 'theme'])) ?>"><?= admin_icon('store') ?><?= h(sblog_t('获取主题')) ?></a>
+            </div>
           </header>
+
+          <?php if ((string)$updateState['error'] !== ''): ?><div class="flash flash--error extension-update-error" role="alert"><?= h(sblog_t('检查主题更新失败：{error}', ['error' => (string)$updateState['error']])) ?></div><?php endif; ?>
 
           <div class="theme-grid">
             <?php foreach ($themes as $slug => $theme): ?>
@@ -6884,6 +7366,8 @@ function render_admin_themes_page(): void
               $themeName = $displayMetadata['name'];
               $themeDescription = $displayMetadata['description'];
               $previewLabel = sblog_t('预览主题 {theme}', ['theme' => $themeName]);
+              $update = $updates[$slug] ?? null;
+              $updateCompatible = is_array($update) && extension_is_compatible($update);
               ?>
               <article class="theme-card<?= $isActive ? ' is-active' : '' ?>" data-theme-card data-theme-slug="<?= h((string)$slug) ?>">
                 <a class="theme-card__preview" href="<?= h($previewUrl) ?>" target="_blank" rel="noopener" aria-label="<?= h($previewLabel) ?>" title="<?= h($previewLabel) ?>">
@@ -6896,7 +7380,10 @@ function render_admin_themes_page(): void
                       <h2><?= h($themeName) ?></h2>
                       <p><?= h((string)$slug) ?><?= $theme['version'] !== '' ? ' · ' . h((string)$theme['version']) : '' ?></p>
                     </div>
-                    <span class="status-badge status-badge--published" data-theme-current<?= $isActive ? '' : ' hidden' ?>><?= h(sblog_t('当前主题')) ?></span>
+                    <div class="theme-card__badges">
+                      <?php if (is_array($update)): ?><span class="status-badge status-badge--scheduled"><?= h(sblog_t('可更新至 {version}', ['version' => (string)$update['version']])) ?></span><?php endif; ?>
+                      <span class="status-badge status-badge--published" data-theme-current<?= $isActive ? '' : ' hidden' ?>><?= h(sblog_t('当前主题')) ?></span>
+                    </div>
                   </div>
                   <p class="theme-card__description"><?= h($themeDescription !== '' ? $themeDescription : sblog_t('该主题没有提供说明。')) ?></p>
                   <div class="theme-card__footer">
@@ -6907,12 +7394,27 @@ function render_admin_themes_page(): void
                         <?= h(sblog_t('作者未注明')) ?>
                       <?php endif; ?>
                     </span>
-                    <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-activate<?= $isActive ? ' hidden' : '' ?>>
-                      <?= csrf_field() ?>
-                      <input type="hidden" name="theme" value="<?= h((string)$slug) ?>">
-                      <button class="button" type="submit"><?= h(sblog_t('启用')) ?></button>
-                    </form>
-                    <span class="button button--ghost is-disabled" aria-disabled="true" data-theme-active<?= $isActive ? '' : ' hidden' ?>><?= h(sblog_t('已启用')) ?></span>
+                    <div class="theme-card__actions">
+                      <?php if (is_array($update)): ?>
+                        <?php if ($updateCompatible): ?>
+                          <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install>
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="type" value="theme">
+                            <input type="hidden" name="slug" value="<?= h((string)$slug) ?>">
+                            <input type="hidden" name="return_to" value="themes">
+                            <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><?= h(sblog_t('升级')) ?></button>
+                          </form>
+                        <?php else: ?>
+                          <span class="button button--ghost is-disabled" aria-disabled="true" title="<?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) ?>"><?= h(sblog_t('版本不兼容')) ?></span>
+                        <?php endif; ?>
+                      <?php endif; ?>
+                      <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-activate<?= $isActive ? ' hidden' : '' ?>>
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="theme" value="<?= h((string)$slug) ?>">
+                        <button class="button<?= is_array($update) ? ' button--secondary' : '' ?>" type="submit"><?= h(sblog_t('启用')) ?></button>
+                      </form>
+                      <span class="button button--ghost is-disabled" aria-disabled="true" data-theme-active<?= $isActive ? '' : ' hidden' ?>><?= h(sblog_t('已启用')) ?></span>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -7622,23 +8124,6 @@ switch ($action) {
         break;
 
     case 'admin':
-        $justUpdated = is_admin() && !empty($_SESSION['sblog_release_updated']);
-        if ($justUpdated) {
-            unset($_SESSION['sblog_release_updated']);
-        }
-        if ($justUpdated && bundled_release_files_missing()) {
-            try {
-                $update = github_update_info(true);
-                if (!empty($update['repair'])) {
-                    $version = install_github_update($update);
-                    set_flash('success', sblog_t('已更新到 {version}，并已同步内置主题和插件。', ['version' => $version]));
-                } elseif ((string)($update['error'] ?? '') !== '') {
-                    throw new RuntimeException((string)$update['error']);
-                }
-            } catch (Throwable $exception) {
-                set_flash('error', sblog_t('程序已更新，但内置主题和插件同步失败：{error}', ['error' => $exception->getMessage()]));
-            }
-        }
         render_admin_page();
         break;
 
@@ -7646,17 +8131,8 @@ switch ($action) {
         require_admin_post(url_for('admin'));
         try {
             $update = github_update_info(true);
-            $isRepair = !empty($update['repair']);
             $version = install_github_update($update);
-            if (!$isRepair) {
-                $_SESSION['sblog_release_updated'] = true;
-            }
-            set_flash(
-                'success',
-                $isRepair
-                    ? sblog_t('内置主题和插件已同步。')
-                    : sblog_t('已更新到 {version}。如版本包含数据库变更，请继续访问 update.php。', ['version' => $version])
-            );
+            set_flash('success', sblog_t('已更新到 {version}。如版本包含数据库变更，请继续访问 update.php。', ['version' => $version]));
         } catch (Throwable $exception) {
             set_flash('error', sblog_t('更新失败：{error}', ['error' => $exception->getMessage()]));
         }
@@ -7671,8 +8147,6 @@ switch ($action) {
             set_flash('error', sblog_t('检测更新失败：{error}', ['error' => $updateError]));
         } elseif (!empty($update['available'])) {
             set_flash('success', sblog_t('发现新版本 {version}，可点击“立即更新”完成升级。', ['version' => (string)$update['latest']]));
-        } elseif (!empty($update['repair'])) {
-            set_flash('success', sblog_t('当前版本已是最新，但内置主题或插件需要补全。'));
         } else {
             set_flash('success', sblog_t('暂无更新，当前已是最新版本 {version}。', ['version' => APP_VERSION]));
         }
@@ -7717,6 +8191,48 @@ switch ($action) {
 
     case 'admin_plugins':
         render_admin_plugins_page();
+        break;
+
+    case 'admin_store':
+        render_admin_store_page();
+        break;
+
+    case 'install_extension':
+        require_admin_post(url_for('admin_store'));
+        $type = strtolower(trim((string)($_POST['type'] ?? '')));
+        $slug = strtolower(trim((string)($_POST['slug'] ?? '')));
+        $returnType = strtolower(trim((string)($_POST['return_type'] ?? 'all')));
+        $returnTo = strtolower(trim((string)($_POST['return_to'] ?? 'store')));
+        if (!in_array($returnType, ['all', 'theme', 'plugin'], true)) {
+            $returnType = 'all';
+        }
+        if (!in_array($returnTo, ['store', 'themes', 'plugins'], true)) {
+            $returnTo = 'store';
+        }
+        try {
+            $catalog = extension_store_catalog();
+            $extension = $catalog['extensions'][$type . ':' . $slug] ?? null;
+            if (!is_array($extension)) {
+                throw new RuntimeException(sblog_t('商店中找不到该扩展，请刷新列表后重试。'));
+            }
+            $installed = extension_installed_manifest($type, $slug);
+            $result = install_store_extension($extension);
+            $message = $installed === null
+                ? sblog_t('{name} 已安装。', ['name' => (string)$extension['name']])
+                : sblog_t('{name} 已更新到 {version}。', ['name' => (string)$extension['name'], 'version' => (string)$extension['version']]);
+            if ((string)($result['backup'] ?? '') !== '') {
+                $message .= ' ' . sblog_t('旧版本已备份到 cache/{path}。', ['path' => (string)$result['backup']]);
+            }
+            set_flash('success', $message);
+        } catch (Throwable $exception) {
+            set_flash('error', sblog_t('扩展安装失败：{error}', ['error' => $exception->getMessage()]));
+        }
+        $returnUrl = match ($returnTo) {
+            'themes' => url_for('admin_themes'),
+            'plugins' => url_for('admin_plugins'),
+            default => url_with_query(url_for('admin_store'), ['type' => $returnType]),
+        };
+        redirect_to($returnUrl, 303);
         break;
 
     case 'toggle_plugin':

@@ -74,7 +74,7 @@ function update_default_settings(): array
         'site_keywords' => '',
         'site_footer' => '',
         'custom_head_code' => '',
-        'active_theme' => 'nebula',
+        'active_theme' => 'default',
         'active_plugins' => '[]',
         'favicon_url' => 'favicon.png',
         'footer_beian' => '',
@@ -332,7 +332,7 @@ if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token']) || $_
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>数据库升级</title>
-  <link rel="stylesheet" href="<?= update_h(is_file(__DIR__ . '/assets/admin.css') ? 'assets/admin.css' : 'themes/starter/assets/admin.css') ?>">
+  <link rel="stylesheet" href="<?= update_h('assets/admin.css') ?>">
 </head>
 <body class="theme-admin theme-admin--guest">
   <main class="main-wrap">

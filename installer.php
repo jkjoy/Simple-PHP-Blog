@@ -328,7 +328,10 @@ function sbi_deploy_release(array $release): int
                 continue;
             }
             $relative = str_replace('\\', '/', substr($item->getPathname(), strlen($source) + 1));
-            if ($relative === basename(__FILE__)) {
+            if ($relative === basename(__FILE__)
+                || str_starts_with($relative, 'themes/')
+                || str_starts_with($relative, 'plugins/')
+                || str_starts_with($relative, 'store/')) {
                 continue;
             }
             $files[$relative] = $item->getPathname();
@@ -348,7 +351,7 @@ function sbi_deploy_release(array $release): int
                 throw new RuntimeException(sbi_t('写入文件失败：', 'Unable to write file: ') . $relative);
             }
         }
-        foreach (['data', 'cache', 'uploads'] as $runtimeDirectory) {
+        foreach (['data', 'cache', 'uploads', 'themes', 'plugins'] as $runtimeDirectory) {
             sbi_create_directory(__DIR__ . '/' . $runtimeDirectory, $createdDirectories);
         }
         return count($createdFiles);
