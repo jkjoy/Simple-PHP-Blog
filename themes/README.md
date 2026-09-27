@@ -1,5 +1,7 @@
 # 主题开发
 
+默认主题内置于核心程序，不对应 `themes/<slug>/` 目录。核心源码不附带自定义主题；官方自定义主题统一维护在 [`jkjoy/SBlog-Extensions`](https://github.com/jkjoy/SBlog-Extensions)，可从后台扩展商店安装和升级。
+
 每个自定义主题放在 `themes/<slug>/`。目录名只能包含小写字母、数字、连字符和下划线，并必须提供 `theme.json`：
 
 ```json

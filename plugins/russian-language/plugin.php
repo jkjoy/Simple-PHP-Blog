@@ -1331,6 +1331,13 @@ function sblog_russian_client_translations(): array
 sblog_i18n_register('ru', array_merge(
     sblog_russian_language_map(),
     [
+        'public_date.full' => '{day}.{month}.{year}',
+        'public_date.just_now' => 'Только что',
+        'public_date.minutes_ago' => ['one' => '{count} минуту назад', 'few' => '{count} минуты назад', 'many' => '{count} минут назад', 'other' => '{count} минуты назад'],
+        'public_date.hours_ago' => ['one' => '{count} час назад', 'few' => '{count} часа назад', 'many' => '{count} часов назад', 'other' => '{count} часа назад'],
+        'public_date.days_ago' => ['one' => '{count} день назад', 'few' => '{count} дня назад', 'many' => '{count} дней назад', 'other' => '{count} дня назад'],
+        'public_date.months_ago' => ['one' => '{count} месяц назад', 'few' => '{count} месяца назад', 'many' => '{count} месяцев назад', 'other' => '{count} месяца назад'],
+        'public_date.years_ago' => ['one' => '{count} год назад', 'few' => '{count} года назад', 'many' => '{count} лет назад', 'other' => '{count} года назад'],
         'post_navigation.previous' => 'Предыдущая запись',
         'post_navigation.next' => 'Следующая запись',
         'post_navigation.previous_label' => 'Предыдущая запись: {title}',

@@ -5,7 +5,7 @@ A lightweight blog built around a single-entry-point architecture:
 - The main application is contained in `index.php`
 - The installation flow is contained in `install.php`
 - SQLite storage
-- A lightweight built-in default theme; other themes and plugins ship independently from the core
+- A lightweight built-in default theme plus English and Russian language plugins; other themes and feature plugins ship independently
 
 ## Features
 
@@ -83,8 +83,8 @@ assets/admin.js Admin interactions
 data/          SQLite database, installation lock, and configuration
 cache/         Settings cache
 uploads/       Local uploads and optional S3 backups
-themes/        Custom frontend themes
-plugins/       Feature and language plugins
+themes/        Custom-theme development guide (the default theme is built into core)
+plugins/       English and Russian language plugins plus the plugin development guide
 store/         Extension-store catalog protocol documentation (not deployed to the site)
 ```
 
@@ -100,6 +100,7 @@ store/         Extension-store catalog protocol documentation (not deployed to t
 
 ## Custom Themes
 
+- Core source includes only the built-in default theme. Official custom themes are maintained in the standalone extensions repository.
 - Place each theme in `themes/<theme-directory>/` and include a `theme.json` file.
 - A theme can override frontend styles with `style.css`, register action/filter hooks in `functions.php`, or take over the complete frontend layout with `layout.php`.
 - Install themes remotely under **Extension Store**, then preview and enable them under **Themes**. If the selected theme is invalid or has been removed, the application falls back to the default theme.
@@ -109,6 +110,7 @@ store/         Extension-store catalog protocol documentation (not deployed to t
 
 ## Plugins
 
+- Core source retains only the English and Russian language plugins. Other official feature plugins are maintained in the standalone extensions repository.
 - Place each plugin in `plugins/<plugin-directory>/` with both `plugin.json` and `plugin.php`.
 - Install plugins remotely under **Extension Store**, then enable, disable, and configure them under **Plugins**.
 - **Plugins** shows newer store versions and provides an in-place update action in the installed plugin list.
@@ -127,7 +129,7 @@ store/         Extension-store catalog protocol documentation (not deployed to t
 
 ## S3 Uploads
 
-After the `s3-storage` plugin and S3 uploads are enabled in the admin panel:
+After installing and enabling the `s3-storage` plugin from the extension store, then enabling S3 uploads in the admin panel:
 
 - New attachments are uploaded to Amazon S3 or a compatible service using AWS Signature Version 4.
 - Object keys use the format `path-prefix/year/random-filename`.
@@ -138,7 +140,7 @@ After the `s3-storage` plugin and S3 uploads are enabled in the admin panel:
 
 ## Email Notifications
 
-With the `email-notifications` plugin enabled, you can use SMTP or fall back to the server's PHP `mail()` transport:
+After installing and enabling the `email-notifications` plugin from the extension store, you can use SMTP or fall back to the server's PHP `mail()` transport:
 
 - Password reset messages are sent through SMTP whenever possible.
 - After a new comment is submitted, an email notification is sent if new-comment admin alerts are enabled in the site settings.

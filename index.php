@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.1';
+const APP_VERSION = 'v1.14.2';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -766,6 +766,13 @@ function save_active_plugins(array $slugs): void
 function sblog_default_translations(): array
 {
     return [
+        'public_date.full' => '{year}年{month}月{day}日',
+        'public_date.just_now' => '刚刚',
+        'public_date.minutes_ago' => '{count}分钟前',
+        'public_date.hours_ago' => '{count}小时前',
+        'public_date.days_ago' => '{count}天前',
+        'public_date.months_ago' => '{count}个月前',
+        'public_date.years_ago' => '{count}年前',
         'post_navigation.previous' => '上一篇',
         'post_navigation.next' => '下一篇',
         'post_navigation.previous_label' => '上一篇：{title}',
@@ -2728,6 +2735,42 @@ function pretty_date(int $timestamp, bool $withTime = false): string
     return date($withTime ? 'Y-m-d H:i' : 'Y-m-d', $timestamp);
 }
 
+function public_date(int $timestamp): string
+{
+    return sblog_t('public_date.full', [
+        'year' => date('Y', $timestamp),
+        'month' => date('n', $timestamp),
+        'day' => date('j', $timestamp),
+    ]);
+}
+
+function friendly_public_date(int $timestamp): string
+{
+    $elapsed = time() - $timestamp;
+    if ($elapsed < 0) {
+        return public_date($timestamp);
+    }
+    if ($elapsed < 60) {
+        return sblog_t('public_date.just_now');
+    }
+    if ($elapsed < 3600) {
+        return sblog_tn('public_date.minutes_ago', intdiv($elapsed, 60));
+    }
+    if ($elapsed < 86400) {
+        return sblog_tn('public_date.hours_ago', intdiv($elapsed, 3600));
+    }
+
+    $published = (new DateTimeImmutable('@' . $timestamp))->setTimezone(new DateTimeZone(date_default_timezone_get()));
+    $difference = $published->diff(new DateTimeImmutable('now'));
+    if ($difference->y > 0) {
+        return sblog_tn('public_date.years_ago', $difference->y);
+    }
+    if ($difference->m > 0) {
+        return sblog_tn('public_date.months_ago', $difference->m);
+    }
+    return sblog_tn('public_date.days_ago', max(1, (int)$difference->days));
+}
+
 function datetime_local_value(int $timestamp): string
 {
     return date('Y-m-d\TH:i', $timestamp);
@@ -3991,7 +4034,7 @@ function render_public_post_list(array $posts): string
     <?php foreach ($posts as $post): ?>
       <div class="posts">
         <div class="post">
-          <div class="time"><?= h(date('F j, Y', (int)$post['published_at'])) ?></div>
+          <div class="time"><?= h(public_date((int)$post['published_at'])) ?></div>
           <a href="<?= h(url_for('post', ['slug' => (string)$post['slug']])) ?>"><?php if (!empty($post['is_pinned'])): ?><span class="pinned-badge"><?= h(sblog_t('置顶')) ?></span><?php endif; ?><?= h((string)$post['title']) ?></a>
         </div>
       </div>
@@ -5428,7 +5471,7 @@ function render_archives(): void
     <h1 class="post-title" itemprop="name headline"><?= h(sblog_t('归档')) ?></h1>
     <?php if ($groups): ?>
       <div class="post-content" itemprop="articleBody">
-        <ul>
+        <ul class="archives-list">
           <?php foreach ($groups as $label => $posts): ?>
             <li class="archives-item">
               <div class="archives-item-content">
@@ -5684,10 +5727,10 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
 
     ob_start();
     ?>
-    <article>
+    <article class="post-detail">
       <h1 class="post-title" itemprop="name headline"><?= h($post['title']) ?></h1>
       <div class="meta">
-        <span><?= h(date('F j, Y', $displayTime)) ?></span>
+        <span><time datetime="<?= h(date(DATE_ATOM, $displayTime)) ?>" title="<?= h(public_date($displayTime) . ' ' . date('H:i', $displayTime)) ?>"><?= h(friendly_public_date($displayTime)) ?></time></span>
         <span><?= h(sblog_t('作者：{author}', ['author' => $author])) ?></span>
         <span><?= h(sblog_t('分类：')) ?><?php if ($categorySlug !== ''): ?><a href="<?= h(url_for('category', ['slug' => $categorySlug])) ?>"><?= h($categoryName) ?></a><?php else: ?><?= h($categoryName) ?><?php endif; ?></span>
         <span><?= h(sblog_tn('浏览：{count}', $viewCount)) ?></span>
@@ -5708,7 +5751,7 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
     </article>
 
     <?php if ($neighbors['newer'] || $neighbors['older']): ?>
-      <ul class="pagination">
+      <ul class="pagination post-navigation">
         <li class="page-item page-previous">
           <?php if ($neighbors['newer']): ?>
             <a href="<?= h(url_for('post', ['slug' => (string)$neighbors['newer']['slug']])) ?>" data-post-title="<?= h((string)$neighbors['newer']['title']) ?>" aria-label="<?= h(sblog_t('post_navigation.previous_label', ['title' => (string)$neighbors['newer']['title']])) ?>"><?= h(sblog_t('post_navigation.previous')) ?></a>

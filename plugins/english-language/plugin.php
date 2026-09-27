@@ -1227,6 +1227,13 @@ function sblog_english_client_translations(): array
 sblog_i18n_register('en', array_merge(
     sblog_english_language_map(),
     [
+        'public_date.full' => '{month}/{day}/{year}',
+        'public_date.just_now' => 'Just now',
+        'public_date.minutes_ago' => ['one' => '{count} minute ago', 'other' => '{count} minutes ago'],
+        'public_date.hours_ago' => ['one' => '{count} hour ago', 'other' => '{count} hours ago'],
+        'public_date.days_ago' => ['one' => '{count} day ago', 'other' => '{count} days ago'],
+        'public_date.months_ago' => ['one' => '{count} month ago', 'other' => '{count} months ago'],
+        'public_date.years_ago' => ['one' => '{count} year ago', 'other' => '{count} years ago'],
         'post_navigation.previous' => 'Previous post',
         'post_navigation.next' => 'Next post',
         'post_navigation.previous_label' => 'Previous post: {title}',
