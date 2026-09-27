@@ -72,6 +72,8 @@ function initThemeManager() {
       card.querySelector("[data-theme-current]")?.toggleAttribute("hidden", !isActive);
       card.querySelector("[data-theme-inactive]")?.toggleAttribute("hidden", isActive);
       card.querySelector("[data-theme-activate]")?.toggleAttribute("hidden", isActive);
+      card.querySelector("[data-theme-deactivate]")?.toggleAttribute("hidden", !isActive);
+      card.querySelector("[data-theme-uninstall]")?.toggleAttribute("hidden", isActive);
     });
   };
 

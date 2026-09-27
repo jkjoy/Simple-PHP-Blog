@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.3';
+const APP_VERSION = 'v1.14.4';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -1235,10 +1235,15 @@ function install_github_update(array $update): string
     if (empty($update['available']) || !filter_var((string)($update['download_url'] ?? ''), FILTER_VALIDATE_URL)) { throw new RuntimeException(sblog_t('当前没有可安装的更新。')); }
     if (!class_exists('ZipArchive')) { throw new RuntimeException(sblog_t('服务器未启用 ZipArchive，无法解压更新包。')); }
     ensure_runtime_dirs();
+    $lock = fopen(CACHE_DIR . '/extension-install.lock', 'c');
+    if ($lock === false || !flock($lock, LOCK_EX)) {
+        if (is_resource($lock)) { fclose($lock); }
+        throw new RuntimeException(sblog_t('无法锁定更新流程，请稍后重试。'));
+    }
     $workDir = CACHE_DIR . '/update-' . bin2hex(random_bytes(6));
     $zipFile = $workDir . '/release.zip';
-    if (!mkdir($workDir, 0755, true) && !is_dir($workDir)) { throw new RuntimeException(sblog_t('无法创建更新临时目录。')); }
     try {
+        if (!mkdir($workDir, 0755, true) && !is_dir($workDir)) { throw new RuntimeException(sblog_t('无法创建更新临时目录。')); }
         $handle = fopen($zipFile, 'wb');
         if ($handle === false) { throw new RuntimeException(sblog_t('无法创建更新包。')); }
         $curl = curl_init((string)$update['download_url']);
@@ -1272,9 +1277,14 @@ function install_github_update(array $update): string
         @unlink(UPDATE_CACHE_FILE);
         return $packageVersion;
     } finally {
-        $items = is_dir($workDir) ? new RecursiveIteratorIterator(new RecursiveDirectoryIterator($workDir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) : [];
-        foreach ($items as $item) { $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname()); }
-        if (is_dir($workDir)) { @rmdir($workDir); }
+        try {
+            $items = is_dir($workDir) ? new RecursiveIteratorIterator(new RecursiveDirectoryIterator($workDir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) : [];
+            foreach ($items as $item) { $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname()); }
+            if (is_dir($workDir)) { @rmdir($workDir); }
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 }
 
@@ -1572,6 +1582,120 @@ function remove_extension_tree(string $directory): void
         $item->isDir() && !$item->isLink() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
     }
     @rmdir($directory);
+}
+
+function delete_managed_directory(string $directory): void
+{
+    $items = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($items as $item) {
+        $path = $item->getPathname();
+        $removed = $item->isDir() && !$item->isLink() ? @rmdir($path) : @unlink($path);
+        if (!$removed) {
+            throw new RuntimeException(sblog_t('无法删除文件或目录 {path}。', ['path' => $path]));
+        }
+    }
+    if (!@rmdir($directory)) {
+        throw new RuntimeException(sblog_t('无法删除目录 {path}。', ['path' => $directory]));
+    }
+}
+
+function uninstall_extension(string $type, string $slug): void
+{
+    if (!in_array($type, ['theme', 'plugin'], true) || !preg_match('/^[a-z0-9][a-z0-9_-]*$/', $slug)
+        || ($type === 'theme' && $slug === 'default')) {
+        throw new RuntimeException(sblog_t('不能卸载该扩展。'));
+    }
+
+    ensure_runtime_dirs();
+    $lock = fopen(CACHE_DIR . '/extension-install.lock', 'c');
+    if ($lock === false || !flock($lock, LOCK_EX)) {
+        if (is_resource($lock)) { fclose($lock); }
+        throw new RuntimeException(sblog_t('无法锁定扩展安装流程，请稍后重试。'));
+    }
+    try {
+        if ($type === 'plugin' && in_array($slug, active_plugin_slugs(true), true)) {
+            throw new RuntimeException(sblog_t('请先停用插件，再卸载。'));
+        }
+        if ($type === 'theme') {
+            $configuredTheme = val('SELECT value FROM settings WHERE name = ?', ['active_theme']);
+            if ($slug === ($configuredTheme === false ? setting('active_theme', 'default') : (string)$configuredTheme)) {
+                throw new RuntimeException(sblog_t('请先停用主题，再卸载。'));
+            }
+        }
+
+        $root = realpath($type === 'theme' ? THEMES_DIR : PLUGINS_DIR);
+        $path = ($type === 'theme' ? THEMES_DIR : PLUGINS_DIR) . '/' . $slug;
+        $directory = realpath($path);
+        if ($root === false || $directory === false || is_link($path)
+            || dirname($directory) !== $root || extension_installed_manifest($type, $slug) === null) {
+            throw new RuntimeException(sblog_t('扩展目录不存在或不安全。'));
+        }
+        delete_managed_directory($directory);
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+}
+
+function managed_cache_targets(string $kind): array
+{
+    if (!in_array($kind, ['backups', 'cache'], true) || !is_dir(CACHE_DIR)) {
+        return [];
+    }
+    $root = realpath(CACHE_DIR);
+    if ($root === false) {
+        return [];
+    }
+    $targets = [];
+    foreach (scandir($root) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') { continue; }
+        $path = $root . DIRECTORY_SEPARATOR . $entry;
+        if (is_link($path)) { continue; }
+        if ($kind === 'backups') {
+            $matched = preg_match('/^update-backup-\d{8}-\d{6}$/D', $entry)
+                || preg_match('/^extension-backup-(?:theme|plugin)-[a-z0-9][a-z0-9_-]*-\d{8}-\d{6}-[a-f0-9]{4}$/D', $entry);
+            if (!$matched || !is_dir($path)) { continue; }
+        } else {
+            $matched = in_array($entry, ['github-update.json', 'extension-store.json'], true)
+                || preg_match('/^media-douban-(?:cover-)?[a-z0-9_-]+\.(?:json|jpg)$/D', $entry);
+            if (!$matched || !is_file($path)) { continue; }
+        }
+        $resolved = realpath($path);
+        if ($resolved !== false && dirname($resolved) === $root) {
+            $targets[] = $resolved;
+        }
+    }
+    return $targets;
+}
+
+function clear_managed_cache(string $kind): int
+{
+    if (!in_array($kind, ['backups', 'cache'], true)) {
+        throw new RuntimeException(sblog_t('清理类型无效。'));
+    }
+    ensure_runtime_dirs();
+    $lock = fopen(CACHE_DIR . '/extension-install.lock', 'c');
+    if ($lock === false || !flock($lock, LOCK_EX)) {
+        if (is_resource($lock)) { fclose($lock); }
+        throw new RuntimeException(sblog_t('无法锁定清理流程，请稍后重试。'));
+    }
+    try {
+        $targets = managed_cache_targets($kind);
+        foreach ($targets as $path) {
+            if ($kind === 'backups') {
+                delete_managed_directory($path);
+            } elseif (!@unlink($path)) {
+                throw new RuntimeException(sblog_t('无法删除文件或目录 {path}。', ['path' => $path]));
+            }
+        }
+        return count($targets);
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
 }
 
 function validate_extension_zip(ZipArchive $zip): void
@@ -2684,6 +2808,8 @@ function url_for(string $route, array $params = []): string
         'activate_theme' => script_url() . '?a=activate_theme',
         'toggle_plugin' => script_url() . '?a=toggle_plugin',
         'install_extension' => script_url() . '?a=install_extension',
+        'uninstall_extension' => script_url() . '?a=uninstall_extension',
+        'clear_cache' => script_url() . '?a=clear_cache',
         'ai_generate' => script_url() . '?a=ai_generate',
         'save_category' => script_url() . '?a=save_category',
         'delete_category' => script_url() . '?a=delete_category',
@@ -5058,7 +5184,7 @@ function render_layout(string $title, string $content, array $options = []): voi
       </footer>
     </div>
   <?php endif; ?>
-  <script src="<?= h(asset_url($mode === 'public' ? 'assets/index.js' : 'assets/admin.js')) ?>?v=<?= h(APP_VERSION . ($mode === 'public' ? '-' . (string)filemtime(__DIR__ . '/assets/index.js') : '')) ?>"></script>
+  <script src="<?= h(asset_url($mode === 'public' ? 'assets/index.js' : 'assets/admin.js')) ?>?v=<?= h(APP_VERSION . '-' . (string)filemtime(__DIR__ . ($mode === 'public' ? '/assets/index.js' : '/assets/admin.js'))) ?>"></script>
   <?php if ($mode === 'public') { theme_action('body_close', $themeContext); } ?>
 </body>
 </html>
@@ -7373,6 +7499,14 @@ function render_admin_plugins_page(): void
                             <input type="hidden" name="operation" value="<?= $isActive ? 'deactivate' : 'activate' ?>">
                             <button class="button <?= $isActive ? 'button--ghost' : '' ?>" type="submit"><?= h($isActive ? sblog_t('停用') : sblog_t('启用')) ?></button>
                           </form>
+                          <?php if (!$isActive): ?>
+                            <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定卸载插件 {name} 吗？服务器上的插件文件将被永久删除。', ['name' => (string)$displayMetadata['name']]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                              <?= csrf_field() ?>
+                              <input type="hidden" name="type" value="plugin">
+                              <input type="hidden" name="slug" value="<?= h((string)$slug) ?>">
+                              <button class="button button--danger" type="submit"><?= h(sblog_t('卸载')) ?></button>
+                            </form>
+                          <?php endif; ?>
                         </div>
                       </td>
                     </tr>
@@ -7483,6 +7617,19 @@ function render_admin_themes_page(): void
                           <input type="hidden" name="theme" value="<?= h((string)$slug) ?>">
                           <button class="button<?= is_array($update) ? ' button--secondary' : '' ?>" type="submit"><?= h(sblog_t('启用')) ?></button>
                         </form>
+                        <?php if ($slug !== 'default'): ?>
+                          <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-deactivate<?= $isActive ? '' : ' hidden' ?>>
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="theme" value="default">
+                            <button class="button button--ghost" type="submit"><?= h(sblog_t('停用')) ?></button>
+                          </form>
+                          <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" data-theme-uninstall<?= $isActive ? ' hidden' : '' ?> onsubmit="return confirm(<?= h(json_encode(sblog_t('确定卸载主题 {name} 吗？服务器上的主题文件将被永久删除。', ['name' => $themeName]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                            <?= csrf_field() ?>
+                            <input type="hidden" name="type" value="theme">
+                            <input type="hidden" name="slug" value="<?= h((string)$slug) ?>">
+                            <button class="button button--danger" type="submit"><?= h(sblog_t('卸载')) ?></button>
+                          </form>
+                        <?php endif; ?>
                       </div>
                     </td>
                   </tr>
@@ -7506,6 +7653,8 @@ function render_admin_settings_page(): void
 {
     require_admin();
 
+    $backupCount = count(managed_cache_targets('backups'));
+    $cacheCount = count(managed_cache_targets('cache'));
     $sidebar = render_admin_sidebar('settings');
 
     ob_start();
@@ -7583,6 +7732,26 @@ location / {
                 <button class="button" type="submit"><?= h(sblog_t('保存设置')) ?></button>
               </div>
             </form>
+          </div>
+        </section>
+        <section class="panel admin-list-panel admin-animate admin-animate--3">
+          <div class="panel__header">
+            <h2><?= h(sblog_t('服务器文件清理')) ?></h2>
+            <p class="panel__meta"><?= h(sblog_t('仅清理更新备份与可重建缓存；站点设置、限流记录和重置令牌不会删除。')) ?></p>
+          </div>
+          <div class="panel__body">
+            <div class="action-row action-row--start">
+              <form method="post" action="<?= h(url_for('clear_cache')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定永久删除所有更新和扩展备份吗？删除后无法从这些备份恢复。'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                <?= csrf_field() ?>
+                <input type="hidden" name="kind" value="backups">
+                <button class="button button--danger" type="submit"<?= $backupCount === 0 ? ' disabled' : '' ?>><?= h(sblog_t('清理备份（{count} 项）', ['count' => $backupCount])) ?></button>
+              </form>
+              <form method="post" action="<?= h(url_for('clear_cache')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除可重建的缓存文件吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                <?= csrf_field() ?>
+                <input type="hidden" name="kind" value="cache">
+                <button class="button button--secondary" type="submit"<?= $cacheCount === 0 ? ' disabled' : '' ?>><?= h(sblog_t('清理缓存（{count} 项）', ['count' => $cacheCount])) ?></button>
+              </form>
+            </div>
           </div>
         </section>
       </div>
@@ -8306,6 +8475,33 @@ switch ($action) {
         redirect_to($returnUrl, 303);
         break;
 
+    case 'uninstall_extension':
+        require_admin_post(url_for('admin_plugins'));
+        $type = trim((string)($_POST['type'] ?? ''));
+        $slug = trim((string)($_POST['slug'] ?? ''));
+        $returnUrl = $type === 'theme' ? url_for('admin_themes') : url_for('admin_plugins');
+        try {
+            uninstall_extension($type, $slug);
+            set_flash('success', $type === 'theme'
+                ? sblog_t('主题已卸载，服务器文件已删除。')
+                : sblog_t('插件已卸载，服务器文件已删除。'));
+        } catch (Throwable $exception) {
+            set_flash('error', sblog_t('卸载失败：{error}', ['error' => $exception->getMessage()]));
+        }
+        redirect_to($returnUrl, 303);
+        break;
+
+    case 'clear_cache':
+        require_admin_post(url_for('admin_settings'));
+        try {
+            $count = clear_managed_cache(trim((string)($_POST['kind'] ?? '')));
+            set_flash('success', sblog_t('已删除 {count} 项服务器文件。', ['count' => $count]));
+        } catch (Throwable $exception) {
+            set_flash('error', sblog_t('清理失败：{error}', ['error' => $exception->getMessage()]));
+        }
+        redirect_to(url_for('admin_settings'), 303);
+        break;
+
     case 'toggle_plugin':
         require_admin_post(url_for('admin_plugins'));
         $slug = trim((string)($_POST['plugin'] ?? ''));
@@ -8387,7 +8583,7 @@ switch ($action) {
         if ($acceptsJson) {
             json_response(['ok' => true, 'active_theme' => $themeSlug]);
         }
-        set_flash('success', sblog_t('主题已启用。'));
+        set_flash('success', $themeSlug === 'default' ? sblog_t('已停用当前主题并恢复默认主题。') : sblog_t('主题已启用。'));
         redirect_to(url_with_query(url_for('admin_themes'), ['changed' => bin2hex(random_bytes(4))]), 303);
         break;
 
