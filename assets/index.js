@@ -81,4 +81,67 @@ function initComments() {
   });
 }
 
+function initSiteTools() {
+  const tools = document.querySelector("[data-site-tools]");
+  if (!tools) return;
+
+  const progress = tools.querySelector("[data-scroll-progress]");
+  const backToTop = tools.querySelector("[data-back-to-top]");
+  const percent = tools.querySelector("[data-scroll-percent]");
+  const themeToggle = tools.querySelector("[data-public-theme-toggle]");
+  const root = document.documentElement;
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let progressFrame = 0;
+
+  const updateProgress = () => {
+    progressFrame = 0;
+    const scrollable = Math.max(0, root.scrollHeight - root.clientHeight);
+    const value = scrollable > 0 ? Math.round(Math.min(1, Math.max(0, window.scrollY / scrollable)) * 100) : 0;
+    progress.style.setProperty("--scroll-progress", `${value}%`);
+    percent.textContent = `${value}%`;
+  };
+  const scheduleProgress = () => {
+    if (!progressFrame) progressFrame = window.requestAnimationFrame(updateProgress);
+  };
+
+  backToTop.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: reducedMotion.matches ? "auto" : "smooth" });
+  });
+  window.addEventListener("scroll", scheduleProgress, { passive: true });
+  window.addEventListener("resize", scheduleProgress);
+  window.addEventListener("pageshow", scheduleProgress);
+  updateProgress();
+
+  const isDark = () => root.dataset.publicTheme === "dark"
+    || (!root.dataset.publicTheme && systemDark.matches);
+  const updateThemeToggle = () => {
+    const dark = isDark();
+    const label = dark
+      ? sblogText("switch_to_light", "切换到浅色模式")
+      : sblogText("switch_to_dark", "切换到深色模式");
+    themeToggle.setAttribute("aria-label", label);
+    themeToggle.setAttribute("aria-pressed", dark ? "true" : "false");
+    themeToggle.setAttribute("title", label);
+  };
+
+  themeToggle.addEventListener("click", () => {
+    const next = isDark() ? "light" : "dark";
+    root.dataset.publicTheme = next;
+    try {
+      localStorage.setItem("sblog-public-theme", next);
+    } catch (error) {
+      // Keep the selected mode for this page even if storage is unavailable.
+    }
+    updateThemeToggle();
+  });
+  if (typeof systemDark.addEventListener === "function") {
+    systemDark.addEventListener("change", updateThemeToggle);
+  } else {
+    systemDark.addListener(updateThemeToggle);
+  }
+  updateThemeToggle();
+}
+
 document.addEventListener("DOMContentLoaded", initComments);
+document.addEventListener("DOMContentLoaded", initSiteTools);

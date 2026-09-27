@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.2';
+const APP_VERSION = 'v1.14.3';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -4898,6 +4898,7 @@ function render_layout(string $title, string $content, array $options = []): voi
             error_log('Theme layout failed: ' . $exception->getMessage());
         }
     }
+    $defaultPublicTheme = $mode === 'public' && ($theme['slug'] ?? '') === 'default';
     ?>
 <!doctype html>
 <html lang="<?= h(sblog_i18n_locale()) ?>">
@@ -4923,10 +4924,22 @@ function render_layout(string $title, string $content, array $options = []): voi
     })();
   </script>
   <?php endif; ?>
+  <?php if ($defaultPublicTheme): ?>
+  <script>
+    (() => {
+      try {
+        const saved = localStorage.getItem('sblog-public-theme');
+        if (saved === 'light' || saved === 'dark') document.documentElement.dataset.publicTheme = saved;
+      } catch (error) {
+        // The system preference remains available when storage is blocked.
+      }
+    })();
+  </script>
+  <?php endif; ?>
   <?= sblog_i18n_head() ?>
   <link rel="icon" href="<?= h(theme_favicon_url()) ?>">
   <?php if ($mode === 'public'): ?>
-  <link rel="stylesheet" href="<?= h(asset_url('assets/index.css')) ?>?v=<?= h(APP_VERSION) ?>">
+  <link rel="stylesheet" href="<?= h(asset_url('assets/index.css')) ?>?v=<?= h(APP_VERSION . '-' . (string)filemtime(__DIR__ . '/assets/index.css')) ?>">
   <?php else: ?>
   <link rel="stylesheet" href="<?= h(asset_url('assets/admin.css')) ?>?v=<?= h(APP_VERSION) ?>">
   <?php endif; ?>
@@ -4938,7 +4951,7 @@ function render_layout(string $title, string $content, array $options = []): voi
 <body class="<?= h($bodyClass) ?>">
   <?php if ($mode === 'public'): ?>
     <?php theme_action('body_open', $themeContext); ?>
-    <div class="text-site">
+    <div class="text-site<?= $defaultPublicTheme ? ' text-site--default' : '' ?>">
       <?php theme_action('header_before', $themeContext); ?>
       <header class="text-header">
         <div class="text-header__inner">
@@ -4977,6 +4990,20 @@ function render_layout(string $title, string $content, array $options = []): voi
         </div>
       </footer>
       <?php theme_action('footer_after', $themeContext); ?>
+      <?php if ($defaultPublicTheme): ?>
+        <div class="site-tools" data-site-tools>
+          <span class="site-tools__progress" data-scroll-progress aria-hidden="true"><span data-scroll-percent>0%</span></span>
+          <button class="site-tools__button site-tools__top" type="button" data-back-to-top aria-label="<?= h(sblog_t('回到顶部')) ?>" title="<?= h(sblog_t('回到顶部')) ?>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path></svg>
+          </button>
+          <button class="site-tools__button site-tools__theme" type="button" data-public-theme-toggle aria-label="<?= h(sblog_t('切换到深色模式')) ?>" aria-pressed="false" title="<?= h(sblog_t('切换到深色模式')) ?>">
+            <span class="site-tools__theme-icons" aria-hidden="true">
+              <svg class="site-tools__icon--moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+              <svg class="site-tools__icon--sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"></path></svg>
+            </span>
+          </button>
+        </div>
+      <?php endif; ?>
     </div>
   <?php else: ?>
     <div class="site-frame">
@@ -5031,7 +5058,7 @@ function render_layout(string $title, string $content, array $options = []): voi
       </footer>
     </div>
   <?php endif; ?>
-  <script src="<?= h(asset_url($mode === 'public' ? 'assets/index.js' : 'assets/admin.js')) ?>?v=<?= h(APP_VERSION) ?>"></script>
+  <script src="<?= h(asset_url($mode === 'public' ? 'assets/index.js' : 'assets/admin.js')) ?>?v=<?= h(APP_VERSION . ($mode === 'public' ? '-' . (string)filemtime(__DIR__ . '/assets/index.js') : '')) ?>"></script>
   <?php if ($mode === 'public') { theme_action('body_close', $themeContext); } ?>
 </body>
 </html>
@@ -6394,11 +6421,20 @@ function render_links_page(): void
       <?php if ($links): ?>
         <div class="friend-links">
           <?php foreach ($links as $link): ?>
-            <?php $host = (string)(parse_url((string)$link['url'], PHP_URL_HOST) ?: $link['url']); ?>
+            <?php
+            $avatarUrl = safe_link_url((string)$link['icon_url']);
+            $initialMatch = [];
+            $avatarInitial = preg_match('/^./u', (string)$link['name'], $initialMatch) === 1 ? $initialMatch[0] : '?';
+            ?>
             <a class="friend-link" href="<?= h((string)$link['url']) ?>" target="_blank" rel="noopener noreferrer">
-              <span class="friend-link__head"><?php if (trim((string)$link['icon_url']) !== ''): ?><img src="<?= h((string)$link['icon_url']) ?>" width="24" height="24" alt=""><?php endif; ?><strong><?= h((string)$link['name']) ?></strong></span>
-              <?php if (trim((string)$link['description']) !== ''): ?><span><?= h((string)$link['description']) ?></span><?php endif; ?>
-              <small><?= h($host) ?> ↗</small>
+              <span class="friend-link__avatar" aria-hidden="true">
+                <span><?= h($avatarInitial) ?></span>
+                <?php if ($avatarUrl !== '#'): ?><img src="<?= h($avatarUrl) ?>" width="24" height="24" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()"><?php endif; ?>
+              </span>
+              <span class="friend-link__content">
+                <strong><?= h((string)$link['name']) ?></strong>
+                <?php if (trim((string)$link['description']) !== ''): ?><span><?= h((string)$link['description']) ?></span><?php endif; ?>
+              </span>
             </a>
           <?php endforeach; ?>
         </div>
@@ -8488,7 +8524,7 @@ switch ($action) {
         $errors = [];
         if ($name === '') { $errors[] = '请填写网站名称。'; }
         if (!filter_var($url, FILTER_VALIDATE_URL) || !in_array(str_lower_u((string)parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) { $errors[] = '请填写有效的 HTTP 或 HTTPS 地址。'; }
-        if ($iconUrl !== '' && !filter_var($iconUrl, FILTER_VALIDATE_URL)) { $errors[] = '网站图标地址格式不正确。'; }
+        if ($iconUrl !== '' && (!filter_var($iconUrl, FILTER_VALIDATE_URL) || !in_array(str_lower_u((string)parse_url($iconUrl, PHP_URL_SCHEME)), ['http', 'https'], true))) { $errors[] = '网站图标地址格式不正确。'; }
         if ($errors) { render_admin_links_page(['id' => (string)$id, 'name' => $name, 'url' => $url, 'icon_url' => $iconUrl, 'description' => $description, 'sort_order' => (string)$sortOrder], $errors); }
         if ($id > 0 && one('SELECT id FROM links WHERE id = ?', [$id])) {
             q('UPDATE links SET name = ?, url = ?, icon_url = ?, description = ?, sort_order = ?, updated_at = ? WHERE id = ?', [$name, $url, $iconUrl, $description, $sortOrder, time(), $id]);
