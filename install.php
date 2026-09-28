@@ -45,13 +45,8 @@ function i_t(string $key, array $replace = []): string
             'check_failed' => '未通过',
             'details_title' => '安装信息',
             'site_name' => '站点名称',
-            'site_tagline' => '首页副标题',
             'admin_username' => '管理员用户名',
-            'admin_nickname' => '管理员昵称',
             'admin_email' => '管理员邮箱',
-            'pretty_url' => '伪静态 URL',
-            'disabled' => '关闭',
-            'enabled' => '开启',
             'admin_password' => '管理员密码',
             'confirm_password' => '确认密码',
             'start_install' => '开始安装',
@@ -87,9 +82,7 @@ function i_t(string $key, array $replace = []): string
             'env_plugins' => 'plugins 目录可写',
             'error_environment' => '当前服务器环境未满足安装要求。',
             'error_site_name' => '站点名称不能为空。',
-            'error_site_tagline' => '首页副标题不能为空。',
             'error_admin_username' => '管理员用户名不能为空。',
-            'error_author_name' => '作者显示名不能为空。',
             'error_admin_email' => '请填写有效的管理员邮箱地址。',
             'error_password' => '管理员密码不能为空。',
             'error_password_match' => '两次输入的密码不一致。',
@@ -107,13 +100,8 @@ function i_t(string $key, array $replace = []): string
             'check_failed' => 'Failed',
             'details_title' => 'Installation details',
             'site_name' => 'Site name',
-            'site_tagline' => 'Homepage tagline',
             'admin_username' => 'Administrator username',
-            'admin_nickname' => 'Administrator display name',
             'admin_email' => 'Administrator email',
-            'pretty_url' => 'Pretty URLs',
-            'disabled' => 'Off',
-            'enabled' => 'On',
             'admin_password' => 'Administrator password',
             'confirm_password' => 'Confirm password',
             'start_install' => 'Install now',
@@ -149,9 +137,7 @@ function i_t(string $key, array $replace = []): string
             'env_plugins' => 'Writable plugins directory',
             'error_environment' => 'The server does not meet the installation requirements.',
             'error_site_name' => 'Site name is required.',
-            'error_site_tagline' => 'Homepage tagline is required.',
             'error_admin_username' => 'Administrator username is required.',
-            'error_author_name' => 'Administrator display name is required.',
             'error_admin_email' => 'Enter a valid administrator email address.',
             'error_password' => 'Administrator password is required.',
             'error_password_match' => 'The passwords do not match.',
@@ -384,7 +370,68 @@ function i_render_page(string $title, string $body): void
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= i_h($title) ?></title>
-  <link rel="stylesheet" href="<?= i_h(i_asset_url('assets/admin.css')) ?>?v=v1.6.0">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #171717;
+      --muted: #666;
+      --line: #e4e4e4;
+      --soft: #f5f5f5;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { min-width: 320px; margin: 0; background: #fff; color: var(--ink); font: 14px/1.6 var(--font); }
+    button, input, select { font: inherit; }
+    a { color: inherit; text-decoration: none; }
+    .main-wrap { width: min(calc(100% - 40px), 680px); margin: 0 auto; padding: 28px 0 80px; }
+    .install-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 48px; font-size: 13px; }
+    .install-toolbar > strong { font-weight: 700; white-space: nowrap; }
+    .install-language-switch { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 5px; }
+    .install-language-switch a { display: grid; min-width: 68px; min-height: 32px; place-items: center; padding: 0 8px; border-radius: 3px; color: var(--muted); font-size: 12px; font-weight: 600; }
+    .install-language-switch a:hover { color: var(--ink); background: var(--soft); }
+    .install-language-switch a.is-active { color: #fff; background: var(--ink); }
+    .install-language-switch a:focus-visible, .button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+    .hero { margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+    .hero__eyebrow { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
+    .hero__title { margin: 0; font-size: 30px; line-height: 1.25; font-weight: 650; }
+    .hero__lead { margin: 10px 0 0; color: var(--muted); }
+    .panel { margin-bottom: 28px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .install-environment, .admin-grid .panel:last-child { padding-bottom: 8px; }
+    .panel__header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 14px; }
+    .panel__header h2 { margin: 0; font-size: 16px; line-height: 1.4; }
+    .panel__meta { margin: 0; color: var(--muted); font-size: 12px; }
+    .environment-checks, .archive-items, .metric-grid { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .environment-check { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .environment-check:last-child, .archive-item:last-child, .metric-card:last-child { border-bottom: 0; }
+    .environment-check span { min-width: 0; overflow-wrap: anywhere; }
+    .environment-check__status { flex: 0 0 22px; font-size: 17px; line-height: 1; text-align: right; }
+    .form-stack, .field { display: grid; gap: 16px; }
+    .field { gap: 6px; }
+    .field label { font-size: 13px; font-weight: 600; }
+    .field input, .field select { width: 100%; min-width: 0; min-height: 44px; padding: 9px 11px; border: 1px solid #cfcfcf; border-radius: 4px; background: #fff; color: var(--ink); outline: none; }
+    .field input:focus, .field select:focus { border-color: var(--ink); box-shadow: 0 0 0 2px #e4e4e4; }
+    .action-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 18px; border: 1px solid var(--ink); border-radius: 4px; background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .button:hover { background: #333; }
+    .button--secondary { background: #fff; color: var(--ink); }
+    .button--secondary:hover { background: var(--soft); }
+    .button:disabled { border-color: #d6d6d6; background: #ececec; color: #777; cursor: not-allowed; }
+    .form-stack .button { width: 100%; }
+    .archive-items { margin: 0; padding: 0; list-style: none; }
+    .archive-item { padding: 8px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+    .metric-card { display: grid; grid-template-columns: minmax(110px, .35fr) minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .metric-card__label { color: var(--muted); }
+    .metric-card__value { overflow-wrap: anywhere; font-size: 14px; font-weight: 600; }
+    .empty-state { padding: 4px 0 28px; }
+    .flash { margin-bottom: 18px; padding: 10px 12px; border-left: 3px solid var(--ink); background: var(--soft); }
+    @media (max-width: 480px) {
+      .main-wrap { width: calc(100% - 32px); padding-top: 20px; }
+      .install-toolbar { margin-bottom: 36px; }
+      .hero__title { font-size: 26px; }
+      .metric-card { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+      .action-row .button { width: 100%; }
+    }
+  </style>
 </head>
 <body>
   <div class="site-frame">
@@ -422,7 +469,7 @@ function i_render_form(array $form, array $errors = []): void
       <div class="panel__body">
         <div class="environment-checks">
           <?php foreach ($environmentChecks as $check): ?>
-            <div class="environment-check<?= $check['ok'] ? ' is-ok' : ' is-error' ?>"><strong><?= i_h(i_t($check['ok'] ? 'check_passed' : 'check_failed')) ?></strong><span><?= i_h((string)$check['label']) ?></span></div>
+            <div class="environment-check<?= $check['ok'] ? ' is-ok' : ' is-error' ?>"><span><?= i_h((string)$check['label']) ?></span><span class="environment-check__status" role="img" aria-label="<?= i_h(i_t($check['ok'] ? 'check_passed' : 'check_failed')) ?>" title="<?= i_h(i_t($check['ok'] ? 'check_passed' : 'check_failed')) ?>"><?= $check['ok'] ? '✅' : '❌' ?></span></div>
           <?php endforeach; ?>
         </div>
       </div>
@@ -440,26 +487,14 @@ function i_render_form(array $form, array $errors = []): void
 
           <form class="form-stack" method="post">
             <input type="hidden" name="lang" value="<?= i_h(i_locale()) ?>">
-            <div class="field-grid">
-              <div class="field">
-                <label for="site_name"><?= i_h(i_t('site_name')) ?></label>
-                <input id="site_name" name="site_name" type="text" value="<?= i_h((string)$form['site_name']) ?>" required>
-              </div>
-              <div class="field">
-                <label for="site_tagline"><?= i_h(i_t('site_tagline')) ?></label>
-                <input id="site_tagline" name="site_tagline" type="text" value="<?= i_h((string)$form['site_tagline']) ?>" required>
-              </div>
+            <div class="field">
+              <label for="site_name"><?= i_h(i_t('site_name')) ?></label>
+              <input id="site_name" name="site_name" type="text" value="<?= i_h((string)$form['site_name']) ?>" required>
             </div>
 
-            <div class="field-grid">
-              <div class="field">
-                <label for="admin_username"><?= i_h(i_t('admin_username')) ?></label>
-                <input id="admin_username" name="admin_username" type="text" value="<?= i_h((string)$form['admin_username']) ?>" required>
-              </div>
-              <div class="field">
-                <label for="author_name"><?= i_h(i_t('admin_nickname')) ?></label>
-                <input id="author_name" name="author_name" type="text" value="<?= i_h((string)$form['author_name']) ?>" required>
-              </div>
+            <div class="field">
+              <label for="admin_username"><?= i_h(i_t('admin_username')) ?></label>
+              <input id="admin_username" name="admin_username" type="text" value="<?= i_h((string)$form['admin_username']) ?>" required>
             </div>
 
             <div class="field">
@@ -468,22 +503,12 @@ function i_render_form(array $form, array $errors = []): void
             </div>
 
             <div class="field">
-              <label for="pretty_url"><?= i_h(i_t('pretty_url')) ?></label>
-              <select id="pretty_url" name="pretty_url">
-                <option value="0"<?= (string)($form['pretty_url'] ?? '0') === '0' ? ' selected' : '' ?>><?= i_h(i_t('disabled')) ?></option>
-                <option value="1"<?= (string)($form['pretty_url'] ?? '0') === '1' ? ' selected' : '' ?>><?= i_h(i_t('enabled')) ?></option>
-              </select>
+              <label for="admin_password"><?= i_h(i_t('admin_password')) ?></label>
+              <input id="admin_password" name="admin_password" type="password" autocomplete="new-password" required>
             </div>
-
-            <div class="field-grid">
-              <div class="field">
-                <label for="admin_password"><?= i_h(i_t('admin_password')) ?></label>
-                <input id="admin_password" name="admin_password" type="password" autocomplete="new-password" required>
-              </div>
-              <div class="field">
-                <label for="admin_password2"><?= i_h(i_t('confirm_password')) ?></label>
-                <input id="admin_password2" name="admin_password2" type="password" autocomplete="new-password" required>
-              </div>
+            <div class="field">
+              <label for="admin_password2"><?= i_h(i_t('confirm_password')) ?></label>
+              <input id="admin_password2" name="admin_password2" type="password" autocomplete="new-password" required>
             </div>
 
             <div class="action-row">
@@ -575,11 +600,8 @@ if (i_is_installed()) {
 
 $form = [
     'site_name' => 'Simple PHP Blog',
-    'site_tagline' => 'A small PHP blog running on one main entry file.',
     'admin_username' => 'admin',
-    'author_name' => 'Admin',
     'admin_email' => '',
-    'pretty_url' => '0',
 ];
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -588,11 +610,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $form = [
     'site_name' => trim((string)($_POST['site_name'] ?? 'Simple PHP Blog')),
-    'site_tagline' => trim((string)($_POST['site_tagline'] ?? '')),
     'admin_username' => trim((string)($_POST['admin_username'] ?? 'admin')),
-    'author_name' => trim((string)($_POST['author_name'] ?? 'Admin')),
     'admin_email' => strtolower(trim((string)($_POST['admin_email'] ?? ''))),
-    'pretty_url' => (string)($_POST['pretty_url'] ?? '0') === '1' ? '1' : '0',
 ];
 
 $password = (string)($_POST['admin_password'] ?? '');
@@ -607,16 +626,8 @@ if ($form['site_name'] === '') {
     $errors[] = i_t('error_site_name');
 }
 
-if ($form['site_tagline'] === '') {
-    $errors[] = i_t('error_site_tagline');
-}
-
 if ($form['admin_username'] === '') {
     $errors[] = i_t('error_admin_username');
-}
-
-if ($form['author_name'] === '') {
-    $errors[] = i_t('error_author_name');
 }
 
 if ($form['admin_email'] === '' || strlen($form['admin_email']) > 160 || !filter_var($form['admin_email'], FILTER_VALIDATE_EMAIL)) {
@@ -793,9 +804,7 @@ $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_media_local_path ON media(local
 $now = time();
 $settings = i_default_settings();
 $settings['site_name'] = $form['site_name'];
-$settings['site_tagline'] = $form['site_tagline'];
-$settings['site_description'] = $form['site_tagline'];
-$settings['pretty_url'] = $form['pretty_url'];
+$settings['site_description'] = $settings['site_tagline'];
 
 $statement = $db->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)');
 foreach ($settings as $name => $value) {
@@ -803,7 +812,7 @@ foreach ($settings as $name => $value) {
 }
 
 $db->prepare('INSERT INTO users(username, password_hash, nickname, email, avatar_url, website_url, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)')
-    ->execute([$form['admin_username'], password_hash($password, PASSWORD_DEFAULT), $form['author_name'], $form['admin_email'], '', '', $now]);
+    ->execute([$form['admin_username'], password_hash($password, PASSWORD_DEFAULT), 'Admin', $form['admin_email'], '', '', $now]);
 $defaultAuthorId = (int)$db->lastInsertId();
 
 $db->prepare('INSERT INTO categories(name, slug, description, sort_order, created_at, updated_at) VALUES(?, ?, ?, ?, ?, ?)')

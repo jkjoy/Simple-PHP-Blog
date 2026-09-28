@@ -432,85 +432,50 @@ if ($completed) {
   <title><?= sbi_h(sbi_t('SBlog 安装器', 'SBlog Installer')) ?></title>
   <style>
     :root {
-      --bg: #f4f5f3;
-      --surface: #ffffff;
-      --surface-soft: #f8f9f7;
-      --text: #18201d;
-      --muted: #65716b;
-      --line: #dce1de;
-      --line-strong: #c7cfca;
-      --accent: #176b4d;
-      --accent-hover: #105b40;
-      --accent-soft: #e7f3ed;
-      --danger: #b42318;
-      --danger-soft: #fff1ef;
-      --shadow: 0 14px 38px rgba(26, 39, 33, .08);
-      --radius: 8px;
-      --font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color-scheme: light;
+      --text: #171717;
+      --muted: #666;
+      --line: #e4e4e4;
+      --soft: #f5f5f5;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-width: 320px;
       min-height: 100vh;
-      background: var(--bg);
+      background: #fff;
       color: var(--text);
-      font: 15px/1.6 var(--font);
-      letter-spacing: 0;
-      -webkit-font-smoothing: antialiased;
+      font: 14px/1.6 var(--font);
     }
     button, a { -webkit-tap-highlight-color: transparent; }
-    .page { width: min(100% - 32px, 980px); margin: 0 auto; padding: 42px 0; }
-    .masthead { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 30px; }
-    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
-    .brand-mark {
-      display: grid;
-      width: 38px;
-      height: 38px;
-      place-items: center;
-      border-radius: var(--radius);
-      background: var(--text);
-      color: #fff;
-      font-weight: 750;
-      font-size: 18px;
-    }
-    .brand-copy { display: grid; line-height: 1.25; }
-    .brand-copy strong { font-size: 15px; }
-    .brand-copy span { margin-top: 3px; color: var(--muted); font-size: 12px; }
-    .masthead-actions { display: flex; align-items: center; gap: 16px; }
-    .secure-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; white-space: nowrap; }
-    .secure-label::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
-    .language-switch { display: inline-grid; grid-template-columns: repeat(2, minmax(64px, 1fr)); padding: 3px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-    .language-switch a { display: grid; min-height: 40px; place-items: center; padding: 0 10px; border-radius: 5px; color: var(--muted); font-size: 12px; font-weight: 700; text-decoration: none; transition: background-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease; }
-    .language-switch a:hover { color: var(--text); }
-    .language-switch a:active { transform: scale(.96); }
-    .language-switch a:focus-visible { outline: 3px solid rgba(23, 107, 77, .24); outline-offset: 1px; }
-    .language-switch a.is-active { background: var(--surface-soft); color: var(--text); box-shadow: 0 1px 3px rgba(26, 39, 33, .1); }
-    .installer-shell { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
-    .intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: end; padding: 38px 40px 32px; border-bottom: 1px solid var(--line); }
-    .eyebrow { margin: 0 0 11px; color: var(--accent); font-size: 12px; font-weight: 750; text-transform: uppercase; }
-    h1 { margin: 0; font-size: 40px; line-height: 1.15; font-weight: 720; letter-spacing: 0; text-wrap: balance; }
-    .lead { max-width: 610px; margin: 14px 0 0; color: var(--muted); font-size: 16px; }
-    .version-box { min-width: 126px; padding-left: 22px; border-left: 1px solid var(--line); }
-    .version-box span { display: block; color: var(--muted); font-size: 12px; }
-    .version-box strong { display: block; margin-top: 4px; font-size: 21px; font-variant-numeric: tabular-nums; }
-    .content { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr); }
-    .checks { padding: 30px 40px 34px; border-right: 1px solid var(--line); }
-    .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 17px; }
-    h2 { margin: 0; font-size: 16px; line-height: 1.35; text-wrap: balance; }
+    .page { width: min(calc(100% - 40px), 680px); margin: 0 auto; padding: 28px 0 80px; }
+    .masthead { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 48px; font-size: 13px; }
+    .masthead > strong { white-space: nowrap; }
+    .language-switch { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 5px; }
+    .language-switch a { display: grid; min-width: 68px; min-height: 32px; place-items: center; padding: 0 8px; border-radius: 3px; color: var(--muted); font-size: 12px; font-weight: 600; text-decoration: none; }
+    .language-switch a:hover { color: var(--text); background: var(--soft); }
+    .language-switch a.is-active { color: #fff; background: var(--text); }
+    .language-switch a:focus-visible, .button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+    .intro { margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid var(--line); }
+    .eyebrow { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 600; }
+    h1 { margin: 0; font-size: 30px; line-height: 1.25; font-weight: 650; }
+    .lead { margin: 10px 0 0; color: var(--muted); }
+    .version-box { display: flex; align-items: baseline; gap: 8px; margin-top: 16px; }
+    .version-box span { color: var(--muted); font-size: 12px; }
+    .version-box strong { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .checks { margin-bottom: 28px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+    .section-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 16px; margin-bottom: 14px; }
+    h2 { margin: 0; font-size: 16px; line-height: 1.4; }
     .section-heading span { color: var(--muted); font-size: 12px; }
-    .check-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
-    .check-item { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 11px; align-items: center; min-height: 50px; border-bottom: 1px solid var(--line); }
-    .check-icon { display: grid; width: 18px; height: 18px; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 800; }
-    .check-item.is-error .check-icon { background: var(--danger-soft); color: var(--danger); }
-    .check-label { min-width: 0; font-weight: 600; }
-    .check-detail { max-width: 145px; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-    .action-panel { display: flex; min-width: 0; flex-direction: column; justify-content: space-between; gap: 28px; padding: 30px; background: var(--surface-soft); }
-    .status-mark { display: grid; width: 34px; height: 34px; margin-bottom: 17px; place-items: center; border: 1px solid #b8d6c8; border-radius: var(--radius); background: var(--accent-soft); color: var(--accent); font-size: 16px; font-weight: 800; }
-    .status-mark.is-error { border-color: #efc4bf; background: var(--danger-soft); color: var(--danger); }
-    .status-copy h2 { font-size: 19px; }
-    .status-copy p { margin: 9px 0 0; color: var(--muted); font-size: 13px; }
-    .alert { margin-top: 17px; padding: 11px 12px; border: 1px solid #efc4bf; border-radius: var(--radius); background: var(--danger-soft); color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+    .check-list { margin: 0; padding: 0; list-style: none; }
+    .check-item { display: grid; grid-template-columns: minmax(0, 1fr) 22px; gap: 0 12px; align-items: center; min-height: 50px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .check-item:last-child { border-bottom: 0; }
+    .check-icon { grid-column: 2; grid-row: 1 / 3; font-size: 17px; line-height: 1; text-align: right; }
+    .check-label { grid-column: 1; min-width: 0; font-weight: 500; }
+    .check-detail { grid-column: 1; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+    .action-panel { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+    .alert { margin-bottom: 16px; padding: 10px 12px; border-left: 3px solid var(--text); background: var(--soft); overflow-wrap: anywhere; }
     .button {
       display: inline-flex;
       width: 100%;
@@ -518,64 +483,39 @@ if ($completed) {
       align-items: center;
       justify-content: center;
       gap: 9px;
-      border: 1px solid var(--accent);
-      border-radius: var(--radius);
-      background: var(--accent);
+      border: 1px solid var(--text);
+      border-radius: 4px;
+      background: var(--text);
       color: #fff;
       cursor: pointer;
-      font: 700 14px/1 var(--font);
+      font: 600 13px/1 var(--font);
       text-decoration: none;
-      transition: background .16s ease, border-color .16s ease, transform .16s ease;
     }
-    .button:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
-    .button:active { transform: scale(.96); }
-    .button:focus-visible { outline: 3px solid rgba(23, 107, 77, .24); outline-offset: 2px; }
-    .button:disabled { border-color: var(--line-strong); background: #d5dad7; color: #77817c; cursor: not-allowed; }
+    .button:hover { background: #333; }
+    .button:disabled { border-color: #d6d6d6; background: #ececec; color: #777; cursor: not-allowed; }
     .button.is-loading { cursor: wait; }
     .spinner { display: none; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.42); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
     .button.is-loading .spinner { display: inline-block; }
-    .action-note { margin: 11px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
-    .footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 17px; color: var(--muted); font-size: 12px; }
+    .action-note { margin: 10px 0 0; color: var(--muted); font-size: 12px; }
+    .footer { display: grid; gap: 4px; margin-top: 20px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .footer code { color: var(--text); font: inherit; }
     @keyframes spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
-    @media (max-width: 720px) {
-      .page { width: min(100% - 24px, 560px); padding: 22px 0; }
-      .masthead { margin-bottom: 20px; }
-      .secure-label { display: none; }
-      .intro { grid-template-columns: 1fr; gap: 22px; padding: 28px 24px 24px; }
-      h1 { font-size: 30px; }
-      .version-box { padding: 0; border: 0; }
-      .version-box span, .version-box strong { display: inline; }
-      .version-box strong { margin-left: 7px; font-size: 16px; }
-      .content { grid-template-columns: 1fr; }
-      .checks { padding: 24px; border-right: 0; border-bottom: 1px solid var(--line); }
-      .action-panel { padding: 24px; }
-      .footer { display: block; }
-      .footer span { display: block; margin-top: 4px; }
-    }
-    @media (max-width: 420px) {
-      .masthead { align-items: flex-start; flex-direction: column; }
-      .masthead-actions, .language-switch { width: 100%; }
-      .check-item { grid-template-columns: 22px minmax(0, 1fr); padding: 10px 0; }
-      .check-detail { grid-column: 2; max-width: 100%; white-space: normal; }
+    @media (max-width: 480px) {
+      .page { width: calc(100% - 32px); padding-top: 20px; }
+      .masthead { margin-bottom: 36px; }
+      h1 { font-size: 26px; }
     }
   </style>
 </head>
 <body>
   <main class="page">
     <header class="masthead">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">S</span>
-        <span class="brand-copy"><strong>Simple PHP Blog</strong><span><?= sbi_h(sbi_t('单文件部署工具', 'Single-file deployment tool')) ?></span></span>
-      </div>
-      <div class="masthead-actions">
-        <span class="secure-label"><?= sbi_h(sbi_t('仅从官方 GitHub Release 获取', 'Official GitHub Releases only')) ?></span>
-        <nav class="language-switch" aria-label="<?= sbi_h(sbi_t('安装语言', 'Installer language')) ?>">
-          <a href="<?= sbi_h(sbi_url(basename(sbi_self_url())) . '?' . http_build_query(array_filter(['lang' => 'zh-CN', 'done' => $completed ? '1' : null]))) ?>" hreflang="zh-CN"<?= sbi_locale() === 'zh-CN' ? ' class="is-active" aria-current="page"' : '' ?>>中文</a>
-          <a href="<?= sbi_h(sbi_url(basename(sbi_self_url())) . '?' . http_build_query(array_filter(['lang' => 'en', 'done' => $completed ? '1' : null]))) ?>" hreflang="en"<?= sbi_locale() === 'en' ? ' class="is-active" aria-current="page"' : '' ?>>English</a>
-        </nav>
-      </div>
+      <strong>SBlog Setup</strong>
+      <nav class="language-switch" aria-label="<?= sbi_h(sbi_t('安装语言', 'Installer language')) ?>">
+        <a href="<?= sbi_h(sbi_url(basename(sbi_self_url())) . '?' . http_build_query(array_filter(['lang' => 'zh-CN', 'done' => $completed ? '1' : null]))) ?>" hreflang="zh-CN"<?= sbi_locale() === 'zh-CN' ? ' class="is-active" aria-current="page"' : '' ?>>中文</a>
+        <a href="<?= sbi_h(sbi_url(basename(sbi_self_url())) . '?' . http_build_query(array_filter(['lang' => 'en', 'done' => $completed ? '1' : null]))) ?>" hreflang="en"<?= sbi_locale() === 'en' ? ' class="is-active" aria-current="page"' : '' ?>>English</a>
+      </nav>
     </header>
 
     <section class="installer-shell" aria-labelledby="installer-title">
@@ -600,22 +540,16 @@ if ($completed) {
           <ul class="check-list">
             <?php foreach ($checks as $check): ?>
               <li class="check-item<?= $check['ok'] ? '' : ' is-error' ?>">
-                <span class="check-icon" aria-hidden="true"><?= $check['ok'] ? '✓' : '!' ?></span>
                 <span class="check-label"><?= sbi_h((string)$check['label']) ?></span>
                 <span class="check-detail" title="<?= sbi_h((string)$check['detail']) ?>"><?= sbi_h((string)$check['detail']) ?></span>
+                <span class="check-icon" role="img" aria-label="<?= sbi_h($check['ok'] ? sbi_t('通过', 'Passed') : sbi_t('未通过', 'Failed')) ?>" title="<?= sbi_h($check['ok'] ? sbi_t('通过', 'Passed') : sbi_t('未通过', 'Failed')) ?>"><?= $check['ok'] ? '✅' : '❌' ?></span>
               </li>
             <?php endforeach; ?>
           </ul>
         </section>
 
         <aside class="action-panel" aria-live="polite">
-          <div class="status-copy">
-            <span class="status-mark<?= $error !== '' || !$environmentReady ? ' is-error' : '' ?>" aria-hidden="true"><?= $error !== '' || !$environmentReady ? '!' : '✓' ?></span>
-            <h2><?= sbi_h($statusTitle) ?></h2>
-            <p><?= sbi_h($statusText) ?></p>
-            <?php if ($error !== ''): ?><div class="alert" role="alert"><?= sbi_h($error) ?></div><?php endif; ?>
-          </div>
-
+          <?php if ($error !== ''): ?><div class="alert" role="alert"><?= sbi_h($error) ?></div><?php endif; ?>
           <div>
             <?php if ($completed || $appState === 'deployed'): ?>
               <a class="button" href="<?= sbi_h(sbi_localized_url('install.php')) ?>"><?= sbi_h(sbi_t('继续初始化站点', 'Continue site setup')) ?></a>
