@@ -7,6 +7,4 @@ data
 /plugins/*/
 !/plugins/english-language/
 !/plugins/russian-language/
-!/plugins/comment-enhancer/
-!/plugins/comment-enhancer/**
 /store/catalog.json

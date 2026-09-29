@@ -1,7 +1,0 @@
-{
-  "name": "评论增强",
-  "version": "1.2.0",
-  "author": "SBlog",
-  "description": "为公开评论显示邮箱活跃等级、IP 归属地、浏览器和操作系统。",
-  "settings_action": "admin_comment_enhancer"
-}
