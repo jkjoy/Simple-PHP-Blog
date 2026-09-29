@@ -312,10 +312,18 @@ function initSettingsControls() {
 function initPostFormatControl() {
   const kind = document.getElementById("kind");
   const field = document.querySelector("[data-post-format-field]");
-  if (!(kind instanceof HTMLSelectElement) || !(field instanceof HTMLElement)) return;
+  const postOnlyFields = document.querySelectorAll("[data-post-only-field]");
+  if (!(kind instanceof HTMLSelectElement)) return;
 
   const syncVisibility = () => {
-    field.hidden = kind.value === "page";
+    const isPage = kind.value === "page";
+    if (field instanceof HTMLElement) field.hidden = isPage;
+    postOnlyFields.forEach((postOnlyField) => {
+      postOnlyField.hidden = isPage;
+      postOnlyField.querySelectorAll("input, select, textarea, button").forEach((control) => {
+        control.disabled = isPage;
+      });
+    });
   };
   kind.addEventListener("change", syncVisibility);
   syncVisibility();
@@ -736,6 +744,11 @@ function initMarkdownEditor() {
       insertBlock(block, 4);
     }
     if (action === "horizontal-rule") insertBlock("---");
+    if (action === "reply-hidden") {
+      const selected = editor.value.slice(editor.selectionStart, editor.selectionEnd)
+        || sblogText("reply_hidden_content", "回复后可见的内容");
+      insertBlock(`[reply]\n${selected}\n[/reply]`, "[reply]\n".length, selected.length);
+    }
   };
 
   root.querySelectorAll("[data-markdown-action]").forEach((button) => {

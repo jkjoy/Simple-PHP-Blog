@@ -313,6 +313,7 @@ function ensure_schema(PDO $pdo): void
             title TEXT NOT NULL,
             excerpt TEXT NOT NULL DEFAULT '',
             content TEXT NOT NULL,
+            content_password_hash TEXT NOT NULL DEFAULT '',
             kind TEXT NOT NULL DEFAULT 'post',
             post_format TEXT NOT NULL DEFAULT 'text',
             tags TEXT NOT NULL DEFAULT '[]',
@@ -469,12 +470,17 @@ function ensure_schema(PDO $pdo): void
         $pdo->exec("ALTER TABLE posts ADD COLUMN allow_comments INTEGER NOT NULL DEFAULT 0");
     }
 
+    if (!isset($columns['content_password_hash'])) {
+        $pdo->exec("ALTER TABLE posts ADD COLUMN content_password_hash TEXT NOT NULL DEFAULT ''");
+    }
+
     $pdo->exec("UPDATE posts SET kind = 'post' WHERE kind IS NULL OR trim(kind) = ''");
     $pdo->exec("UPDATE posts SET post_format = 'text' WHERE kind = 'page' OR post_format NOT IN ('text', 'image')");
     $pdo->exec("UPDATE posts SET tags = '[]' WHERE tags IS NULL OR trim(tags) = ''");
     $pdo->exec("UPDATE posts SET views = 0 WHERE views IS NULL");
     $pdo->exec("UPDATE posts SET is_pinned = 0 WHERE is_pinned IS NULL");
     $pdo->exec("UPDATE posts SET allow_comments = 0 WHERE allow_comments IS NULL");
+    $pdo->exec("UPDATE posts SET content_password_hash = '' WHERE content_password_hash IS NULL");
     $defaultAuthorId = (int)($pdo->query('SELECT id FROM users ORDER BY id ASC LIMIT 1')->fetchColumn() ?: 0);
     if ($defaultAuthorId > 0) {
         $pdo->prepare('UPDATE posts SET author_id = ? WHERE author_id IS NULL OR author_id NOT IN (SELECT id FROM users)')->execute([$defaultAuthorId]);
@@ -2824,6 +2830,7 @@ function url_for(string $route, array $params = []): string
         'delete_post' => script_url() . '?a=delete_post',
         'change_status' => script_url() . '?a=change_status',
         'like_post' => script_url() . '?a=like_post',
+        'unlock_content' => script_url() . '?a=unlock_content',
         'submit_comment' => script_url() . '?a=submit_comment',
         'moderate_comments' => script_url() . '?a=moderate_comments',
         'mark_comments_read' => script_url() . '?a=mark_comments_read',
@@ -3044,8 +3051,110 @@ function unique_slug(string $seed, ?int $excludeId = null): string
     }
 }
 
+function parse_reply_hidden_blocks(string $markdown): array
+{
+    $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $markdown));
+    $segments = [];
+    $buffer = [];
+    $depth = 0;
+    $inCode = false;
+
+    $flush = static function () use (&$segments, &$buffer, &$depth): void {
+        if ($buffer === []) {
+            return;
+        }
+        $segments[] = ['hidden' => $depth > 0, 'markdown' => implode("\n", $buffer)];
+        $buffer = [];
+    };
+
+    foreach ($lines as $line) {
+        if (preg_match('/^```(?:[\w-]+)?\s*$/', $line)) {
+            $buffer[] = $line;
+            $inCode = !$inCode;
+            continue;
+        }
+        if (!$inCode && trim($line) === '[reply]') {
+            if ($depth === 0) {
+                $flush();
+            }
+            $depth++;
+            continue;
+        }
+        if (!$inCode && trim($line) === '[/reply]' && $depth > 0) {
+            if ($depth === 1) {
+                $flush();
+            }
+            $depth--;
+            continue;
+        }
+        $buffer[] = $line;
+    }
+    $flush();
+
+    return $segments;
+}
+
+function reply_hidden_syntax_errors(string $markdown): array
+{
+    $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $markdown));
+    $hidden = false;
+    $inCode = false;
+    $errors = [];
+
+    foreach ($lines as $line) {
+        if (preg_match('/^```(?:[\w-]+)?\s*$/', $line)) {
+            $inCode = !$inCode;
+            continue;
+        }
+        if ($inCode) {
+            continue;
+        }
+        $marker = trim($line);
+        if ($marker === '[reply]') {
+            if ($hidden) {
+                $errors[] = '回复可见标记不能嵌套。';
+            } else {
+                $hidden = true;
+            }
+        } elseif ($marker === '[/reply]') {
+            if (!$hidden) {
+                $errors[] = '回复可见结束标记缺少对应的开始标记。';
+            } else {
+                $hidden = false;
+            }
+        }
+    }
+    if ($hidden) {
+        $errors[] = '回复可见内容缺少结束标记。';
+    }
+
+    return array_values(array_unique($errors));
+}
+
+function strip_reply_hidden_blocks(string $markdown): string
+{
+    $public = [];
+    foreach (parse_reply_hidden_blocks($markdown) as $segment) {
+        if (empty($segment['hidden'])) {
+            $public[] = (string)$segment['markdown'];
+        }
+    }
+    return trim(implode("\n\n", $public));
+}
+
+function content_has_reply_hidden_blocks(string $markdown): bool
+{
+    foreach (parse_reply_hidden_blocks($markdown) as $segment) {
+        if (!empty($segment['hidden'])) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function markdown_to_plain(string $markdown): string
 {
+    $markdown = strip_reply_hidden_blocks($markdown);
     $text = preg_replace('/```.*?```/su', ' ', $markdown) ?? $markdown;
     $text = preg_replace('/!\[[^\]]*]\([^)]+\)/u', ' ', $text) ?? $text;
     $text = preg_replace('/\[(.*?)\]\((.*?)\)/u', '$1', $text) ?? $text;
@@ -3730,7 +3839,7 @@ function markdown_table_alignments(string $line): ?array
 
 function markdown_to_html(string $markdown): string
 {
-    $markdown = trim(str_replace(["\r\n", "\r"], "\n", $markdown));
+    $markdown = trim(str_replace(["\r\n", "\r"], "\n", strip_reply_hidden_blocks($markdown)));
 
     if ($markdown === '') {
         return '<p>' . h(sblog_t('暂无内容。')) . '</p>';
@@ -3922,6 +4031,252 @@ function markdown_to_html(string $markdown): string
     return implode("\n", $html);
 }
 
+function remember_reply_hidden_comment(int $postId, int $commentId): void
+{
+    if ($postId < 1 || $commentId < 1) {
+        return;
+    }
+    $stored = $_SESSION['reply_hidden_comment_ids'][$postId] ?? [];
+    $ids = is_array($stored) ? array_map('intval', $stored) : [];
+    $ids[] = $commentId;
+    $ids = array_values(array_unique(array_filter($ids, static fn(int $id): bool => $id > 0)));
+    $_SESSION['reply_hidden_comment_ids'][$postId] = array_slice($ids, -8);
+}
+
+function can_view_reply_hidden_content(array $post): bool
+{
+    if (is_admin()) {
+        return true;
+    }
+    $postId = (int)($post['id'] ?? 0);
+    $stored = $_SESSION['reply_hidden_comment_ids'][$postId] ?? [];
+    if ($postId < 1 || !is_array($stored)) {
+        return false;
+    }
+    foreach (array_slice(array_reverse($stored), 0, 8) as $commentId) {
+        $commentId = (int)$commentId;
+        if ($commentId > 0 && one(
+            'SELECT id FROM comments WHERE id = ? AND post_id = ? AND status = ? LIMIT 1',
+            [$commentId, $postId, 'approved']
+        )) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function content_requires_password(array $post): bool
+{
+    return content_kind($post) === 'post' && trim((string)($post['content_password_hash'] ?? '')) !== '';
+}
+
+function content_password_is_unlocked(array $post): bool
+{
+    if (!content_requires_password($post) || is_admin()) {
+        return true;
+    }
+    $postId = (int)($post['id'] ?? 0);
+    $unlock = $_SESSION['content_password_unlocks'][$postId] ?? null;
+    if (!is_array($unlock) || (int)($unlock['expires_at'] ?? 0) < time()) {
+        unset($_SESSION['content_password_unlocks'][$postId]);
+        return false;
+    }
+    $fingerprint = hash('sha256', (string)$post['content_password_hash']);
+    if (!hash_equals($fingerprint, (string)($unlock['fingerprint'] ?? ''))) {
+        unset($_SESSION['content_password_unlocks'][$postId]);
+        return false;
+    }
+    return true;
+}
+
+function remember_content_password_unlock(array $post): void
+{
+    $postId = (int)($post['id'] ?? 0);
+    if ($postId < 1 || !content_requires_password($post)) {
+        return;
+    }
+    $_SESSION['content_password_unlocks'][$postId] = [
+        'fingerprint' => hash('sha256', (string)$post['content_password_hash']),
+        'expires_at' => time() + 43200,
+    ];
+}
+
+function set_content_password_notice(int $postId, string $message): void
+{
+    if ($postId > 0) {
+        $_SESSION['content_password_notices'][$postId] = $message;
+    }
+}
+
+function pull_content_password_notice(int $postId): string
+{
+    $message = (string)($_SESSION['content_password_notices'][$postId] ?? '');
+    unset($_SESSION['content_password_notices'][$postId]);
+    return $message;
+}
+
+function content_password_rate_file(int $postId): string
+{
+    return CACHE_DIR . '/content-password-' . hash('sha256', client_ip_hash() . ':' . $postId) . '.json';
+}
+
+function record_content_password_attempt(int $postId): bool
+{
+    ensure_runtime_dirs();
+    prune_comment_rate_files();
+    $handle = @fopen(content_password_rate_file($postId), 'c+');
+    if ($handle === false || !flock($handle, LOCK_EX)) {
+        if (is_resource($handle)) {
+            fclose($handle);
+        }
+        return false;
+    }
+    $state = json_decode((string)stream_get_contents($handle), true);
+    $now = time();
+    if (!is_array($state) || $now - (int)($state['since'] ?? 0) >= 900) {
+        $state = ['count' => 0, 'since' => $now];
+    }
+    $allowed = (int)$state['count'] < 5;
+    if ($allowed) {
+        $state['count'] = (int)$state['count'] + 1;
+    }
+    $encoded = json_encode($state);
+    $stored = is_string($encoded) && rewind($handle) && ftruncate($handle, 0)
+        && fwrite($handle, $encoded) === strlen($encoded) && fflush($handle);
+    flock($handle, LOCK_UN);
+    fclose($handle);
+    return $allowed && $stored;
+}
+
+function clear_content_password_attempts(int $postId): void
+{
+    if ($postId < 1) {
+        return;
+    }
+    $handle = @fopen(content_password_rate_file($postId), 'c+');
+    if ($handle === false) {
+        return;
+    }
+    if (flock($handle, LOCK_EX)) {
+        $encoded = json_encode(['count' => 0, 'since' => time()]);
+        if (is_string($encoded) && rewind($handle) && ftruncate($handle, 0)) {
+            $written = fwrite($handle, $encoded);
+            if (is_int($written) && $written === strlen($encoded)) {
+                fflush($handle);
+            }
+        }
+        flock($handle, LOCK_UN);
+    }
+    fclose($handle);
+}
+
+function send_private_content_headers(array $post): void
+{
+    if (!headers_sent() && (content_requires_password($post) || content_has_reply_hidden_blocks((string)($post['content'] ?? '')))) {
+        header('Cache-Control: private, no-store, max-age=0');
+        header('Pragma: no-cache');
+        header('Vary: Cookie', false);
+        if (content_requires_password($post)) {
+            header('X-Robots-Tag: noindex, noarchive');
+        }
+    }
+}
+
+function public_content_description(array $post): string
+{
+    if (content_requires_password($post)) {
+        return sblog_t('此文章受密码保护。');
+    }
+    if (content_has_reply_hidden_blocks((string)($post['content'] ?? ''))) {
+        $description = derive_excerpt((string)$post['content']);
+        return $description !== '' ? $description : sblog_t('此内容回复后可见');
+    }
+    $excerpt = trim((string)($post['excerpt'] ?? ''));
+    return $excerpt !== '' ? $excerpt : derive_excerpt((string)($post['content'] ?? ''));
+}
+
+function public_content_context(array $post): array
+{
+    $description = public_content_description($post);
+    if (content_requires_password($post)) {
+        $post['content'] = '';
+    } else {
+        $post['content'] = strip_reply_hidden_blocks((string)($post['content'] ?? ''));
+    }
+    $post['excerpt'] = $description;
+    unset($post['content_password_hash']);
+    return $post;
+}
+
+function content_gate_icon(string $type): string
+{
+    $path = $type === 'password'
+        ? '<rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path>'
+        : '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle>';
+    return '<span class="content-gate__icon" aria-hidden="true"><svg viewBox="0 0 24 24">' . $path . '</svg></span>';
+}
+
+function render_reply_content_gate(array $post): string
+{
+    $canComment = setting('comments_enabled', '1') === '1'
+        && content_allows_comments($post)
+        && is_live_content($post);
+    $text = $canComment
+        ? sblog_t('发表评论并通过审核后即可查看。')
+        : sblog_t('评论功能当前不可用，暂时无法查看此内容。');
+    $actions = $canComment
+        ? '<div class="content-gate__actions"><a class="content-gate__link" href="#comments">' . h(sblog_t('前往评论')) . '</a></div>'
+        : '';
+    return '<aside class="content-gate content-gate--reply" role="note">'
+        . content_gate_icon('reply')
+        . '<h2 class="content-gate__title">' . h(sblog_t('此内容回复后可见')) . '</h2>'
+        . '<p class="content-gate__text">' . h($text) . '</p>' . $actions . '</aside>';
+}
+
+function render_password_content_gate(array $post): string
+{
+    $postId = (int)($post['id'] ?? 0);
+    $inputId = 'content-password-' . $postId;
+    $errorId = $inputId . '-error';
+    $error = pull_content_password_notice($postId);
+    $errorAttributes = $error !== ''
+        ? ' aria-invalid="true" aria-describedby="' . h($errorId) . '"'
+        : '';
+    return '<aside class="content-gate content-gate--password">'
+        . content_gate_icon('password')
+        . '<h2 class="content-gate__title">' . h(sblog_t('此文章受密码保护')) . '</h2>'
+        . '<p class="content-gate__text">' . h(sblog_t('请输入访问密码查看文章内容。')) . '</p>'
+        . '<form class="content-gate__form" method="post" action="' . h(url_for('unlock_content')) . '">'
+        . csrf_field()
+        . '<input type="hidden" name="post_id" value="' . h((string)$postId) . '">'
+        . '<div class="content-gate__field"><label for="' . h($inputId) . '">' . h(sblog_t('访问密码')) . '</label>'
+        . '<input class="content-gate__input" id="' . h($inputId) . '" name="content_password" type="password" autocomplete="off" maxlength="128" required' . $errorAttributes . '></div>'
+        . '<button class="content-gate__submit" type="submit">' . h(sblog_t('查看文章')) . '</button>'
+        . ($error !== '' ? '<p class="content-gate__error" id="' . h($errorId) . '" role="alert">' . h($error) . '</p>' : '')
+        . '</form></aside>';
+}
+
+function render_content_html(array $post): string
+{
+    if (content_requires_password($post) && !content_password_is_unlocked($post)) {
+        return render_password_content_gate($post);
+    }
+    $segments = parse_reply_hidden_blocks((string)($post['content'] ?? ''));
+    $canViewHidden = can_view_reply_hidden_content($post);
+    $html = [];
+    foreach ($segments as $segment) {
+        if (!empty($segment['hidden']) && !$canViewHidden) {
+            $html[] = render_reply_content_gate($post);
+            continue;
+        }
+        $markdown = trim((string)$segment['markdown']);
+        if ($markdown !== '') {
+            $html[] = markdown_to_html($markdown);
+        }
+    }
+    return $html !== [] ? implode("\n", $html) : '<p>' . h(sblog_t('暂无内容。')) . '</p>';
+}
+
 function post_state(array $post): array
 {
     if ((string)$post['status'] !== 'published') {
@@ -3955,10 +4310,11 @@ function fetch_published_posts(int $limit, int $offset): array
     $limit = max(1, $limit);
     $offset = max(0, $offset);
 
-    return all_rows(
+    $posts = all_rows(
         'SELECT * FROM posts WHERE kind = ? AND status = ? AND published_at <= ? ORDER BY is_pinned DESC, published_at DESC, id DESC LIMIT ' . $limit . ' OFFSET ' . $offset,
         ['post', 'published', time()]
     );
+    return array_map('public_content_context', $posts);
 }
 
 function count_published_posts(): int
@@ -4235,12 +4591,18 @@ function public_comments_for_post(int $postId, int $limit = 100): array
 
 function render_comment_meta(array $comment, array $context = []): string
 {
+    if (isset($context['post']) && is_array($context['post'])) {
+        $context['post'] = public_content_context($context['post']);
+    }
     $filtered = plugin_filter('comment_meta_html', '', array_merge($context, ['comment' => $comment]));
     return is_string($filtered) ? $filtered : '';
 }
 
 function render_comment_identity(array $comment, array $context = []): string
 {
+    if (isset($context['post']) && is_array($context['post'])) {
+        $context['post'] = public_content_context($context['post']);
+    }
     $filtered = plugin_filter('comment_identity_html', '', array_merge($context, ['comment' => $comment]));
     return is_string($filtered) ? $filtered : '';
 }
@@ -4557,7 +4919,8 @@ function prune_comment_rate_files(): void
 
         while ($iterator->valid() && $visited < 64 && $checked < 8) {
             $filename = $iterator->getFilename();
-            $isRateFile = $iterator->isFile() && preg_match('/^comment-[a-f0-9]{64}\.json$/', $filename);
+            $isRateFile = $iterator->isFile()
+                && preg_match('/^(?:comment|content-password)-[a-f0-9]{64}\.json$/', $filename);
             $path = $isRateFile ? $iterator->getPathname() : '';
             $mtime = $isRateFile ? $iterator->getMTime() : 0;
             $iterator->next();
@@ -4758,10 +5121,11 @@ function fetch_nav_pages(): array
 
 function fetch_feed_posts(int $limit = 20): array
 {
-    return all_rows(
+    $posts = all_rows(
         'SELECT * FROM posts WHERE kind = ? AND status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ' . max(1, $limit),
         ['post', 'published', time()]
     );
+    return array_map('public_content_context', $posts);
 }
 
 function tag_index_data(bool $publishedOnly = true): array
@@ -4805,7 +5169,7 @@ function fetch_posts_by_tag_slug(string $slug): array
     foreach ($posts as $post) {
         foreach (tag_descriptors($post) as $tag) {
             if ($tag['slug'] === $slug) {
-                $matches[] = $post;
+                $matches[] = public_content_context($post);
                 break;
             }
         }
@@ -4838,6 +5202,8 @@ function validate_post_input(array $input, ?array $existing = null): array
     $publishedInput = trim((string)($input['published_at'] ?? ''));
     $isPinned = isset($input['is_pinned']) && (string)$input['is_pinned'] === '1' ? 1 : 0;
     $allowComments = isset($input['allow_comments']) && (string)$input['allow_comments'] === '1' ? 1 : 0;
+    $contentPassword = (string)($input['content_password'] ?? '');
+    $removeContentPassword = isset($input['remove_content_password']) && (string)$input['remove_content_password'] === '1';
     $errors = [];
 
     if ($title === '') {
@@ -4847,12 +5213,30 @@ function validate_post_input(array $input, ?array $existing = null): array
     if ($content === '') {
         $errors[] = '正文不能为空。';
     }
+    $errors = array_merge($errors, reply_hidden_syntax_errors($content));
 
     $kind = $kind === 'page' ? 'page' : 'post';
     $postFormat = $kind === 'post' && $postFormat === 'image' ? 'image' : 'text';
     $categoryId = $kind === 'post' && $categoryId > 0 && one('SELECT id FROM categories WHERE id = ?', [$categoryId]) ? $categoryId : null;
     if ($kind === 'post' && $categoryId === null) {
         $errors[] = '文章必须选择一个分类。';
+    }
+    if ($kind === 'page' && content_has_reply_hidden_blocks($content) && !$allowComments) {
+        $errors[] = '独立页面使用回复可见内容时必须开启评论。';
+    }
+    $contentPasswordHash = $kind === 'post' ? (string)($existing['content_password_hash'] ?? '') : '';
+    if ($kind === 'post' && $contentPassword !== '') {
+        if ($removeContentPassword) {
+            $errors[] = '不能同时设置和移除文章访问密码。';
+        } elseif (str_len_u($contentPassword) < 8) {
+            $errors[] = '文章访问密码至少需要 8 个字符。';
+        } elseif (strlen($contentPassword) > 72) {
+            $errors[] = '文章访问密码不能超过 72 个字节。';
+        } else {
+            $contentPasswordHash = password_hash($contentPassword, PASSWORD_DEFAULT);
+        }
+    } elseif ($kind === 'post' && $removeContentPassword) {
+        $contentPasswordHash = '';
     }
     $status = $status === 'published' ? 'published' : 'draft';
     $publishedAt = (int)($existing['published_at'] ?? 0);
@@ -4877,7 +5261,7 @@ function validate_post_input(array $input, ?array $existing = null): array
             'excerpt' => $excerpt,
         ], [
             'title' => $title,
-            'content' => $content,
+            'content' => strip_reply_hidden_blocks($content),
             'kind' => $kind,
             'post_id' => $existing ? (int)$existing['id'] : null,
         ]);
@@ -4899,6 +5283,7 @@ function validate_post_input(array $input, ?array $existing = null): array
         'slug' => $slug,
         'excerpt' => $excerpt,
         'content' => $content,
+        'content_password_hash' => $contentPasswordHash,
         'kind' => $kind,
         'post_format' => $postFormat,
         'category_id' => $categoryId,
@@ -4925,6 +5310,7 @@ function save_post(array $data, ?int $id = null): int
         $data['tags'],
         $data['excerpt'],
         $data['content'],
+        (string)($data['content_password_hash'] ?? ''),
         $data['status'],
         $data['published_at'],
         $data['is_pinned'],
@@ -4934,7 +5320,7 @@ function save_post(array $data, ?int $id = null): int
 
     if ($id !== null) {
         q(
-            'UPDATE posts SET kind = ?, post_format = ?, category_id = ?, slug = ?, title = ?, tags = ?, excerpt = ?, content = ?, status = ?, published_at = ?, is_pinned = ?, allow_comments = ?, updated_at = ? WHERE id = ?',
+            'UPDATE posts SET kind = ?, post_format = ?, category_id = ?, slug = ?, title = ?, tags = ?, excerpt = ?, content = ?, content_password_hash = ?, status = ?, published_at = ?, is_pinned = ?, allow_comments = ?, updated_at = ? WHERE id = ?',
             array_merge($values, [$now, $id])
         );
         plugin_action('post_saved', ['post_id' => $id, 'created' => false, 'data' => $data]);
@@ -4942,7 +5328,7 @@ function save_post(array $data, ?int $id = null): int
     }
 
     q(
-        'INSERT INTO posts(author_id, kind, post_format, category_id, slug, title, tags, excerpt, content, status, published_at, is_pinned, allow_comments, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'INSERT INTO posts(author_id, kind, post_format, category_id, slug, title, tags, excerpt, content, content_password_hash, status, published_at, is_pinned, allow_comments, created_at, updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         array_merge([(int)(current_admin()['id'] ?? 0)], $values, [$now, $now])
     );
     $postId = (int)db()->lastInsertId();
@@ -4965,6 +5351,8 @@ function post_form_from_request(array $input): array
         'published_at' => (string)($input['published_at'] ?? ''),
         'is_pinned' => isset($input['is_pinned']) ? '1' : '0',
         'allow_comments' => isset($input['allow_comments']) ? '1' : '0',
+        'content_password' => '',
+        'remove_content_password' => isset($input['remove_content_password']) ? '1' : '0',
     ];
 }
 
@@ -5673,6 +6061,7 @@ function render_archives(): void
 function render_comments_section(array $post, array $form = [], array $errors = []): string
 {
     $postId = (int)$post['id'];
+    $hookPost = public_content_context($post);
     $comments = public_comments_for_post($postId);
     $total = approved_comment_count($postId);
     $accepting = setting('comments_enabled', '1') === '1' && content_allows_comments($post) && is_live_content($post);
@@ -5726,7 +6115,7 @@ function render_comments_section(array $post, array $form = [], array $errors = 
         'closed' => sblog_t('评论已关闭'),
     ];
     $filteredLabels = theme_filter('comments_labels', $defaultLabels, [
-        'post' => $post,
+        'post' => $hookPost,
         'accepting' => $accepting,
         'total' => $total,
     ]);
@@ -5770,8 +6159,8 @@ function render_comments_section(array $post, array $form = [], array $errors = 
                     <?php else: ?>
                       <strong class="comment-item__author"><?= h((string)$comment['author_name']) ?></strong>
                     <?php endif; ?>
-                    <?= render_comment_identity($comment, ['post' => $post, 'comments' => $comments]) ?>
-                    <?= render_comment_meta($comment, ['post' => $post, 'comments' => $comments]) ?>
+                    <?= render_comment_identity($comment, ['post' => $hookPost, 'comments' => $comments]) ?>
+                    <?= render_comment_meta($comment, ['post' => $hookPost, 'comments' => $comments]) ?>
                   </span>
                   <time class="comment-item__time" datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
                 </span>
@@ -5874,13 +6263,17 @@ function render_comments_section(array $post, array $form = [], array $errors = 
 
 function render_post_page(array $post, array $commentForm = [], array $commentErrors = []): void
 {
-    increment_content_views($post);
+    send_private_content_headers($post);
+    $passwordLocked = content_requires_password($post) && !content_password_is_unlocked($post);
+    if (!$passwordLocked) {
+        increment_content_views($post);
+    }
 
-    if ($commentForm === [] && $commentErrors === []) {
+    if (!$passwordLocked && $commentForm === [] && $commentErrors === []) {
         [$commentForm, $commentErrors] = pull_comment_feedback((int)$post['id']);
     }
 
-    $neighbors = post_neighbors($post);
+    $neighbors = $passwordLocked ? ['newer' => null, 'older' => null] : post_neighbors($post);
     $state = post_state($post);
     $meta = one(
         'SELECT p.views, u.username, u.nickname, c.name AS category_name, c.slug AS category_slug
@@ -5897,7 +6290,7 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
     $categorySlug = (string)($meta['category_slug'] ?? '');
     $viewCount = (int)($meta['views'] ?? $post['views'] ?? 0);
     $displayTime = (int)($post['published_at'] ?: $post['updated_at'] ?: $post['created_at']);
-    $tagsMarkup = render_tag_chips($post);
+    $tagsMarkup = $passwordLocked ? '' : render_tag_chips($post);
 
     ob_start();
     ?>
@@ -5913,7 +6306,7 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
         <?php endif; ?>
       </div>
       <div class="post-content" itemprop="articleBody">
-        <?= markdown_to_html((string)$post['content']) ?>
+        <?= render_content_html($post) ?>
       </div>
       <?php if ($tagsMarkup !== ''): ?>
         <div class="post-tags">
@@ -5939,19 +6332,20 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
       </ul>
     <?php endif; ?>
 
-    <?= render_comments_section($post, $commentForm, $commentErrors) ?>
+    <?php if (!$passwordLocked): ?><?= render_comments_section($post, $commentForm, $commentErrors) ?><?php endif; ?>
     <?php
     $content = (string)ob_get_clean();
 
     render_layout((string)$post['title'], $content, [
         'active' => 'home',
         'mode' => 'public',
-        'description' => trim((string)$post['excerpt']) !== '' ? (string)$post['excerpt'] : derive_excerpt((string)$post['content']),
+        'description' => public_content_description($post),
     ]);
 }
 
 function render_page_view(array $page): void
 {
+    send_private_content_headers($page);
     increment_content_views($page);
     $allowComments = content_allows_comments($page);
     [$commentForm, $commentErrors] = $allowComments ? pull_comment_feedback((int)$page['id']) : [[], []];
@@ -5965,7 +6359,7 @@ function render_page_view(array $page): void
         <div class="meta"><span><?= h(sblog_t('{state}预览', ['state' => (string)$state['label']])) ?></span></div>
       <?php endif; ?>
       <div class="post-content" itemprop="articleBody">
-        <?= markdown_to_html((string)$page['content']) ?>
+        <?= render_content_html($page) ?>
       </div>
     </article>
     <?php if ($allowComments): ?><?= render_comments_section($page, $commentForm, $commentErrors) ?><?php endif; ?>
@@ -5975,7 +6369,7 @@ function render_page_view(array $page): void
     render_layout((string)$page['title'], $content, [
         'active' => 'page:' . (string)$page['slug'],
         'mode' => 'public',
-        'description' => trim((string)$page['excerpt']) !== '' ? (string)$page['excerpt'] : derive_excerpt((string)$page['content']),
+        'description' => public_content_description($page),
     ]);
 }
 
@@ -6118,7 +6512,7 @@ function render_rss_feed(): void
         <link><?= x($link) ?></link>
         <guid><?= x($link) ?></guid>
         <pubDate><?= x(date(DATE_RSS, (int)$item['published_at'])) ?></pubDate>
-        <description><?= x(trim((string)$item['excerpt']) !== '' ? (string)$item['excerpt'] : derive_excerpt((string)$item['content'])) ?></description>
+        <description><?= x(public_content_description($item)) ?></description>
       </item>
     <?php endforeach; ?>
   </channel>
@@ -6356,6 +6750,13 @@ function translated_admin_form_errors(array $errors): array
         '正文不能为空。' => sblog_t('正文不能为空。'),
         '文章必须选择一个分类。' => sblog_t('文章必须选择一个分类。'),
         '发布时间格式不正确。' => sblog_t('发布时间格式不正确。'),
+        '回复可见标记不能嵌套。' => sblog_t('回复可见标记不能嵌套。'),
+        '回复可见结束标记缺少对应的开始标记。' => sblog_t('回复可见结束标记缺少对应的开始标记。'),
+        '回复可见内容缺少结束标记。' => sblog_t('回复可见内容缺少结束标记。'),
+        '独立页面使用回复可见内容时必须开启评论。' => sblog_t('独立页面使用回复可见内容时必须开启评论。'),
+        '不能同时设置和移除文章访问密码。' => sblog_t('不能同时设置和移除文章访问密码。'),
+        '文章访问密码至少需要 8 个字符。' => sblog_t('文章访问密码至少需要 8 个字符。'),
+        '文章访问密码不能超过 72 个字节。' => sblog_t('文章访问密码不能超过 72 个字节。'),
     ];
     $formatFields = [
         '头像地址' => sblog_t('头像地址'),
@@ -7808,10 +8209,13 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
         'published_at' => $existing ? datetime_local_value((int)($existing['published_at'] ?: time())) : datetime_local_value(time()),
         'is_pinned' => (string)(int)($existing['is_pinned'] ?? 0),
         'allow_comments' => (string)(int)($existing['allow_comments'] ?? 0),
+        'content_password' => '',
+        'remove_content_password' => '0',
     ];
 
     $values = array_merge($defaults, $form);
     $isEdit = $existing !== null;
+    $hasContentPassword = $isEdit && trim((string)($existing['content_password_hash'] ?? '')) !== '';
     $showPostFormat = active_theme_slug() === 'photograph';
     $siteName = setting('site_name', default_settings()['site_name']);
     $editorContext = ['is_edit' => $isEdit, 'post_id' => (int)($existing['id'] ?? 0)];
@@ -7928,6 +8332,26 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                 <p class="field-hint"><?= h(sblog_t('如果发布时间晚于当前时间，前台会按定时发布处理。')) ?></p>
               </div>
 
+              <div class="field" data-post-only-field<?= (string)$values['kind'] === 'page' ? ' hidden' : '' ?>>
+                <label for="content_password"><?= h(sblog_t('文章访问密码（可选）')) ?></label>
+                <div class="auth-password">
+                  <input id="content_password" name="content_password" type="password" value="" minlength="8" maxlength="72" autocomplete="new-password"<?= (string)$values['kind'] === 'page' ? ' disabled' : '' ?>>
+                  <button class="auth-password-toggle" type="button" data-password-toggle="content_password" aria-label="<?= h(sblog_t('显示密码')) ?>" aria-pressed="false" title="<?= h(sblog_t('显示密码')) ?>">
+                    <span class="auth-password-toggle__icon auth-password-toggle__icon--show"><?= admin_icon('eye') ?></span>
+                    <span class="auth-password-toggle__icon auth-password-toggle__icon--hide"><?= admin_icon('eye-off') ?></span>
+                  </button>
+                </div>
+                <p class="field-hint"><?= h($hasContentPassword
+                    ? sblog_t('已设置访问密码；留空会保留当前密码。')
+                    : sblog_t('设置后，访客需要输入密码才能查看文章正文。')) ?></p>
+                <?php if ($hasContentPassword): ?>
+                  <label class="setting-option" for="remove_content_password">
+                    <input id="remove_content_password" name="remove_content_password" type="checkbox" value="1"<?= (string)$values['remove_content_password'] === '1' ? ' checked' : '' ?>>
+                    <span><?= h(sblog_t('移除现有访问密码')) ?></span>
+                  </label>
+                <?php endif; ?>
+              </div>
+
               <label class="pin-option" for="is_pinned">
                 <input id="is_pinned" name="is_pinned" type="checkbox" value="1"<?= (string)$values['is_pinned'] === '1' ? ' checked' : '' ?>>
                 <span><strong><?= h(sblog_t('置顶文章')) ?></strong><small><?= h(sblog_t('发布后优先显示在前端文章列表顶部，仅对文章生效。')) ?></small></span>
@@ -7965,6 +8389,8 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="table" aria-label="<?= h(sblog_t('插入表格')) ?>" title="<?= h(sblog_t('表格')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14M16 5v14"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="code-block" aria-label="<?= h(sblog_t('代码块')) ?>" title="<?= h(sblog_t('代码块')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3m8-6 3 3-3 3m-2-9-4 12"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="horizontal-rule" aria-label="<?= h(sblog_t('分隔线')) ?>" title="<?= h(sblog_t('分隔线')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                    <span class="markdown-toolbar__separator" aria-hidden="true"></span>
+                    <button class="markdown-toolbar__button" type="button" data-markdown-action="reply-hidden" aria-label="<?= h(sblog_t('插入回复可见内容')) ?>" title="<?= h(sblog_t('插入回复可见内容')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button>
                   </div>
                   <textarea id="content" class="editor-textarea" name="content" rows="18" spellcheck="true" required><?= h((string)$values['content']) ?></textarea>
                   <div class="markdown-editor__status"><span><?= h(sblog_t('Markdown')) ?></span><span data-markdown-count aria-live="polite"><?= h(sblog_tn('{count} 个字符', 0)) ?></span></div>
@@ -8016,9 +8442,13 @@ if (($_GET['__route_not_found'] ?? '') === '1') {
     simple_error_page(sblog_t('页面不存在'), sblog_t('你访问的地址没有匹配到任何页面。'), 404);
 }
 
-$action = (string)plugin_filter('route_action', (string)($_GET['a'] ?? 'home'), ['request' => $_REQUEST]);
+$pluginRequest = $_REQUEST;
+foreach (['password', 'password_confirm', 'current_password', 'content_password'] as $sensitiveField) {
+    unset($pluginRequest[$sensitiveField]);
+}
+$action = (string)plugin_filter('route_action', (string)($_GET['a'] ?? 'home'), ['request' => $pluginRequest]);
 $GLOBALS['sblog_current_action'] = $action;
-plugin_action('request', ['action' => $action, 'request' => $_REQUEST]);
+plugin_action('request', ['action' => $action, 'request' => $pluginRequest]);
 
 switch ($action) {
     case 'douban_cover':
@@ -8073,6 +8503,38 @@ switch ($action) {
         json_response(like_post_for_visitor((int)($_POST['post_id'] ?? 0)));
         break;
 
+    case 'unlock_content':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            simple_error_page(sblog_t('请求无效'), sblog_t('仅支持 POST 请求。'), 405);
+        }
+        verify_csrf();
+        $postId = (int)($_POST['post_id'] ?? 0);
+        $post = one(
+            'SELECT * FROM posts WHERE id = ? AND kind = ? AND status = ? AND published_at > 0 AND published_at <= ?',
+            [$postId, 'post', 'published', time()]
+        );
+        if (!$post) {
+            simple_error_page(sblog_t('文章不存在'), sblog_t('可能还未发布，或者链接已经失效。'), 404);
+        }
+        $returnUrl = content_permalink($post);
+        if (!content_requires_password($post)) {
+            redirect_to($returnUrl, 303);
+        }
+        if (!record_content_password_attempt($postId)) {
+            set_content_password_notice($postId, sblog_t('尝试次数过多，请 15 分钟后再试。'));
+            redirect_to($returnUrl, 303);
+        }
+        $password = (string)($_POST['content_password'] ?? '');
+        if (!password_verify($password, (string)$post['content_password_hash'])) {
+            set_content_password_notice($postId, sblog_t('访问密码不正确。'));
+            redirect_to($returnUrl, 303);
+        }
+        remember_content_password_unlock($post);
+        clear_content_password_attempts($postId);
+        session_regenerate_id(true);
+        redirect_to($returnUrl, 303);
+        break;
+
     case 'submit_comment':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             redirect_to(url_for('home'));
@@ -8087,6 +8549,10 @@ switch ($action) {
             simple_error_page(sblog_t('文章不存在'), sblog_t('这篇文章当前无法接收评论。'), 404);
         }
         $returnUrl = content_permalink($post) . '#comments';
+        if (content_requires_password($post) && !content_password_is_unlocked($post)) {
+            set_content_password_notice($postId, sblog_t('请输入访问密码查看文章内容。'));
+            redirect_to(content_permalink($post), 303);
+        }
         if (setting('comments_enabled', '1') !== '1') {
             set_comment_notice($postId, 'error', sblog_t('评论功能当前已关闭。'));
             redirect_to($returnUrl);
@@ -8135,7 +8601,7 @@ switch ($action) {
         $status = $needsApproval ? 'pending' : 'approved';
         $isRead = setting('comments_notify', '1') === '1' ? 0 : 1;
         $submissionAllowed = plugin_filter('comment_submission_allowed', true, [
-            'post' => $post,
+            'post' => public_content_context($post),
             'comment' => $comment,
             'status' => $status,
             'authenticated' => $isAuthenticatedAdmin,
@@ -8220,6 +8686,7 @@ switch ($action) {
                 $commentId = (int)$database->lastInsertId();
             }
             $database->exec('COMMIT');
+            remember_reply_hidden_comment($postId, $commentId);
             if ($isRead === 0) {
                 try {
                     send_comment_notification($post, $comment, $status);

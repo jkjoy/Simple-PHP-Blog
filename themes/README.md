@@ -85,3 +85,5 @@ add_theme_filter('content', $callback, 20);
 若 `functions.php`、钩子回调或 `layout.php` 抛出异常，程序会记录到 PHP error log，并尽可能使用内置布局继续响应。主题被删除或清单失效时会自动回退到内置主题。
 
 自行重绘公开评论列表的主题应在作者昵称后依次调用 `render_comment_identity($comment, ['post' => $post, 'comments' => $comments])` 与 `render_comment_meta($comment, ['post' => $post, 'comments' => $comments])`，保留插件注入评论身份和派生信息的能力。`$comments` 应传入当前页的完整评论数组；主题还需为返回的 HTML 安排合适的布局。
+
+公开主题必须保留内容门禁：文章或独立页正文使用 `render_content_html($post)` 输出，不要直接把 `$post['content']` 传给 `markdown_to_html()`。`fetch_published_posts()`、`fetch_feed_posts()` 与 `fetch_posts_by_tag_slug()` 已返回脱敏后的公开数据；主题自行查询 `posts` 表并在列表、搜索、封面或摘要中使用正文时，必须先调用 `public_content_context($post)`。该函数会移除密码哈希、密码正文和回复隐藏区块，因此不要用它替代详情页的 `render_content_html()`。

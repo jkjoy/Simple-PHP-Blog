@@ -135,8 +135,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $db->exec('ALTER TABLE posts ADD COLUMN allow_comments INTEGER NOT NULL DEFAULT 0');
                 $changes[] = '新增独立页评论开关';
             }
+            if (!update_has_column($db, 'posts', 'content_password_hash')) {
+                $db->exec("ALTER TABLE posts ADD COLUMN content_password_hash TEXT NOT NULL DEFAULT ''");
+                $changes[] = '新增文章密码保护字段';
+            }
             $db->exec('UPDATE posts SET is_pinned = 0 WHERE is_pinned IS NULL');
             $db->exec('UPDATE posts SET allow_comments = 0 WHERE allow_comments IS NULL');
+            $db->exec("UPDATE posts SET content_password_hash = '' WHERE content_password_hash IS NULL");
             $db->exec('CREATE INDEX IF NOT EXISTS idx_posts_public_pinned ON posts(kind, status, is_pinned DESC, published_at DESC, id DESC)');
             $commentsExist = (bool)$db->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'comments' LIMIT 1")->fetchColumn();
             $db->exec(

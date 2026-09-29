@@ -703,6 +703,7 @@ $db->exec(
         title TEXT NOT NULL,
         excerpt TEXT NOT NULL DEFAULT \'\',
         content TEXT NOT NULL,
+        content_password_hash TEXT NOT NULL DEFAULT \'\',
         kind TEXT NOT NULL DEFAULT \'post\',
         post_format TEXT NOT NULL DEFAULT \'text\',
         tags TEXT NOT NULL DEFAULT \'[]\',
