@@ -153,7 +153,7 @@ After installing and enabling the `email-notifications` plugin from the extensio
 If PHP is installed locally, run:
 
 ```bash
-php -S 127.0.0.1:8000
+php -S 127.0.0.1:8000 router.php
 ```
 
 Then open:
@@ -161,6 +161,8 @@ Then open:
 ```text
 http://127.0.0.1:8000/install.php
 ```
+
+Always include `router.php`. It prevents direct browser access to `data/`, `cache/`, hidden files, and non-public extension files when using PHP's built-in server. Do not serve this site with a bare `php -S` command.
 
 ## Pretty URLs
 
@@ -186,8 +188,8 @@ For Nginx, use the following configuration as a starting point:
 ```nginx
 location ^~ /data/ { deny all; }
 location ^~ /cache/ { deny all; }
-location ~* ^/themes/.+\.(?:php|json)$ { deny all; }
-location ~* ^/plugins/.+\.(?:php|json|md)$ { deny all; }
+location ~ (^|/)\. { deny all; }
+location ~* ^/(?:themes|plugins)/(?!.*\.(?:css|js|mjs|png|jpe?g|gif|webp|avif|svg|ico|eot|ttf|otf|woff2?|xml|webmanifest|mp3|ogg|wav|mp4|webm)$) { deny all; }
 
 location / {
     try_files $uri $uri/ /index.php?$query_string;
@@ -202,7 +204,7 @@ location ~ \.php$ {
 
 ## Notes
 
-- The `data/` and `cache/` directories must not be publicly accessible.
+- The `data/`, `cache/`, hidden files, and non-public extension files must not be publicly accessible.
 - The `ai_settings`, `mail_settings`, and `s3_settings` tables contain sensitive backend credentials. Modify them only through the admin panel.
 - To reinstall the application, delete `data/install.lock` first.
 - If an application update includes database schema changes, sign in to the admin panel and then open `update.php` to run the migration.

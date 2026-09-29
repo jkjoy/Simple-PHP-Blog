@@ -156,7 +156,7 @@ store/         扩展商店索引协议说明（不部署到站点）
 如果本机有 PHP：
 
 ```bash
-php -S 127.0.0.1:8000
+php -S 127.0.0.1:8000 router.php
 ```
 
 然后访问：
@@ -164,6 +164,8 @@ php -S 127.0.0.1:8000
 ```text
 http://127.0.0.1:8000/install.php
 ```
+
+必须带上 `router.php`，它会在 PHP 内置服务器下阻止浏览器访问 `data/`、`cache/`、隐藏文件和扩展中的非公开文件；不要直接使用不带路由脚本的 `php -S` 启动本站。
 
 ## 伪静态 URL
 
@@ -189,8 +191,8 @@ Apache 已可直接使用仓库里的 `.htaccess`。
 ```nginx
 location ^~ /data/ { deny all; }
 location ^~ /cache/ { deny all; }
-location ~* ^/themes/.+\.(?:php|json)$ { deny all; }
-location ~* ^/plugins/.+\.(?:php|json|md)$ { deny all; }
+location ~ (^|/)\. { deny all; }
+location ~* ^/(?:themes|plugins)/(?!.*\.(?:css|js|mjs|png|jpe?g|gif|webp|avif|svg|ico|eot|ttf|otf|woff2?|xml|webmanifest|mp3|ogg|wav|mp4|webm)$) { deny all; }
 
 location / {
     try_files $uri $uri/ /index.php?$query_string;
@@ -205,7 +207,7 @@ location ~ \.php$ {
 
 ## 注意
 
-- `data/` 和 `cache/` 不应该被公网直接访问
+- `data/`、`cache/`、隐藏文件和扩展中的非公开文件不应该被公网直接访问
 - `ai_settings`、`mail_settings` 和 `s3_settings` 中包含后端密钥类配置，请只通过后台修改
 - 如果要重装，先删除 `data/install.lock`
 - 更新程序后如涉及数据库结构变更，请先登录后台，再访问 `update.php` 执行升级

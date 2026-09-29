@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.5';
+const APP_VERSION = 'v1.14.6';
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -1185,7 +1185,7 @@ function github_update_info(bool $refresh = false): array
 
 function install_release_files(string $source, string $targetRoot, string $backup): void
 {
-    $files = ['index.php', 'install.php', 'update.php', 'README.md', 'README-EN.md', 'logo.png', 'favicon.png', '.htaccess', 'assets/index.css', 'assets/index.js', 'assets/admin.css', 'assets/admin.js'];
+    $files = ['index.php', 'install.php', 'update.php', 'router.php', 'README.md', 'README-EN.md', 'logo.png', 'favicon.png', '.htaccess', 'assets/index.css', 'assets/index.js', 'assets/admin.css', 'assets/admin.js'];
 
     $targetRoot = rtrim($targetRoot, '/\\');
     $replaced = [];
@@ -7733,6 +7733,8 @@ function render_admin_settings_page(): void
                     <strong><?= h(sblog_t('Nginx')) ?></strong>
                     <pre><code>location ^~ /data/ { deny all; }
 location ^~ /cache/ { deny all; }
+location ~ (^|/)\. { deny all; }
+location ~* ^/(?:themes|plugins)/(?!.*\.(?:css|js|mjs|png|jpe?g|gif|webp|avif|svg|ico|eot|ttf|otf|woff2?|xml|webmanifest|mp3|ogg|wav|mp4|webm)$) { deny all; }
 
 location / {
     try_files $uri $uri/ /index.php?$query_string;

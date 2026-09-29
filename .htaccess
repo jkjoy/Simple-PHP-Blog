@@ -1,8 +1,8 @@
 RewriteEngine On
 
-RewriteRule ^(?:data|cache)/ - [F,L]
-RewriteRule ^themes/.*\.(?:php|json)$ - [F,L,NC]
-RewriteRule ^plugins/.*\.(?:php|json|md)$ - [F,L,NC]
+RewriteRule (^|/)\. - [F,L]
+RewriteRule ^(?:data|cache)/ - [F,L,NC]
+RewriteRule ^(?:themes|plugins)/(?!.*\.(?:css|js|mjs|png|jpe?g|gif|webp|avif|svg|ico|eot|ttf|otf|woff2?|xml|webmanifest|mp3|ogg|wav|mp4|webm)$) - [F,L,NC]
 
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
