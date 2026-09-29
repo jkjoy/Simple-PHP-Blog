@@ -3972,16 +3972,19 @@ function fetch_content_by_identifier(string $kind, string $slug, bool $allowPrev
         return null;
     }
 
+    $row = one('SELECT * FROM posts WHERE slug = ? AND kind = ?', [$slug, $kind]);
+    if ($row) {
+        if ($allowPreview || is_live_content($row)) {
+            return $row;
+        }
+        return null;
+    }
+
     if (is_ascii_digits($slug)) {
         $row = one('SELECT * FROM posts WHERE id = ? AND kind = ?', [(int)$slug, $kind]);
         if ($row && ($allowPreview || is_live_content($row))) {
             return $row;
         }
-    }
-
-    $row = one('SELECT * FROM posts WHERE slug = ? AND kind = ?', [$slug, $kind]);
-    if ($row && ($allowPreview || is_live_content($row))) {
-        return $row;
     }
 
     return null;
@@ -4217,9 +4220,9 @@ function public_comments_for_post(int $postId, int $limit = 100): array
 {
     $limit = max(1, min(200, $limit));
     return all_rows(
-        "SELECT id, user_id, parent_id, reply_to_name, author_name, author_email, author_url, content, created_at
+        "SELECT id, user_id, parent_id, reply_to_name, author_name, author_email, author_url, content, ip_address, user_agent, created_at
          FROM (
-             SELECT id, user_id, parent_id, reply_to_name, author_name, author_email, author_url, content, created_at
+             SELECT id, user_id, parent_id, reply_to_name, author_name, author_email, author_url, content, ip_address, user_agent, created_at
              FROM comments
              WHERE post_id = ? AND status = 'approved'
              ORDER BY created_at DESC, id DESC
@@ -4228,6 +4231,18 @@ function public_comments_for_post(int $postId, int $limit = 100): array
          ORDER BY created_at ASC, id ASC",
         [$postId]
     );
+}
+
+function render_comment_meta(array $comment, array $context = []): string
+{
+    $filtered = plugin_filter('comment_meta_html', '', array_merge($context, ['comment' => $comment]));
+    return is_string($filtered) ? $filtered : '';
+}
+
+function render_comment_identity(array $comment, array $context = []): string
+{
+    $filtered = plugin_filter('comment_identity_html', '', array_merge($context, ['comment' => $comment]));
+    return is_string($filtered) ? $filtered : '';
 }
 
 function approved_comment_count(int $postId): int
@@ -5748,12 +5763,18 @@ function render_comments_section(array $post, array $form = [], array $errors = 
             <li class="comment-item<?= $replyName !== '' ? ' comment-item--reply' : '' ?>" id="comment-<?= h((string)$comment['id']) ?>">
               <header class="comment-item__meta">
                 <img class="comment-item__avatar" src="<?= h(gravatar_url((string)$comment['author_email'])) ?>" width="36" height="36" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
-                <?php if ($authorUrl !== '#'): ?>
-                  <a class="comment-item__author" href="<?= h($authorUrl) ?>" target="_blank" rel="ugc nofollow noopener noreferrer"><?= h((string)$comment['author_name']) ?></a>
-                <?php else: ?>
-                  <strong class="comment-item__author"><?= h((string)$comment['author_name']) ?></strong>
-                <?php endif; ?>
-                <time class="comment-item__time" datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
+                <span class="comment-item__author-details">
+                  <span class="comment-item__identity">
+                    <?php if ($authorUrl !== '#'): ?>
+                      <a class="comment-item__author" href="<?= h($authorUrl) ?>" target="_blank" rel="ugc nofollow noopener noreferrer"><?= h((string)$comment['author_name']) ?></a>
+                    <?php else: ?>
+                      <strong class="comment-item__author"><?= h((string)$comment['author_name']) ?></strong>
+                    <?php endif; ?>
+                    <?= render_comment_identity($comment, ['post' => $post, 'comments' => $comments]) ?>
+                    <?= render_comment_meta($comment, ['post' => $post, 'comments' => $comments]) ?>
+                  </span>
+                  <time class="comment-item__time" datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
+                </span>
                 <?php if ($accepting): ?>
                   <button class="comment-reply-button" type="button" data-comment-reply data-comment-id="<?= h((string)$comment['id']) ?>" data-comment-author="<?= h((string)$comment['author_name']) ?>" aria-controls="comment-form" aria-pressed="<?= $replyTargetId === (int)$comment['id'] ? 'true' : 'false' ?>" aria-label="<?= h(sblog_t('回复 @{author}', ['author' => (string)$comment['author_name']])) ?>" title="<?= h(sblog_t('回复 @{author}', ['author' => (string)$comment['author_name']])) ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 17-5-5 5-5"></path><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>
@@ -8639,6 +8660,11 @@ switch ($action) {
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $moderatedComments = all_rows(
+            "SELECT id, ip_address FROM comments WHERE id IN ({$placeholders})",
+            $ids
+        );
+        $newStatus = '';
         if ($action === 'delete') {
             $affected = q("DELETE FROM comments WHERE id IN ({$placeholders})", $ids)->rowCount();
             $message = sblog_tn('已删除 {count} 条评论。', $affected);
@@ -8648,6 +8674,7 @@ switch ($action) {
             $message = sblog_tn('已将 {count} 条评论标为已读。', $affected);
         } else {
             $status = ['approve' => 'approved', 'pending' => 'pending', 'spam' => 'spam'][$action];
+            $newStatus = $status;
             $params = array_merge([$status, time()], $ids);
             $affected = q("UPDATE comments SET status = ?, is_read = 1, updated_at = ? WHERE id IN ({$placeholders})", $params)->rowCount();
             if ($status === 'approved') {
@@ -8658,6 +8685,14 @@ switch ($action) {
                 'spam' => sblog_tn('已将 {count} 条评论标记为垃圾。', $affected),
                 default => sblog_tn('已将 {count} 条评论转为待审核。', $affected),
             };
+        }
+        if ($affected > 0 && $action !== 'read') {
+            plugin_action('comment_status_changed', [
+                'operation' => $action,
+                'status' => $newStatus,
+                'comment_ids' => $ids,
+                'comments' => $moderatedComments,
+            ]);
         }
         set_flash('success', $message);
         redirect_to($returnUrl);

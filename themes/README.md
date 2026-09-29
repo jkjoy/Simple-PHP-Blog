@@ -83,3 +83,5 @@ add_theme_filter('content', $callback, 20);
 ```
 
 若 `functions.php`、钩子回调或 `layout.php` 抛出异常，程序会记录到 PHP error log，并尽可能使用内置布局继续响应。主题被删除或清单失效时会自动回退到内置主题。
+
+自行重绘公开评论列表的主题应在作者昵称后依次调用 `render_comment_identity($comment, ['post' => $post, 'comments' => $comments])` 与 `render_comment_meta($comment, ['post' => $post, 'comments' => $comments])`，保留插件注入评论身份和派生信息的能力。`$comments` 应传入当前页的完整评论数组；主题还需为返回的 HTML 安排合适的布局。

@@ -38,6 +38,7 @@ add_plugin_action('post_saved', static function (array $context): void {
 - `request`：路由确定后、执行页面逻辑前
 - `post_saved`：文章或独立页面保存后
 - `comment_created`：评论写入数据库后
+- `comment_status_changed`：评论通过、转待审、标记垃圾或删除后；context 包含 `operation`、`status`、`comment_ids` 与操作前的 `comments`（仅含 ID 和 IP 地址）
 - `plugin_status_changed`：管理员启用或停用插件后
 
 回调接收一个 `$context` 数组。插件抛出的异常会写入 PHP error log，不会中断其他回调。
@@ -62,6 +63,8 @@ add_plugin_filter('output_html', static function (string $html, array $context):
 - `site_mail_send`：处理站点邮件发送
 - `notification_recipient`：修改评论通知收件邮箱
 - `avatar_url`：修改评论头像 URL；context 包含 `email`、`hash`、`size`、`default_image` 与 `rating`
+- `comment_identity_html`：在公开评论的作者昵称后追加身份 HTML；context 包含当前 `comment`、所属 `post` 与本页 `comments`
+- `comment_meta_html`：为公开评论追加派生元信息 HTML；context 包含当前 `comment`、所属 `post` 与本页 `comments`。两个评论 filter 的数据均包含邮箱、IP 和 User-Agent 等敏感字段，插件必须只输出经过转义且适合公开展示的派生信息
 - `attachment_storage`：接管编辑器附件的最终存储位置
 - `editor_field_actions_html`：在 `slug`、`excerpt` 或 `content` 标签旁注入编辑器操作
 - `editor_after_form_html`：在文章编辑表单后注入弹窗等插件界面

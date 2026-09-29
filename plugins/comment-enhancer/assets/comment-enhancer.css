@@ -1,0 +1,345 @@
+.comment-enhancer-badge {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  padding: 0 5px;
+  border: 1px solid var(--sce-badge-border);
+  border-radius: 3px;
+  background: var(--sce-badge-bg);
+  color: var(--sce-badge-fg);
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.comment-enhancer-badge--lv1 {
+  --sce-badge-bg: #f3f4f6;
+  --sce-badge-border: #9ca3af;
+  --sce-badge-fg: #374151;
+}
+
+.comment-enhancer-badge--lv2 {
+  --sce-badge-bg: #e0f2fe;
+  --sce-badge-border: #38bdf8;
+  --sce-badge-fg: #075985;
+}
+
+.comment-enhancer-badge--lv3 {
+  --sce-badge-bg: #ccfbf1;
+  --sce-badge-border: #2dd4bf;
+  --sce-badge-fg: #115e59;
+}
+
+.comment-enhancer-badge--lv4 {
+  --sce-badge-bg: #dcfce7;
+  --sce-badge-border: #4ade80;
+  --sce-badge-fg: #166534;
+}
+
+.comment-enhancer-badge--lv5 {
+  --sce-badge-bg: #fef3c7;
+  --sce-badge-border: #facc15;
+  --sce-badge-fg: #854d0e;
+}
+
+.comment-enhancer-badge--lv6 {
+  --sce-badge-bg: #f3e8ff;
+  --sce-badge-border: #c084fc;
+  --sce-badge-fg: #6b21a8;
+}
+
+.comment-enhancer-badge--owner {
+  --sce-badge-bg: #ffe4e6;
+  --sce-badge-border: #fb7185;
+  --sce-badge-fg: #9f1239;
+}
+
+.comment-enhancer-meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px 5px;
+  color: var(--muted, #667085);
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  letter-spacing: 0;
+}
+
+.comment-enhancer-meta__item {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.comment-enhancer-meta__item::before {
+  margin-right: 7px;
+  color: var(--muted, #98a2b3);
+  content: "\00b7";
+}
+
+.comment-enhancer-meta__icon {
+  --sce-client-color: var(--muted, #667085);
+  position: relative;
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--sce-client-color);
+  cursor: help;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.comment-enhancer-meta__icon svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+}
+
+.comment-enhancer-meta__icon--brand-chrome,
+.comment-enhancer-meta__icon--brand-chromeos {
+  --sce-client-color: #1a73e8;
+}
+
+.comment-enhancer-meta__icon--brand-edge,
+.comment-enhancer-meta__icon--brand-windows,
+.comment-enhancer-meta__icon--brand-windows-phone {
+  --sce-client-color: #0067b8;
+}
+
+.comment-enhancer-meta__icon--brand-firefox {
+  --sce-client-color: #d9480f;
+}
+
+.comment-enhancer-meta__icon--brand-safari,
+.comment-enhancer-meta__icon--brand-qq-browser,
+.comment-enhancer-meta__icon--brand-harmonyos {
+  --sce-client-color: #0969da;
+}
+
+.comment-enhancer-meta__icon--brand-opera {
+  --sce-client-color: #e60026;
+}
+
+.comment-enhancer-meta__icon--brand-samsung-internet {
+  --sce-client-color: #5b5ce2;
+}
+
+.comment-enhancer-meta__icon--brand-wechat,
+.comment-enhancer-meta__icon--brand-android,
+.comment-enhancer-meta__icon--product-android-webview {
+  --sce-client-color: #168c4a;
+}
+
+.comment-enhancer-meta__icon--brand-uc-browser {
+  --sce-client-color: #e76500;
+}
+
+.comment-enhancer-meta__icon--brand-internet-explorer {
+  --sce-client-color: #007ca8;
+}
+
+.comment-enhancer-meta__icon--brand-ubuntu {
+  --sce-client-color: #c34113;
+}
+
+.comment-enhancer-meta__icon--brand-apple,
+.comment-enhancer-meta__icon--brand-linux {
+  --sce-client-color: #202124;
+}
+
+.comment-enhancer-meta__icon:hover,
+.comment-enhancer-meta__icon:focus-visible {
+  background: var(--soft, #f3f4f6);
+  color: var(--sce-client-color, var(--ink, #111827));
+}
+
+.comment-enhancer-meta__icon:focus-visible {
+  box-shadow: 0 0 0 2px var(--page, #ffffff), 0 0 0 4px var(--ink, #111827);
+}
+
+.comment-enhancer-meta__tooltip {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 7px);
+  right: 0;
+  width: max-content;
+  max-width: min(180px, calc(100vw - 24px));
+  padding: 5px 7px;
+  border-radius: 4px;
+  background: var(--ink, #111827);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+  color: var(--inverse, #ffffff);
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.3;
+  opacity: 0;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  text-align: center;
+  transform: translateY(4px);
+  visibility: hidden;
+  white-space: normal;
+  transition: opacity 140ms ease, transform 140ms ease, visibility 140ms ease;
+}
+
+.comment-enhancer-meta__icon:hover .comment-enhancer-meta__tooltip,
+.comment-enhancer-meta__icon:focus-visible .comment-enhancer-meta__tooltip {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+.comment-enhancer-meta__tooltip::after {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 100%;
+  height: 7px;
+  content: "";
+}
+
+.comment-enhancer-meta__icon[data-tooltip-dismissed] .comment-enhancer-meta__tooltip {
+  opacity: 0;
+  visibility: hidden;
+}
+
+:root[data-public-theme="dark"] .comment-enhancer-meta__icon--brand-apple,
+:root[data-public-theme="dark"] .comment-enhancer-meta__icon--brand-linux {
+  --sce-client-color: #f5f5f7;
+}
+
+:root[data-public-theme="dark"] .comment-enhancer-badge--lv1 {
+  --sce-badge-bg: #374151;
+  --sce-badge-border: #6b7280;
+  --sce-badge-fg: #f3f4f6;
+}
+
+:root[data-public-theme="dark"] .comment-enhancer-badge--lv2 {
+  --sce-badge-bg: #0c4a6e;
+  --sce-badge-border: #0284c7;
+  --sce-badge-fg: #bae6fd;
+}
+
+:root[data-public-theme="dark"] .comment-enhancer-badge--lv3 {
+  --sce-badge-bg: #134e4a;
+  --sce-badge-border: #0f766e;
+  --sce-badge-fg: #99f6e4;
+}
+
+:root[data-public-theme="dark"] .comment-enhancer-badge--lv4 {
+  --sce-badge-bg: #14532d;
+  --sce-badge-border: #15803d;
+  --sce-badge-fg: #bbf7d0;
+}
+
+:root[data-public-theme="dark"] .comment-enhancer-badge--lv5 {
+  --sce-badge-bg: #713f12;
+  --sce-badge-border: #a16207;
+  --sce-badge-fg: #fde68a;
+}
+
+:root[data-public-theme="dark"] .comment-enhancer-badge--lv6 {
+  --sce-badge-bg: #581c87;
+  --sce-badge-border: #7e22ce;
+  --sce-badge-fg: #e9d5ff;
+}
+
+:root[data-public-theme="dark"] .comment-enhancer-badge--owner {
+  --sce-badge-bg: #881337;
+  --sce-badge-border: #be123c;
+  --sce-badge-fg: #fecdd3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-public-theme="light"]) .comment-enhancer-meta__icon--brand-apple,
+  :root:not([data-public-theme="light"]) .comment-enhancer-meta__icon--brand-linux {
+    --sce-client-color: #f5f5f7;
+  }
+
+  :root:not([data-public-theme="light"]) .comment-enhancer-badge--lv1 {
+    --sce-badge-bg: #374151;
+    --sce-badge-border: #6b7280;
+    --sce-badge-fg: #f3f4f6;
+  }
+
+  :root:not([data-public-theme="light"]) .comment-enhancer-badge--lv2 {
+    --sce-badge-bg: #0c4a6e;
+    --sce-badge-border: #0284c7;
+    --sce-badge-fg: #bae6fd;
+  }
+
+  :root:not([data-public-theme="light"]) .comment-enhancer-badge--lv3 {
+    --sce-badge-bg: #134e4a;
+    --sce-badge-border: #0f766e;
+    --sce-badge-fg: #99f6e4;
+  }
+
+  :root:not([data-public-theme="light"]) .comment-enhancer-badge--lv4 {
+    --sce-badge-bg: #14532d;
+    --sce-badge-border: #15803d;
+    --sce-badge-fg: #bbf7d0;
+  }
+
+  :root:not([data-public-theme="light"]) .comment-enhancer-badge--lv5 {
+    --sce-badge-bg: #713f12;
+    --sce-badge-border: #a16207;
+    --sce-badge-fg: #fde68a;
+  }
+
+  :root:not([data-public-theme="light"]) .comment-enhancer-badge--lv6 {
+    --sce-badge-bg: #581c87;
+    --sce-badge-border: #7e22ce;
+    --sce-badge-fg: #e9d5ff;
+  }
+
+  :root:not([data-public-theme="light"]) .comment-enhancer-badge--owner {
+    --sce-badge-bg: #881337;
+    --sce-badge-border: #be123c;
+    --sce-badge-fg: #fecdd3;
+  }
+}
+
+@media print {
+  .comment-enhancer-badge {
+    border-color: #000000;
+    background: transparent;
+    color: #000000;
+  }
+
+  .comment-enhancer-meta__tooltip {
+    display: none;
+  }
+
+  .comment-enhancer-meta__icon {
+    color: #000000;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comment-enhancer-meta__icon,
+  .comment-enhancer-meta__tooltip {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .comment-enhancer-meta__icon {
+    color: CanvasText;
+  }
+
+  .comment-enhancer-meta__icon:focus-visible {
+    outline-color: CanvasText;
+    box-shadow: none;
+  }
+}
