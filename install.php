@@ -7,6 +7,7 @@ const INSTALL_CACHE_DIR = __DIR__ . '/cache';
 const INSTALL_DB_CONFIG_FILE = INSTALL_DATA_DIR . '/config.php';
 const INSTALL_LOCK_FILE = INSTALL_DATA_DIR . '/install.lock';
 const INSTALL_SETTINGS_CACHE_FILE = INSTALL_CACHE_DIR . '/settings.php';
+const INSTALL_DATABASE_SCHEMA_VERSION = 1;
 
 function i_h(string|int|float|bool|null $value): string
 {
@@ -806,6 +807,7 @@ $now = time();
 $settings = i_default_settings();
 $settings['site_name'] = $form['site_name'];
 $settings['site_description'] = $settings['site_tagline'];
+$settings['database_schema_version'] = (string)INSTALL_DATABASE_SCHEMA_VERSION;
 
 $statement = $db->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)');
 foreach ($settings as $name => $value) {

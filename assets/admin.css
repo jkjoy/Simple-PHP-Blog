@@ -11,6 +11,7 @@
 
 html {
   min-height: 100%;
+  scrollbar-gutter: stable;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -211,6 +212,7 @@ textarea {
   --admin-success-softer: #fcfffd;
   --admin-success-text: #137333;
   --admin-warning: #ff7d00;
+  --admin-warning-border: #fed7aa;
   --admin-warning-soft: #fff3e8;
   --admin-warning-text: #b54708;
   --admin-danger: #f53f3f;
@@ -259,6 +261,7 @@ textarea {
   --admin-success-softer: #142b1c;
   --admin-success-text: #7cdb98;
   --admin-warning: #ffad4d;
+  --admin-warning-border: #754d1f;
   --admin-warning-soft: #3b2b17;
   --admin-warning-text: #ffc66d;
   --admin-danger: #ff7272;
@@ -406,6 +409,12 @@ textarea {
   border: 1px solid var(--admin-success-border);
   background: var(--admin-success-soft);
   color: var(--admin-success-text);
+}
+
+.theme-admin .flash--warning {
+  border: 1px solid var(--admin-warning-border);
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning-text);
 }
 
 .theme-admin .flash--error {
@@ -1502,6 +1511,7 @@ textarea {
   align-items: flex-start;
   gap: 10px;
   margin: 16px 24px 0;
+  text-wrap: pretty;
 }
 
 .theme-admin:not(.theme-admin--guest) .admin-global-notice__icon {
@@ -1516,6 +1526,14 @@ textarea {
 .theme-admin:not(.theme-admin--guest) .admin-global-notice__icon .admin-side__icon {
   width: 18px;
   height: 18px;
+}
+
+.theme-admin:not(.theme-admin--guest) .admin-global-notice__action {
+  margin-left: 6px;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .theme-admin:not(.theme-admin--guest) .admin-global-notice + .admin-grid,
@@ -3822,14 +3840,31 @@ textarea {
   color: var(--admin-text);
 }
 
+.theme-admin .update-notice--database .panel__body {
+  background: var(--admin-warning-soft);
+}
+
 .theme-admin .update-notice p {
   margin: 4px 0 0;
   color: var(--admin-muted);
+  text-wrap: pretty;
+}
+
+.theme-admin .update-notice .update-notice__warning {
+  color: var(--admin-warning-text);
+  font-weight: 600;
 }
 
 .theme-admin .update-notice form {
   flex: 0 0 auto;
   margin: 0;
+}
+
+.theme-admin .update-notice .button:disabled {
+  border-color: var(--admin-border-strong);
+  background: var(--admin-hover);
+  color: var(--admin-soft);
+  opacity: 0.72;
 }
 
 @media (max-width: 560px) {

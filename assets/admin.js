@@ -329,6 +329,76 @@ function initPostFormatControl() {
   syncVisibility();
 }
 
+function initEditorLeaveWarning() {
+  const form = document.querySelector("[data-editor-form]");
+  if (!(form instanceof HTMLFormElement)) return;
+
+  const serialize = () => {
+    const entries = [];
+    new FormData(form).forEach((value, name) => {
+      if (name === "csrf_token" || value instanceof File) return;
+      entries.push([name, String(value)]);
+    });
+    return JSON.stringify(entries);
+  };
+  const initialState = serialize();
+  const initiallyUnsaved = form.dataset.unsavedInitial === "1";
+  const hasUnsavedChanges = () => initiallyUnsaved || serialize() !== initialState;
+  const message = sblogText(
+    "unsaved_changes_confirm",
+    "当前编辑内容尚未保存。确定离开编辑页面吗？",
+  );
+  let allowUnload = false;
+
+  const allowNavigation = (event) => {
+    allowUnload = true;
+    window.setTimeout(() => {
+      if (event.defaultPrevented) allowUnload = false;
+    }, 0);
+  };
+  const confirmLeave = () => {
+    if (!hasUnsavedChanges()) return true;
+    return window.confirm(message);
+  };
+
+  form.addEventListener("submit", allowNavigation);
+  document.addEventListener("submit", (event) => {
+    const submittedForm = event.target;
+    if (!(submittedForm instanceof HTMLFormElement) || submittedForm === form) return;
+    if (submittedForm.target && submittedForm.target.toLowerCase() !== "_self") return;
+    if (!confirmLeave()) {
+      event.preventDefault();
+      return;
+    }
+    allowNavigation(event);
+  }, true);
+  document.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const target = event.target;
+    const link = target instanceof Element ? target.closest("a[href]") : null;
+    if (!(link instanceof HTMLAnchorElement) || link.hasAttribute("download")) return;
+    if (link.target && link.target.toLowerCase() !== "_self") return;
+
+    const destination = new URL(link.href, window.location.href);
+    const sameDocumentAnchor = destination.origin === window.location.origin
+      && destination.pathname === window.location.pathname
+      && destination.search === window.location.search
+      && (destination.hash !== "" || link.getAttribute("href") === "#");
+    if (sameDocumentAnchor) return;
+    if (!confirmLeave()) {
+      event.preventDefault();
+      return;
+    }
+    allowNavigation(event);
+  });
+  window.addEventListener("beforeunload", (event) => {
+    if (allowUnload || !hasUnsavedChanges()) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+  window.addEventListener("pageshow", () => { allowUnload = false; });
+}
+
 function initTagManager() {
   const manager = document.querySelector("[data-tag-manager]");
   if (!(manager instanceof HTMLElement)) return;
@@ -846,6 +916,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initAccountMenus();
   initSettingsControls();
   initPostFormatControl();
+  initEditorLeaveWarning();
   initTagManager();
   initMarkdownEditor();
   initAttachmentUploader();

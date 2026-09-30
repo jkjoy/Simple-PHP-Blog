@@ -25,6 +25,7 @@ session_set_cookie_params([
 session_start();
 
 const APP_VERSION = 'v1.14.7';
+const DATABASE_SCHEMA_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -126,9 +127,12 @@ function is_ascii_digits(string $value): bool
     return $value !== '' && preg_match('/^[0-9]+$/D', $value) === 1;
 }
 
-function set_flash(string $type, string $message): void
+function set_flash(string $type, string $message, string $context = ''): void
 {
     $_SESSION['flash'] = ['type' => $type, 'message' => $message];
+    if ($context !== '') {
+        $_SESSION['flash']['context'] = $context;
+    }
 }
 
 function pull_flash(): ?array
@@ -642,6 +646,23 @@ function save_settings(array $values): void
     settings_cache(true);
 }
 
+function database_schema_version(): int
+{
+    try {
+        $stored = val('SELECT value FROM settings WHERE name = ?', ['database_schema_version']);
+    } catch (Throwable) {
+        return 0;
+    }
+
+    $version = trim((string)$stored);
+    return is_ascii_digits($version) ? (int)$version : 0;
+}
+
+function database_upgrade_pending(): bool
+{
+    return database_schema_version() < DATABASE_SCHEMA_VERSION;
+}
+
 function plugin_manifest(string $slug): ?array
 {
     if (!preg_match('/^[a-z0-9][a-z0-9_-]*$/', $slug)) {
@@ -1144,18 +1165,53 @@ function curl_trust_options(): array
     return $options = [];
 }
 
+function release_database_schema(string $releaseBody): ?int
+{
+    if (preg_match('/<!--\s*sblog-release-meta\s*:\s*(\{.*?\})\s*-->/s', $releaseBody, $match) !== 1) {
+        return null;
+    }
+
+    $metadata = json_decode((string)$match[1], true);
+    $schema = is_array($metadata) ? ($metadata['database_schema'] ?? null) : null;
+    if (is_int($schema) && $schema >= 0) {
+        return $schema;
+    }
+    if (is_string($schema) && is_ascii_digits($schema)) {
+        return (int)$schema;
+    }
+
+    return null;
+}
+
+function update_info_with_database_requirement(array $info): array
+{
+    $rawSchema = $info['database_schema'] ?? null;
+    $schema = is_int($rawSchema) && $rawSchema >= 0
+        ? $rawSchema
+        : (is_string($rawSchema) && is_ascii_digits($rawSchema) ? (int)$rawSchema : null);
+    $schemaKnown = ($info['database_schema_known'] ?? false) === true && $schema !== null;
+    $minimumSchema = max(DATABASE_SCHEMA_VERSION, database_schema_version());
+    $info['database_schema'] = $schemaKnown ? $schema : null;
+    $info['database_schema_known'] = $schemaKnown;
+    $info['database_schema_incompatible'] = $schemaKnown && $schema < $minimumSchema;
+    $info['requires_database_upgrade'] = $schemaKnown
+        && !$info['database_schema_incompatible']
+        && $schema > database_schema_version();
+    return $info;
+}
+
 function github_update_info(bool $refresh = false): array
 {
     ensure_runtime_dirs();
     if (!$refresh && is_file(UPDATE_CACHE_FILE) && time() - (int)filemtime(UPDATE_CACHE_FILE) < 21600) {
         $cached = json_decode((string)file_get_contents(UPDATE_CACHE_FILE), true);
-        if (is_array($cached)) {
+        if (is_array($cached) && array_key_exists('database_schema', $cached) && array_key_exists('database_schema_known', $cached)) {
             $cached['current'] = APP_VERSION;
             $cached['available'] = update_available_for((string)($cached['latest'] ?? ''));
-            return $cached;
+            return update_info_with_database_requirement($cached);
         }
     }
-    $result = ['available' => false, 'current' => APP_VERSION, 'latest' => '', 'download_url' => '', 'error' => ''];
+    $result = ['available' => false, 'current' => APP_VERSION, 'latest' => '', 'download_url' => '', 'database_schema' => null, 'database_schema_known' => false, 'database_schema_incompatible' => false, 'requires_database_upgrade' => false, 'error' => ''];
     if (!function_exists('curl_init')) {
         $result['error'] = sblog_t('服务器未启用 cURL，无法检查更新。');
         return $result;
@@ -1182,9 +1238,13 @@ function github_update_info(bool $refresh = false): array
         if ($latest !== '' && filter_var($download, FILTER_VALIDATE_URL)) {
             $result['latest'] = $latest;
             $result['download_url'] = $download;
+            $releaseSchema = release_database_schema((string)($release['body'] ?? ''));
+            $result['database_schema'] = $releaseSchema;
+            $result['database_schema_known'] = $releaseSchema !== null;
             $result['available'] = update_available_for($latest);
         }
     }
+    $result = update_info_with_database_requirement($result);
     file_put_contents(UPDATE_CACHE_FILE, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
     return $result;
 }
@@ -1277,6 +1337,24 @@ function install_github_update(array $update): string
         if (!preg_match("/const APP_VERSION = '([^']+)'/", $code, $match)) { throw new RuntimeException(sblog_t('更新包版本无效。')); }
         $packageVersion = (string)$match[1];
         if (!update_available_for($packageVersion)) { throw new RuntimeException(sblog_t('更新包版本无效或不高于当前版本。')); }
+        if (!hash_equals((string)($update['latest'] ?? ''), $packageVersion)) { throw new RuntimeException(sblog_t('更新包版本与已确认的版本不一致。')); }
+        if (!empty($update['database_schema_known'])) {
+            $targetSchema = (int)$update['database_schema'];
+            if ($targetSchema < max(DATABASE_SCHEMA_VERSION, database_schema_version())) {
+                throw new RuntimeException(sblog_t('更新版本的数据库版本低于当前环境，无法安装。'));
+            }
+            foreach ([
+                [$newIndex, 'DATABASE_SCHEMA_VERSION'],
+                [$source . '/install.php', 'INSTALL_DATABASE_SCHEMA_VERSION'],
+                [$source . '/update.php', 'UPDATE_DATABASE_SCHEMA_VERSION'],
+            ] as [$schemaFile, $schemaConstant]) {
+                $schemaCode = is_file($schemaFile) ? (string)file_get_contents($schemaFile) : '';
+                if (preg_match('/const\s+' . preg_quote($schemaConstant, '/') . '\s*=\s*([0-9]+)\s*;/', $schemaCode, $schemaMatch) !== 1
+                    || (int)$schemaMatch[1] !== $targetSchema) {
+                    throw new RuntimeException(sblog_t('更新包数据库版本与发布信息不一致。'));
+                }
+            }
+        }
         $backup = CACHE_DIR . '/update-backup-' . date('Ymd-His');
         mkdir($backup, 0755, true);
         install_release_files($source, __DIR__, $backup);
@@ -5470,7 +5548,7 @@ function render_layout(string $title, string $content, array $options = []): voi
   <?php if ($mode === 'public'): ?>
   <link rel="stylesheet" href="<?= h(asset_url('assets/index.css')) ?>?v=<?= h(APP_VERSION . '-' . (string)filemtime(__DIR__ . '/assets/index.css')) ?>">
   <?php else: ?>
-  <link rel="stylesheet" href="<?= h(asset_url('assets/admin.css')) ?>?v=<?= h(APP_VERSION) ?>">
+  <link rel="stylesheet" href="<?= h(asset_url('assets/admin.css')) ?>?v=<?= h(APP_VERSION . '-' . (string)filemtime(__DIR__ . '/assets/admin.css')) ?>">
   <?php endif; ?>
   <?php if ($customHeadCode !== ''): ?>
 <?= $customHeadCode . "\n" ?>
@@ -5564,7 +5642,7 @@ function render_layout(string $title, string $content, array $options = []): voi
           <div class="auth-stage">
             <?php if ($flash): ?>
               <?php $flashType = (string)$flash['type']; ?>
-              <div class="flash flash--<?= h($flashType) ?> auth-notice" role="<?= $flashType === 'error' ? 'alert' : 'status' ?>">
+              <div class="flash flash--<?= h($flashType) ?> auth-notice" role="<?= $flashType === 'success' ? 'status' : 'alert' ?>">
                 <span class="auth-notice__icon"><?= admin_icon($flashType === 'success' ? 'check-circle' : 'alert-circle') ?></span>
                 <span class="auth-notice__message"><?= h((string)$flash['message']) ?></span>
               </div>
@@ -5863,6 +5941,9 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
     $unreadComments = unread_comment_count();
     $notificationUrl = $unreadComments > 0 ? admin_comments_url('unread') : url_for('admin_comments');
     $flash = pull_flash();
+    $flashContext = (string)($flash['context'] ?? '');
+    $databaseUpgradePending = database_upgrade_pending()
+        && $flashContext !== 'database_upgrade';
     $displayTitle = match ($title) {
         '博客数据预览' => sblog_t('博客数据预览'),
         '文章管理' => sblog_t('文章管理'),
@@ -5911,9 +5992,22 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
     </div>
     <?php if ($flash): ?>
       <?php $flashType = (string)($flash['type'] ?? 'success'); ?>
-      <div class="flash flash--<?= h($flashType) ?> admin-global-notice" role="<?= $flashType === 'error' ? 'alert' : 'status' ?>">
+      <div class="flash flash--<?= h($flashType) ?> admin-global-notice" role="<?= $flashType === 'success' ? 'status' : 'alert' ?>">
         <span class="admin-global-notice__icon"><?= admin_icon($flashType === 'success' ? 'check-circle' : 'alert-circle') ?></span>
-        <span><?= h((string)($flash['message'] ?? '')) ?></span>
+        <span>
+          <?= h((string)($flash['message'] ?? '')) ?>
+          <?php if ($flashContext === 'database_upgrade'): ?><a class="admin-global-notice__action" href="<?= h(asset_url('update.php')) ?>"><?= h(sblog_t('执行数据库升级')) ?></a><?php endif; ?>
+        </span>
+      </div>
+    <?php endif; ?>
+    <?php if ($databaseUpgradePending): ?>
+      <div class="flash flash--warning admin-global-notice" role="alert">
+        <span class="admin-global-notice__icon"><?= admin_icon('alert-circle') ?></span>
+        <span>
+          <strong><?= h(sblog_t('数据库升级尚未完成。')) ?></strong>
+          <?= h(sblog_t('请执行升级脚本，完成后此提醒会自动消失。')) ?>
+          <a class="admin-global-notice__action" href="<?= h(asset_url('update.php')) ?>"><?= h(sblog_t('执行数据库升级')) ?></a>
+        </span>
       </div>
     <?php endif; ?>
     <?php
@@ -6800,6 +6894,15 @@ function render_admin_page(): void
 
     $metrics = admin_metrics();
     $update = github_update_info();
+    $updateRequiresDatabase = !empty($update['requires_database_upgrade']);
+    $updateDatabaseKnown = !empty($update['database_schema_known']);
+    $updateDatabaseIncompatible = !empty($update['database_schema_incompatible']);
+    $updateConfirmation = match (true) {
+        $updateDatabaseIncompatible => '',
+        $updateRequiresDatabase => sblog_t('确定更新到 {version} 吗？更新期间请勿关闭页面。程序更新完成后还需要执行数据库升级。', ['version' => (string)$update['latest']]),
+        !$updateDatabaseKnown => sblog_t('确定更新到 {version} 吗？更新期间请勿关闭页面。此版本未声明数据库升级信息，请在更新后检查发布说明和后台提示。', ['version' => (string)$update['latest']]),
+        default => sblog_t('确定更新到 {version} 吗？更新期间请勿关闭页面。', ['version' => (string)$update['latest']]),
+    };
     $commentNotifications = recent_comment_notifications();
     $sidebar = render_admin_sidebar('admin');
 
@@ -6813,14 +6916,21 @@ function render_admin_page(): void
 
         <div class="admin-grid">
           <?php if (!empty($update['available'])): ?>
-            <section class="panel update-notice admin-animate">
+            <section class="panel update-notice<?= $updateRequiresDatabase || !$updateDatabaseKnown || $updateDatabaseIncompatible ? ' update-notice--database' : '' ?> admin-animate">
               <div class="panel__body">
                 <div>
                   <strong><?= h(sblog_t('发现新版本 {version}', ['version' => (string)$update['latest']])) ?></strong>
                   <p><?= h(sblog_t('当前版本 {version}。更新会自动备份并覆盖核心程序文件，站点数据、上传文件以及已安装的主题和插件不受影响。', ['version' => APP_VERSION])) ?></p>
+                  <?php if ($updateRequiresDatabase): ?><p class="update-notice__warning"><?= h(sblog_t('此版本包含数据库变更，程序更新后还需要执行数据库升级。')) ?></p><?php endif; ?>
+                  <?php if (!$updateDatabaseKnown): ?><p class="update-notice__warning"><?= h(sblog_t('此版本未声明数据库升级信息，请在更新后检查发布说明和后台提示。')) ?></p><?php endif; ?>
+                  <?php if ($updateDatabaseIncompatible): ?><p class="update-notice__warning"><?= h(sblog_t('此更新声明的数据库版本低于当前环境，已禁止安装。')) ?></p><?php endif; ?>
                 </div>
-                <form method="post" action="<?= h(url_for('install_update')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定更新到 {version} 吗？更新期间请勿关闭页面。', ['version' => (string)$update['latest']]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
-                  <?= csrf_field() ?><button class="button button--primary" type="submit"><?= h(sblog_t('立即更新')) ?></button>
+                <form method="post" action="<?= h(url_for('install_update')) ?>" onsubmit="return confirm(<?= h(json_encode($updateConfirmation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                  <?= csrf_field() ?>
+                  <input type="hidden" name="expected_version" value="<?= h((string)$update['latest']) ?>">
+                  <input type="hidden" name="expected_database_schema_known" value="<?= $updateDatabaseKnown ? '1' : '0' ?>">
+                  <input type="hidden" name="expected_database_schema" value="<?= $updateDatabaseKnown ? h((string)$update['database_schema']) : '' ?>">
+                  <button class="button button--primary" type="submit"<?= $updateDatabaseIncompatible ? ' disabled' : '' ?>><?= h(sblog_t('立即更新')) ?></button>
                 </form>
               </div>
             </section>
@@ -8260,7 +8370,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
               </div>
             <?php endif; ?>
 
-            <form class="form-stack" method="post" action="<?= h($isEdit ? url_for('edit', ['id' => $existing['id']]) : url_for('write')) ?>">
+            <form class="form-stack" method="post" action="<?= h($isEdit ? url_for('edit', ['id' => $existing['id']]) : url_for('write')) ?>" data-editor-form<?= $errors ? ' data-unsaved-initial="1"' : '' ?>>
               <?= csrf_field() ?>
               <div class="field">
                 <label for="title"><?= h(sblog_t('标题')) ?></label>
@@ -8860,9 +8970,33 @@ switch ($action) {
     case 'install_update':
         require_admin_post(url_for('admin'));
         try {
+            $expectedVersion = trim((string)($_POST['expected_version'] ?? ''));
+            $expectedSchemaKnown = (string)($_POST['expected_database_schema_known'] ?? '') === '1';
+            $expectedSchema = trim((string)($_POST['expected_database_schema'] ?? ''));
             $update = github_update_info(true);
+            $updateError = trim((string)($update['error'] ?? ''));
+            if ($updateError !== '') {
+                throw new RuntimeException(sblog_t('无法重新确认更新信息：{error}', ['error' => $updateError]));
+            }
+            $freshSchemaKnown = !empty($update['database_schema_known']);
+            $freshSchema = $freshSchemaKnown ? (string)$update['database_schema'] : '';
+            if ($expectedVersion === ''
+                || !hash_equals($expectedVersion, (string)($update['latest'] ?? ''))
+                || $expectedSchemaKnown !== $freshSchemaKnown
+                || ($freshSchemaKnown && !hash_equals($expectedSchema, $freshSchema))) {
+                throw new RuntimeException(sblog_t('可用更新信息已发生变化，请返回后台重新确认。'));
+            }
+            if (!empty($update['database_schema_incompatible'])) {
+                throw new RuntimeException(sblog_t('更新版本的数据库版本低于当前环境，无法安装。'));
+            }
             $version = install_github_update($update);
-            set_flash('success', sblog_t('已更新到 {version}。如版本包含数据库变更，请继续访问 update.php。', ['version' => $version]));
+            if (!empty($update['requires_database_upgrade'])) {
+                set_flash('warning', sblog_t('已更新到 {version}，数据库升级尚未完成，请继续执行数据库升级。', ['version' => $version]), 'database_upgrade');
+            } elseif (!$freshSchemaKnown) {
+                set_flash('warning', sblog_t('已更新到 {version}，但发布信息未声明数据库版本，请检查是否需要执行数据库升级。', ['version' => $version]), 'database_upgrade');
+            } else {
+                set_flash('success', sblog_t('已更新到 {version}。', ['version' => $version]));
+            }
         } catch (Throwable $exception) {
             set_flash('error', sblog_t('更新失败：{error}', ['error' => $exception->getMessage()]));
         }
@@ -8876,7 +9010,17 @@ switch ($action) {
         if ($updateError !== '') {
             set_flash('error', sblog_t('检测更新失败：{error}', ['error' => $updateError]));
         } elseif (!empty($update['available'])) {
-            set_flash('success', sblog_t('发现新版本 {version}，可点击“立即更新”完成升级。', ['version' => (string)$update['latest']]));
+            if (!empty($update['database_schema_incompatible'])) {
+                set_flash('error', sblog_t('发现新版本 {version}，但其数据库版本低于当前环境，无法安装。', ['version' => (string)$update['latest']]));
+            } elseif (!empty($update['requires_database_upgrade'])) {
+                set_flash('warning', sblog_t('发现新版本 {version}。此版本包含数据库变更，程序更新后还需要执行数据库升级。', ['version' => (string)$update['latest']]));
+            } elseif (empty($update['database_schema_known'])) {
+                set_flash('warning', sblog_t('发现新版本 {version}，但无法确认其数据库升级要求，请查看发布说明。', ['version' => (string)$update['latest']]));
+            } else {
+                set_flash('success', sblog_t('发现新版本 {version}，可点击“立即更新”完成升级。', ['version' => (string)$update['latest']]));
+            }
+        } elseif (database_upgrade_pending()) {
+            set_flash('warning', sblog_t('程序已是最新版本 {version}，但数据库升级尚未完成。', ['version' => APP_VERSION]), 'database_upgrade');
         } else {
             set_flash('success', sblog_t('暂无更新，当前已是最新版本 {version}。', ['version' => APP_VERSION]));
         }

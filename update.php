@@ -18,6 +18,7 @@ const UPDATE_CACHE_DIR = __DIR__ . '/cache';
 const UPDATE_CONFIG_FILE = UPDATE_DATA_DIR . '/config.php';
 const UPDATE_LOCK_FILE = UPDATE_DATA_DIR . '/install.lock';
 const UPDATE_SETTINGS_CACHE_FILE = UPDATE_CACHE_DIR . '/settings.php';
+const UPDATE_DATABASE_SCHEMA_VERSION = 1;
 
 function update_h(string|int $value): string
 {
@@ -116,9 +117,11 @@ if (!$admin) {
     exit;
 }
 
+$installedSchemaVersion = (int)($db->query("SELECT value FROM settings WHERE name = 'database_schema_version'")->fetchColumn() ?: 0);
+$databaseIsNewer = $installedSchemaVersion > UPDATE_DATABASE_SCHEMA_VERSION;
 $message = '';
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$error = $databaseIsNewer ? '数据库版本高于当前程序版本，请先更新程序，不能使用旧版升级脚本。' : '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$databaseIsNewer) {
     $token = (string)($_POST['csrf_token'] ?? '');
     $sessionToken = (string)($_SESSION['csrf_token'] ?? '');
     if ($sessionToken === '' || !hash_equals($sessionToken, $token)) {
@@ -315,6 +318,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $changes[] = '更新用户社交平台字段';
             }
 
+            if ($installedSchemaVersion < UPDATE_DATABASE_SCHEMA_VERSION) {
+                $db->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)')
+                    ->execute(['database_schema_version', (string)UPDATE_DATABASE_SCHEMA_VERSION]);
+                $changes[] = '更新数据库版本记录';
+            }
+
             $db->commit();
             update_write_settings_cache($db);
             $message = $changes ? '数据库升级完成：' . implode('、', $changes) . '。' : '数据库已经是最新版本，无需变更。';
@@ -350,7 +359,7 @@ if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token']) || $_
         <form method="post">
           <input type="hidden" name="csrf_token" value="<?= update_h((string)$_SESSION['csrf_token']) ?>">
           <div class="form-actions">
-            <button class="button button--primary" type="submit">开始升级</button>
+            <button class="button button--primary" type="submit"<?= $databaseIsNewer ? ' disabled' : '' ?>>开始升级</button>
             <a class="button button--secondary" href="index.php?a=admin">返回后台</a>
           </div>
         </form>

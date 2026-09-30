@@ -210,5 +210,7 @@ location ~ \.php$ {
 - `data/`、`cache/`、隐藏文件和扩展中的非公开文件不应该被公网直接访问
 - `ai_settings`、`mail_settings` 和 `s3_settings` 中包含后端密钥类配置，请只通过后台修改
 - 如果要重装，先删除 `data/install.lock`
-- 更新程序后如涉及数据库结构变更，请先登录后台，再访问 `update.php` 执行升级
+- 检查更新会读取 GitHub Release 正文中的数据库版本元数据；需要迁移时，后台会在更新前提示，并在升级完成前持续显示 `update.php` 入口
+- 每次发布都在 Release 正文加入 `<!-- sblog-release-meta: {"database_schema":1} -->`（数字使用该版本的目标 schema）；包含数据库迁移时，还需要同步递增程序中的数据库 schema 常量
+- 首次启用此机制的版本应作为不含新数据库迁移的桥接版本发布，因为更旧的更新器无法读取 Release 元数据
 - 一键更新只覆盖核心程序文件并保留 `data/`、`cache/`、`uploads/`、`themes/` 与 `plugins/`；主题和插件通过扩展商店独立更新

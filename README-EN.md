@@ -207,5 +207,7 @@ location ~ \.php$ {
 - The `data/`, `cache/`, hidden files, and non-public extension files must not be publicly accessible.
 - The `ai_settings`, `mail_settings`, and `s3_settings` tables contain sensitive backend credentials. Modify them only through the admin panel.
 - To reinstall the application, delete `data/install.lock` first.
-- If an application update includes database schema changes, sign in to the admin panel and then open `update.php` to run the migration.
+- Update checks read database-version metadata from the GitHub Release body. When a migration is required, the admin panel warns before installation and keeps linking to `update.php` until the migration succeeds.
+- Add `<!-- sblog-release-meta: {"database_schema":1} -->` to every Release body, using that release's target schema. When a release includes a database migration, increment the database schema constants in the application as well.
+- Release the first version with this mechanism as a bridge without a new database migration, because older updaters cannot read Release metadata.
 - One-click updates replace core application files only and preserve `data/`, `cache/`, `uploads/`, `themes/`, and `plugins/`. Themes and plugins are updated independently through the extension store.
