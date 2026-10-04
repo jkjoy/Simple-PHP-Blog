@@ -928,9 +928,14 @@ function sblog_tn(string $key, int $count, array $parameters = []): string
 
 function plugin_display_metadata(string $slug, array $manifest): array
 {
+    $nameKey = 'plugin.' . $slug . '.name';
+    $descriptionKey = 'plugin.' . $slug . '.description';
+    $translatedName = sblog_t($nameKey);
+    $translatedDescription = sblog_t($descriptionKey);
+
     return [
-        'name' => (string)($manifest['name'] ?? ''),
-        'description' => (string)($manifest['description'] ?? ''),
+        'name' => $translatedName === $nameKey ? (string)($manifest['name'] ?? '') : $translatedName,
+        'description' => $translatedDescription === $descriptionKey ? (string)($manifest['description'] ?? '') : $translatedDescription,
     ];
 }
 
