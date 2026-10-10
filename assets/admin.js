@@ -329,6 +329,15 @@ function initPostFormatControl() {
   syncVisibility();
 }
 
+function initEditorSettings() {
+  document.querySelectorAll("[data-editor-settings]").forEach((settings) => {
+    if (!(settings instanceof HTMLDetailsElement)) return;
+    settings.addEventListener("invalid", () => {
+      settings.open = true;
+    }, true);
+  });
+}
+
 function initEditorLeaveWarning() {
   const form = document.querySelector("[data-editor-form]");
   if (!(form instanceof HTMLFormElement)) return;
@@ -538,7 +547,7 @@ function initAttachmentUploader() {
   const refreshOnUpload = uploader.dataset.refreshOnUpload === "1";
   const maxSize = 30 * 1024 * 1024;
 
-  if (!input || !drop || !list || !uploadUrl || !csrf) return;
+  if (!(input instanceof HTMLInputElement) || !list || !uploadUrl || !csrf) return;
 
   const pastedImageExtension = (type) => {
     const normalized = String(type || "").toLowerCase();
@@ -679,30 +688,46 @@ function initAttachmentUploader() {
       }
     }
 
-    input.value = "";
     if (refreshOnUpload && list.querySelector(".attachment-item.is-done")) {
       window.location.reload();
     }
   };
 
-  input.addEventListener("change", () => uploadFiles(input.files));
-
-  ["dragenter", "dragover"].forEach((type) => {
-    drop.addEventListener(type, (event) => {
-      event.preventDefault();
-      drop.classList.add("is-dragging");
-    });
+  input.addEventListener("change", () => {
+    const files = Array.from(input.files || []);
+    input.value = "";
+    void uploadFiles(files);
   });
 
-  ["dragleave", "drop"].forEach((type) => {
-    drop.addEventListener(type, (event) => {
-      event.preventDefault();
-      drop.classList.remove("is-dragging");
-    });
+  document.querySelectorAll("[data-attachment-trigger]").forEach((trigger) => {
+    if (!(trigger instanceof HTMLButtonElement) || trigger.dataset.attachmentTrigger !== input.id) return;
+    trigger.addEventListener("click", () => input.click());
   });
 
-  drop.addEventListener("drop", (event) => {
-    uploadFiles(event.dataTransfer?.files);
+  const isFileDrag = (event) => {
+    const transfer = event.dataTransfer;
+    return transfer && (Array.from(transfer.types || []).includes("Files") || transfer.files?.length > 0);
+  };
+
+  [drop, editor].forEach((target) => {
+    if (!(target instanceof HTMLElement)) return;
+    ["dragenter", "dragover"].forEach((type) => {
+      target.addEventListener(type, (event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        target.classList.add("is-dragging");
+      });
+    });
+
+    target.addEventListener("dragleave", () => target.classList.remove("is-dragging"));
+    target.addEventListener("drop", (event) => {
+      target.classList.remove("is-dragging");
+      const files = event.dataTransfer?.files;
+      if (!files?.length) return;
+      event.preventDefault();
+      void uploadFiles(files);
+    });
   });
 
   if (editor) {
@@ -916,6 +941,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initAccountMenus();
   initSettingsControls();
   initPostFormatControl();
+  initEditorSettings();
   initEditorLeaveWarning();
   initTagManager();
   initMarkdownEditor();

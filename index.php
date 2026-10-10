@@ -8447,36 +8447,6 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                 <p class="field-hint"><?= h(sblog_t('如果发布时间晚于当前时间，前台会按定时发布处理。')) ?></p>
               </div>
 
-              <div class="field" data-post-only-field<?= (string)$values['kind'] === 'page' ? ' hidden' : '' ?>>
-                <label for="content_password"><?= h(sblog_t('文章访问密码（可选）')) ?></label>
-                <div class="auth-password">
-                  <input id="content_password" name="content_password" type="password" value="" minlength="8" maxlength="72" autocomplete="new-password"<?= (string)$values['kind'] === 'page' ? ' disabled' : '' ?>>
-                  <button class="auth-password-toggle" type="button" data-password-toggle="content_password" aria-label="<?= h(sblog_t('显示密码')) ?>" aria-pressed="false" title="<?= h(sblog_t('显示密码')) ?>">
-                    <span class="auth-password-toggle__icon auth-password-toggle__icon--show"><?= admin_icon('eye') ?></span>
-                    <span class="auth-password-toggle__icon auth-password-toggle__icon--hide"><?= admin_icon('eye-off') ?></span>
-                  </button>
-                </div>
-                <p class="field-hint"><?= h($hasContentPassword
-                    ? sblog_t('已设置访问密码；留空会保留当前密码。')
-                    : sblog_t('设置后，访客需要输入密码才能查看文章正文。')) ?></p>
-                <?php if ($hasContentPassword): ?>
-                  <label class="setting-option" for="remove_content_password">
-                    <input id="remove_content_password" name="remove_content_password" type="checkbox" value="1"<?= (string)$values['remove_content_password'] === '1' ? ' checked' : '' ?>>
-                    <span><?= h(sblog_t('移除现有访问密码')) ?></span>
-                  </label>
-                <?php endif; ?>
-              </div>
-
-              <label class="pin-option" for="is_pinned">
-                <input id="is_pinned" name="is_pinned" type="checkbox" value="1"<?= (string)$values['is_pinned'] === '1' ? ' checked' : '' ?>>
-                <span><strong><?= h(sblog_t('置顶文章')) ?></strong><small><?= h(sblog_t('发布后优先显示在前端文章列表顶部，仅对文章生效。')) ?></small></span>
-              </label>
-
-              <label class="pin-option page-comments-option" for="allow_comments">
-                <input id="allow_comments" name="allow_comments" type="checkbox" value="1"<?= (string)$values['allow_comments'] === '1' ? ' checked' : '' ?>>
-                <span><strong><?= h(sblog_t('显示评论')) ?></strong><small><?= h(sblog_t('仅对独立页面生效。')) ?></small></span>
-              </label>
-
               <div class="field">
                 <div class="field-label-row"><label for="content"><?= h(sblog_t('正文')) ?></label><?= $editorActions['content'] ?></div>
                 <div class="markdown-editor" data-markdown-editor>
@@ -8501,6 +8471,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                     <span class="markdown-toolbar__separator" aria-hidden="true"></span>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="link" aria-label="<?= h(sblog_t('插入链接')) ?>" aria-keyshortcuts="Control+K Meta+K" title="<?= h(sblog_t('链接 (Ctrl/Cmd+K)')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="image" aria-label="<?= h(sblog_t('插入图片')) ?>" title="<?= h(sblog_t('图片')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-attachment-trigger="attachmentInput" aria-controls="attachmentInput" aria-label="<?= h(sblog_t('上传附件')) ?>" title="<?= h(sblog_t('上传附件') . ' · ' . sblog_t('每个附件最大 30M。')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.48-8.48l10.6-10.6a4 4 0 0 1 5.66 5.66l-10.61 10.6a2 2 0 0 1-2.83-2.83l9.2-9.19"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="table" aria-label="<?= h(sblog_t('插入表格')) ?>" title="<?= h(sblog_t('表格')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14M16 5v14"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="code-block" aria-label="<?= h(sblog_t('代码块')) ?>" title="<?= h(sblog_t('代码块')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3m8-6 3 3-3 3m-2-9-4 12"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="horizontal-rule" aria-label="<?= h(sblog_t('分隔线')) ?>" title="<?= h(sblog_t('分隔线')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
@@ -8509,21 +8480,52 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                   </div>
                   <textarea id="content" class="editor-textarea" name="content" rows="18" spellcheck="true" required><?= h((string)$values['content']) ?></textarea>
                   <div class="markdown-editor__status"><span><?= h(sblog_t('Markdown')) ?></span><span data-markdown-count aria-live="polite"><?= h(sblog_tn('{count} 个字符', 0)) ?></span></div>
+                  <div class="attachment-uploader attachment-uploader--editor" data-upload-url="<?= h(url_for('upload_attachment')) ?>" data-csrf="<?= h(csrf_token()) ?>">
+                    <input id="attachmentInput" class="attachment-input" type="file" name="attachments[]" aria-label="<?= h(sblog_t('上传附件')) ?>" multiple hidden>
+                    <div class="attachment-list" aria-live="polite"></div>
+                  </div>
                 </div>
                 <p class="field-hint"><?= h(sblog_t('支持 Markdown；将网易云音乐、哔哩哔哩、YouTube 或豆瓣链接单独放在一段可自动解析。')) ?></p>
               </div>
 
-              <div class="field">
-                <label for="attachmentInput"><?= h(sblog_t('上传附件')) ?></label>
-                <div class="attachment-uploader" data-upload-url="<?= h(url_for('upload_attachment')) ?>" data-csrf="<?= h(csrf_token()) ?>">
-                  <input id="attachmentInput" class="attachment-input" type="file" name="attachments[]" multiple>
-                  <label class="attachment-drop" for="attachmentInput">
-                    <span class="attachment-drop__title"><?= h(sblog_t('选择或拖入附件')) ?></span>
-                    <span class="attachment-drop__hint"><?= h(sblog_t('可同时上传多个附件，每个最大 30M；图片上传完成后显示缩略图并插入 Markdown，也可以直接粘贴图片。')) ?></span>
+              <details class="editor-settings" data-editor-settings<?= $errors ? ' open' : '' ?>>
+                <summary class="editor-settings__toggle">
+                  <?= admin_icon('settings') ?>
+                  <span><?= h(sblog_t('更多设置')) ?></span>
+                  <span class="editor-settings__chevron"><?= admin_icon('chevron-right') ?></span>
+                </summary>
+                <div class="editor-settings__body">
+                  <label class="pin-option" for="is_pinned">
+                    <input id="is_pinned" name="is_pinned" type="checkbox" value="1"<?= (string)$values['is_pinned'] === '1' ? ' checked' : '' ?>>
+                    <span><strong><?= h(sblog_t('置顶文章')) ?></strong><small><?= h(sblog_t('发布后优先显示在前端文章列表顶部，仅对文章生效。')) ?></small></span>
                   </label>
-                  <div class="attachment-list" aria-live="polite"></div>
+
+                  <label class="pin-option page-comments-option" for="allow_comments">
+                    <input id="allow_comments" name="allow_comments" type="checkbox" value="1"<?= (string)$values['allow_comments'] === '1' ? ' checked' : '' ?>>
+                    <span><strong><?= h(sblog_t('显示评论')) ?></strong><small><?= h(sblog_t('仅对独立页面生效。')) ?></small></span>
+                  </label>
+
+                  <div class="field" data-post-only-field<?= (string)$values['kind'] === 'page' ? ' hidden' : '' ?>>
+                    <label for="content_password"><?= h(sblog_t('文章访问密码（可选）')) ?></label>
+                    <div class="auth-password">
+                      <input id="content_password" name="content_password" type="password" value="" minlength="8" maxlength="72" autocomplete="new-password"<?= (string)$values['kind'] === 'page' ? ' disabled' : '' ?>>
+                      <button class="auth-password-toggle" type="button" data-password-toggle="content_password" aria-label="<?= h(sblog_t('显示密码')) ?>" aria-pressed="false" title="<?= h(sblog_t('显示密码')) ?>">
+                        <span class="auth-password-toggle__icon auth-password-toggle__icon--show"><?= admin_icon('eye') ?></span>
+                        <span class="auth-password-toggle__icon auth-password-toggle__icon--hide"><?= admin_icon('eye-off') ?></span>
+                      </button>
+                    </div>
+                    <p class="field-hint"><?= h($hasContentPassword
+                        ? sblog_t('已设置访问密码；留空会保留当前密码。')
+                        : sblog_t('设置后，访客需要输入密码才能查看文章正文。')) ?></p>
+                    <?php if ($hasContentPassword): ?>
+                      <label class="setting-option" for="remove_content_password">
+                        <input id="remove_content_password" name="remove_content_password" type="checkbox" value="1"<?= (string)$values['remove_content_password'] === '1' ? ' checked' : '' ?>>
+                        <span><?= h(sblog_t('移除现有访问密码')) ?></span>
+                      </label>
+                    <?php endif; ?>
+                  </div>
                 </div>
-              </div>
+              </details>
 
               <div class="action-row">
                 <button class="button" type="submit"><?= h($isEdit ? sblog_t('保存修改') : sblog_t('创建文章')) ?></button>

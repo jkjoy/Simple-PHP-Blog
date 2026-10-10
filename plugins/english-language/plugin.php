@@ -545,6 +545,7 @@ function sblog_english_language_map(): array
         '文章分类' => 'Post category',
         '置顶' => 'Pinned',
         '置顶文章' => 'Pin post',
+        '更多设置' => 'More settings',
         '显示评论' => 'Show comments',
         '上传附件' => 'Upload attachment',
         '选择文件或拖到这里' => 'Choose a file or drop it here',
