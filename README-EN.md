@@ -30,6 +30,8 @@ A lightweight blog built around a single-entry-point architecture:
 - Automatic GitHub Release checks and one-click application updates
 - Optional pretty URLs
 - Basic Markdown rendering
+- Attachment uploads from the editor toolbar, with multiple files, drag and drop, and pasted images
+- Collapsible More settings for pinned posts, standalone-page comments, and post access passwords
 - Automatic embeds for NetEase Cloud Music, Bilibili, YouTube, and Douban links
 
 ## Media Embeds
