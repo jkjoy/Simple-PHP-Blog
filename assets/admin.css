@@ -727,7 +727,7 @@ textarea {
 }
 
 .theme-admin .editor-heading-fields {
-  grid-template-columns: minmax(160px, 200px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 200px);
 }
 
 .theme-admin .editor-heading-fields,

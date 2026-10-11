@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.11';
+const APP_VERSION = 'v1.14.12';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
@@ -8440,6 +8440,8 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
         $actionHtml = plugin_filter('editor_field_actions_html', '', $editorContext + ['field' => $field]);
         $editorActions[$field] = is_string($actionHtml) ? $actionHtml : '';
     }
+    $settingsHtml = plugin_filter('editor_settings_html', '', $editorContext);
+    $settingsHtml = is_string($settingsHtml) ? $settingsHtml : '';
     $afterFormHtml = plugin_filter('editor_after_form_html', '', $editorContext);
     $afterFormHtml = is_string($afterFormHtml) ? $afterFormHtml : '';
     $sidebar = render_admin_sidebar($isEdit ? 'edit' : 'write');
@@ -8480,15 +8482,15 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
               <?= csrf_field() ?>
               <div class="field-grid editor-heading-fields">
                 <div class="field">
+                  <label for="title"><?= h(sblog_t('标题')) ?></label>
+                  <input id="title" name="title" type="text" value="<?= h((string)$values['title']) ?>" required>
+                </div>
+                <div class="field">
                   <label for="kind"><?= h(sblog_t('内容类型')) ?></label>
                   <select id="kind" name="kind">
                     <option value="post"<?= (string)$values['kind'] === 'post' ? ' selected' : '' ?>><?= h(sblog_t('文章')) ?></option>
                     <option value="page"<?= (string)$values['kind'] === 'page' ? ' selected' : '' ?>><?= h(sblog_t('独立页面')) ?></option>
                   </select>
-                </div>
-                <div class="field">
-                  <label for="title"><?= h(sblog_t('标题')) ?></label>
-                  <input id="title" name="title" type="text" value="<?= h((string)$values['title']) ?>" required>
                 </div>
               </div>
 
@@ -8620,6 +8622,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                       </label>
                     <?php endif; ?>
                   </div>
+                  <?= $settingsHtml ?>
                 </div>
               </details>
 
