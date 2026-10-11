@@ -32,7 +32,7 @@ A lightweight blog built around a single-entry-point architecture:
 - Basic Markdown rendering
 - Attachment uploads from the editor toolbar, with multiple files, drag and drop, and pasted images
 - A media library picker in the editor toolbar, with search, filters, and multiple images or attachments inserted at the cursor
-- Collapsible More settings for pinned posts, standalone-page comments, and post access passwords
+- Collapsible More settings for the publication date, pinned posts, standalone-page comments, and post access passwords
 - Automatic embeds for NetEase Cloud Music, Bilibili, YouTube, and Douban links
 
 ## Media Embeds

@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.10';
+const APP_VERSION = 'v1.14.11';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
@@ -8478,12 +8478,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
 
             <form class="form-stack" method="post" action="<?= h($isEdit ? url_for('edit', ['id' => $existing['id']]) : url_for('write')) ?>" data-editor-form<?= $errors ? ' data-unsaved-initial="1"' : '' ?>>
               <?= csrf_field() ?>
-              <div class="field">
-                <label for="title"><?= h(sblog_t('标题')) ?></label>
-                <input id="title" name="title" type="text" value="<?= h((string)$values['title']) ?>" required>
-              </div>
-
-              <div class="field-grid field-grid--quad">
+              <div class="field-grid editor-heading-fields">
                 <div class="field">
                   <label for="kind"><?= h(sblog_t('内容类型')) ?></label>
                   <select id="kind" name="kind">
@@ -8491,6 +8486,13 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                     <option value="page"<?= (string)$values['kind'] === 'page' ? ' selected' : '' ?>><?= h(sblog_t('独立页面')) ?></option>
                   </select>
                 </div>
+                <div class="field">
+                  <label for="title"><?= h(sblog_t('标题')) ?></label>
+                  <input id="title" name="title" type="text" value="<?= h((string)$values['title']) ?>" required>
+                </div>
+              </div>
+
+              <div class="field-grid field-grid--triple editor-metadata-fields">
                 <div class="field">
                   <div class="field-label-row"><label for="slug"><?= h(sblog_t('Slug')) ?></label><?= $editorActions['slug'] ?></div>
                   <input id="slug" name="slug" type="text" value="<?= h((string)$values['slug']) ?>" placeholder="<?= h(sblog_t('留空将自动生成')) ?>">
@@ -8505,9 +8507,9 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                   </select>
                 </div>
                 <div class="field">
-                  <label for="published_at"><?= h(sblog_t('发布时间')) ?></label>
-                  <input id="published_at" name="published_at" type="datetime-local" value="<?= h((string)$values['published_at']) ?>">
-                  <p class="field-hint"><?= h(sblog_t('如果发布时间晚于当前时间，前台会按定时发布处理。')) ?></p>
+                  <label for="tags_input"><?= h(sblog_t('标签')) ?></label>
+                  <input id="tags_input" name="tags_input" type="text" value="<?= h((string)$values['tags_input']) ?>" placeholder="<?= h(sblog_t('用逗号分隔，例如 PHP, SQLite, 随笔')) ?>">
+                  <p class="field-hint"><?= h(sblog_t('独立页面可以留空，文章会用这些标签生成聚合页。')) ?></p>
                 </div>
               </div>
 
@@ -8528,12 +8530,6 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
               <?php else: ?>
                 <input name="post_format" type="hidden" value="<?= (string)$values['post_format'] === 'image' ? 'image' : 'text' ?>">
               <?php endif; ?>
-
-              <div class="field">
-                <label for="tags_input"><?= h(sblog_t('标签')) ?></label>
-                <input id="tags_input" name="tags_input" type="text" value="<?= h((string)$values['tags_input']) ?>" placeholder="<?= h(sblog_t('用逗号分隔，例如 PHP, SQLite, 随笔')) ?>">
-                <p class="field-hint"><?= h(sblog_t('独立页面可以留空，文章会用这些标签生成聚合页。')) ?></p>
-              </div>
 
               <div class="field">
                 <div class="field-label-row"><label for="excerpt"><?= h(sblog_t('摘要')) ?></label><?= $editorActions['excerpt'] ?></div>
@@ -8589,6 +8585,12 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                   <span class="editor-settings__chevron"><?= admin_icon('chevron-right') ?></span>
                 </summary>
                 <div class="editor-settings__body">
+                  <div class="field">
+                    <label for="published_at"><?= h(sblog_t('发布时间')) ?></label>
+                    <input id="published_at" name="published_at" type="datetime-local" value="<?= h((string)$values['published_at']) ?>">
+                    <p class="field-hint"><?= h(sblog_t('如果发布时间晚于当前时间，前台会按定时发布处理。')) ?></p>
+                  </div>
+
                   <label class="pin-option" for="is_pinned">
                     <input id="is_pinned" name="is_pinned" type="checkbox" value="1"<?= (string)$values['is_pinned'] === '1' ? ' checked' : '' ?>>
                     <span><strong><?= h(sblog_t('置顶文章')) ?></strong><small><?= h(sblog_t('发布后优先显示在前端文章列表顶部，仅对文章生效。')) ?></small></span>

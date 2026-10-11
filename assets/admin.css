@@ -726,6 +726,27 @@ textarea {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.theme-admin .editor-heading-fields {
+  grid-template-columns: minmax(160px, 200px) minmax(0, 1fr);
+}
+
+.theme-admin .editor-heading-fields,
+.theme-admin .editor-metadata-fields {
+  align-items: start;
+}
+
+.theme-admin .editor-heading-fields > .field,
+.theme-admin .editor-metadata-fields > .field {
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .theme-admin .editor-heading-fields,
+  .theme-admin .editor-metadata-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .theme-admin .form-stack {
   gap: 16px;
 }
