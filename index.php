@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.9';
+const APP_VERSION = 'v1.14.10';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
@@ -2093,6 +2093,70 @@ function media_file_size(int $bytes): string
     return $bytes . ' B';
 }
 
+function handle_media_picker(): void
+{
+    header('Cache-Control: private, no-store');
+    if (!is_admin()) {
+        json_response(['ok' => false, 'error' => sblog_t('请先登录后台。')], 401);
+    }
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+        header('Allow: GET');
+        json_response(['ok' => false, 'error' => sblog_t('请求无效')], 405);
+    }
+
+    $search = str_sub_u(trim(is_string($_GET['q'] ?? null) ? $_GET['q'] : ''), 0, 255);
+    $type = is_string($_GET['type'] ?? null) ? $_GET['type'] : 'all';
+    if (!in_array($type, ['all', 'images', 'files'], true)) {
+        $type = 'all';
+    }
+    $where = [];
+    $params = [];
+    if ($search !== '') {
+        $where[] = '(title LIKE ? OR original_name LIKE ? OR alt_text LIKE ? OR caption LIKE ?)';
+        $term = '%' . $search . '%';
+        array_push($params, $term, $term, $term, $term);
+    }
+    if ($type === 'images') {
+        $where[] = 'is_image = 1';
+    } elseif ($type === 'files') {
+        $where[] = 'is_image = 0';
+    }
+    $condition = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+    $total = (int)val('SELECT COUNT(*) FROM media' . $condition, $params);
+    $perPage = 24;
+    $pages = max(1, (int)ceil($total / $perPage));
+    $page = min($pages, max(1, is_scalar($_GET['page'] ?? 1) ? (int)($_GET['page'] ?? 1) : 1));
+    $offset = ($page - 1) * $perPage;
+    $rows = all_rows(
+        'SELECT id, original_name, title, alt_text, url, mime_type, file_size, is_image FROM media'
+            . $condition . ' ORDER BY created_at DESC, id DESC LIMIT ' . $perPage . ' OFFSET ' . $offset,
+        $params
+    );
+    $items = [];
+    foreach ($rows as $media) {
+        $isImage = !empty($media['is_image']);
+        $title = trim((string)$media['title']) ?: (string)$media['original_name'];
+        $label = $isImage && trim((string)$media['alt_text']) !== '' ? (string)$media['alt_text'] : $title;
+        // Keep labels literal with the editor's basic Markdown renderer.
+        $label = strtr(preg_replace('/[\r\n]+/', ' ', $label) ?? $label, [
+            '[' => '［', ']' => '］', '`' => '｀', '*' => '＊', '~' => '～',
+        ]);
+        $url = safe_link_url(strtr(trim((string)$media['url']), [' ' => '%20', '(' => '%28', ')' => '%29']));
+        $items[] = [
+            'id' => (int)$media['id'],
+            'title' => $title,
+            'original_name' => (string)$media['original_name'],
+            'alt_text' => (string)$media['alt_text'],
+            'url' => $url,
+            'is_image' => $isImage,
+            'description' => (string)$media['mime_type'] . ' · ' . media_file_size((int)$media['file_size']),
+            'markdown' => ($isImage ? '!' : '') . '[' . $label . '](' . $url . ')',
+        ];
+    }
+
+    json_response(['ok' => true, 'items' => $items, 'total' => $total, 'page' => $page, 'pages' => $pages]);
+}
+
 function media_local_file(string $relativePath): ?string
 {
     $relativePath = trim(str_replace('\\', '/', $relativePath), '/');
@@ -2908,6 +2972,7 @@ function url_for(string $route, array $params = []): string
         'delete_link' => script_url() . '?a=delete_link',
         'save_user' => script_url() . '?a=save_user',
         'upload_attachment' => script_url() . '?a=upload_attachment',
+        'media_picker' => script_url() . '?a=media_picker',
         'save_media' => script_url() . '?a=save_media',
         'delete_media' => script_url() . '?a=delete_media',
         'delete_post' => script_url() . '?a=delete_post',
@@ -3415,7 +3480,7 @@ function render_inline(string $text): string
         $escaped = preg_replace_callback(
             '/!\[(.*?)]\(([^\s)]+)\)/u',
             static function (array $matches): string {
-                $src = safe_link_url($matches[2]);
+                $src = safe_link_url(html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                 if ($src === '#') {
                     return $matches[0];
                 }
@@ -3428,7 +3493,7 @@ function render_inline(string $text): string
         $escaped = preg_replace_callback(
             '/(?<!!)\[(.+?)]\(([^\s)]+)\)/u',
             static function (array $matches): string {
-                $href = safe_link_url($matches[2]);
+                $href = safe_link_url(html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                 if ($href === '#') {
                     return $matches[0];
                 }
@@ -8305,6 +8370,42 @@ location / {
     ]);
 }
 
+function render_editor_media_picker(): string
+{
+    ob_start();
+    ?>
+    <dialog id="editorMediaPicker" class="media-picker" data-media-picker data-media-url="<?= h(url_for('media_picker')) ?>" aria-labelledby="mediaPickerTitle" aria-describedby="mediaPickerHint">
+      <div class="media-picker__header">
+        <h2 id="mediaPickerTitle"><?= h(sblog_t('媒体库')) ?></h2>
+        <button class="media-picker__close" type="button" data-media-picker-close aria-label="<?= h(sblog_t('关闭媒体库')) ?>"><?= admin_icon('close') ?></button>
+      </div>
+      <p id="mediaPickerHint" class="media-picker__hint"><?= h(sblog_t('从媒体库选择图片或文件，插入到正文光标位置。')) ?></p>
+      <form class="media-picker__toolbar" data-media-picker-search>
+        <label class="media-library-search"><span class="sr-only"><?= h(sblog_t('搜索媒体')) ?></span><input name="q" type="search" placeholder="<?= h(sblog_t('搜索媒体')) ?>" maxlength="255" autocomplete="off"></label>
+        <label class="media-library-filter"><span class="sr-only"><?= h(sblog_t('媒体类型')) ?></span><select name="type"><option value="all"><?= h(sblog_t('全部媒体')) ?></option><option value="images"><?= h(sblog_t('图片')) ?></option><option value="files"><?= h(sblog_t('文件')) ?></option></select></label>
+        <button class="button button--secondary" type="submit"><?= h(sblog_t('筛选')) ?></button>
+      </form>
+      <div class="media-picker__body">
+        <p class="media-picker__status" data-media-picker-status role="status" aria-live="polite"></p>
+        <div class="media-picker__grid" data-media-picker-grid></div>
+      </div>
+      <nav class="media-picker__pagination">
+        <button class="button button--secondary" type="button" data-media-picker-prev disabled><?= h(sblog_t('上一页')) ?></button>
+        <span data-media-picker-page></span>
+        <button class="button button--secondary" type="button" data-media-picker-next disabled><?= h(sblog_t('下一页')) ?></button>
+      </nav>
+      <div class="media-picker__footer">
+        <span data-media-picker-count></span>
+        <div class="action-row">
+          <button class="button button--secondary" type="button" data-media-picker-close><?= h(sblog_t('取消')) ?></button>
+          <button class="button" type="button" data-media-picker-insert disabled><?= h(sblog_t('插入所选媒体')) ?></button>
+        </div>
+      </div>
+    </dialog>
+    <?php
+    return (string)ob_get_clean();
+}
+
 function render_editor_page(?array $existing = null, array $form = [], array $errors = []): void
 {
     require_admin();
@@ -8406,6 +8507,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                 <div class="field">
                   <label for="published_at"><?= h(sblog_t('发布时间')) ?></label>
                   <input id="published_at" name="published_at" type="datetime-local" value="<?= h((string)$values['published_at']) ?>">
+                  <p class="field-hint"><?= h(sblog_t('如果发布时间晚于当前时间，前台会按定时发布处理。')) ?></p>
                 </div>
               </div>
 
@@ -8439,15 +8541,6 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
               </div>
 
               <div class="field">
-                <label for="status"><?= h(sblog_t('状态')) ?></label>
-                <select id="status" name="status">
-                  <option value="draft"<?= (string)$values['status'] === 'draft' ? ' selected' : '' ?>><?= h(sblog_t('草稿')) ?></option>
-                  <option value="published"<?= (string)$values['status'] === 'published' ? ' selected' : '' ?>><?= h(sblog_t('发布')) ?></option>
-                </select>
-                <p class="field-hint"><?= h(sblog_t('如果发布时间晚于当前时间，前台会按定时发布处理。')) ?></p>
-              </div>
-
-              <div class="field">
                 <div class="field-label-row"><label for="content"><?= h(sblog_t('正文')) ?></label><?= $editorActions['content'] ?></div>
                 <div class="markdown-editor" data-markdown-editor>
                   <div class="markdown-toolbar" role="toolbar" aria-label="<?= h(sblog_t('Markdown 格式工具栏')) ?>">
@@ -8472,6 +8565,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="link" aria-label="<?= h(sblog_t('插入链接')) ?>" aria-keyshortcuts="Control+K Meta+K" title="<?= h(sblog_t('链接 (Ctrl/Cmd+K)')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="image" aria-label="<?= h(sblog_t('插入图片')) ?>" title="<?= h(sblog_t('图片')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-attachment-trigger="attachmentInput" aria-controls="attachmentInput" aria-label="<?= h(sblog_t('上传附件')) ?>" title="<?= h(sblog_t('上传附件') . ' · ' . sblog_t('每个附件最大 30M。')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.48-8.48l10.6-10.6a4 4 0 0 1 5.66 5.66l-10.61 10.6a2 2 0 0 1-2.83-2.83l9.2-9.19"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-media-picker-open aria-controls="editorMediaPicker" aria-haspopup="dialog" aria-label="<?= h(sblog_t('媒体库')) ?>" title="<?= h(sblog_t('媒体库')) ?>"><?= admin_icon('media') ?></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="table" aria-label="<?= h(sblog_t('插入表格')) ?>" title="<?= h(sblog_t('表格')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14M16 5v14"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="code-block" aria-label="<?= h(sblog_t('代码块')) ?>" title="<?= h(sblog_t('代码块')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3m8-6 3 3-3 3m-2-9-4 12"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="horizontal-rule" aria-label="<?= h(sblog_t('分隔线')) ?>" title="<?= h(sblog_t('分隔线')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
@@ -8528,9 +8622,11 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
               </details>
 
               <div class="action-row">
-                <button class="button" type="submit"><?= h($isEdit ? sblog_t('保存修改') : sblog_t('创建文章')) ?></button>
+                <button class="button button--secondary" type="submit" name="status" value="draft"><?= h(sblog_t('保存草稿')) ?></button>
+                <button class="button" type="submit" name="status" value="published"><?= h($isEdit && (string)$existing['status'] === 'published' ? sblog_t('保存修改') : sblog_t('发布文章')) ?></button>
               </div>
             </form>
+            <?= render_editor_media_picker() ?>
             <?= $afterFormHtml ?>
           </div>
         </section>
@@ -9060,6 +9156,10 @@ switch ($action) {
 
     case 'admin_media':
         render_admin_media_page();
+        break;
+
+    case 'media_picker':
+        handle_media_picker();
         break;
 
     case 'admin_themes':
