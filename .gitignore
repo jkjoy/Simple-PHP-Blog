@@ -8,3 +8,4 @@ data
 !/plugins/english-language/
 !/plugins/russian-language/
 /store/catalog.json
+/tests/
