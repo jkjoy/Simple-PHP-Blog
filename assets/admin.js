@@ -389,6 +389,15 @@ function initPageSlugValidation() {
   check();
 }
 
+function initEditorSettings() {
+  document.querySelectorAll("[data-editor-settings]").forEach((settings) => {
+    if (!(settings instanceof HTMLDetailsElement)) return;
+    settings.addEventListener("invalid", () => {
+      settings.open = true;
+    }, true);
+  });
+}
+
 function initEditorLeaveWarning() {
   const form = document.querySelector("[data-editor-form]");
   if (!(form instanceof HTMLFormElement)) return;
@@ -424,7 +433,7 @@ function initEditorLeaveWarning() {
   form.addEventListener("submit", allowNavigation);
   document.addEventListener("submit", (event) => {
     const submittedForm = event.target;
-    if (!(submittedForm instanceof HTMLFormElement) || submittedForm === form) return;
+    if (!(submittedForm instanceof HTMLFormElement) || submittedForm === form || submittedForm.closest("[data-media-picker]")) return;
     if (submittedForm.target && submittedForm.target.toLowerCase() !== "_self") return;
     if (!confirmLeave()) {
       event.preventDefault();
@@ -598,7 +607,7 @@ function initAttachmentUploader() {
   const refreshOnUpload = uploader.dataset.refreshOnUpload === "1";
   const maxSize = 30 * 1024 * 1024;
 
-  if (!input || !drop || !list || !uploadUrl || !csrf) return;
+  if (!(input instanceof HTMLInputElement) || !list || !uploadUrl || !csrf) return;
 
   const pastedImageExtension = (type) => {
     const normalized = String(type || "").toLowerCase();
@@ -739,30 +748,46 @@ function initAttachmentUploader() {
       }
     }
 
-    input.value = "";
     if (refreshOnUpload && list.querySelector(".attachment-item.is-done")) {
       window.location.reload();
     }
   };
 
-  input.addEventListener("change", () => uploadFiles(input.files));
-
-  ["dragenter", "dragover"].forEach((type) => {
-    drop.addEventListener(type, (event) => {
-      event.preventDefault();
-      drop.classList.add("is-dragging");
-    });
+  input.addEventListener("change", () => {
+    const files = Array.from(input.files || []);
+    input.value = "";
+    void uploadFiles(files);
   });
 
-  ["dragleave", "drop"].forEach((type) => {
-    drop.addEventListener(type, (event) => {
-      event.preventDefault();
-      drop.classList.remove("is-dragging");
-    });
+  document.querySelectorAll("[data-attachment-trigger]").forEach((trigger) => {
+    if (!(trigger instanceof HTMLButtonElement) || trigger.dataset.attachmentTrigger !== input.id) return;
+    trigger.addEventListener("click", () => input.click());
   });
 
-  drop.addEventListener("drop", (event) => {
-    uploadFiles(event.dataTransfer?.files);
+  const isFileDrag = (event) => {
+    const transfer = event.dataTransfer;
+    return transfer && (Array.from(transfer.types || []).includes("Files") || transfer.files?.length > 0);
+  };
+
+  [drop, editor].forEach((target) => {
+    if (!(target instanceof HTMLElement)) return;
+    ["dragenter", "dragover"].forEach((type) => {
+      target.addEventListener(type, (event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+        target.classList.add("is-dragging");
+      });
+    });
+
+    target.addEventListener("dragleave", () => target.classList.remove("is-dragging"));
+    target.addEventListener("drop", (event) => {
+      target.classList.remove("is-dragging");
+      const files = event.dataTransfer?.files;
+      if (!files?.length) return;
+      event.preventDefault();
+      void uploadFiles(files);
+    });
   });
 
   if (editor) {
@@ -773,6 +798,223 @@ function initAttachmentUploader() {
       void uploadFiles(images);
     });
   }
+}
+
+function initEditorMediaPicker() {
+  const dialog = document.querySelector("[data-media-picker]");
+  const editor = document.getElementById("content");
+  if (!(dialog instanceof HTMLDialogElement) || !(editor instanceof HTMLTextAreaElement)) return;
+
+  const searchForm = dialog.querySelector("[data-media-picker-search]");
+  const queryInput = searchForm?.querySelector('[name="q"]');
+  const typeInput = searchForm?.querySelector('[name="type"]');
+  const status = dialog.querySelector("[data-media-picker-status]");
+  const grid = dialog.querySelector("[data-media-picker-grid]");
+  const previousButton = dialog.querySelector("[data-media-picker-prev]");
+  const nextButton = dialog.querySelector("[data-media-picker-next]");
+  const pageLabel = dialog.querySelector("[data-media-picker-page]");
+  const countLabel = dialog.querySelector("[data-media-picker-count]");
+  const insertButton = dialog.querySelector("[data-media-picker-insert]");
+  const mediaUrl = dialog.dataset.mediaUrl || "";
+  if (!(searchForm instanceof HTMLFormElement) || !(queryInput instanceof HTMLInputElement)
+    || !(typeInput instanceof HTMLSelectElement) || !status || !grid || !pageLabel || !countLabel
+    || !(previousButton instanceof HTMLButtonElement) || !(nextButton instanceof HTMLButtonElement)
+    || !(insertButton instanceof HTMLButtonElement) || !mediaUrl) return;
+
+  const selected = new Map();
+  let currentPage = 1;
+  let pageCount = 1;
+  let loading = false;
+  let requestSequence = 0;
+  let requestController = null;
+  let editorSelection = null;
+
+  const restoreEditor = () => {
+    if (!editorSelection) return;
+    editor.focus({ preventScroll: true });
+    editor.setSelectionRange(editorSelection.start, editorSelection.end, editorSelection.direction);
+    editor.scrollTop = editorSelection.scrollTop;
+  };
+  const updateSelection = () => {
+    countLabel.textContent = sblogText("media_picker_selected_count", "已选择 {count} 项", { count: selected.size });
+    insertButton.disabled = selected.size === 0;
+  };
+  const updatePagination = () => {
+    previousButton.disabled = loading || currentPage <= 1;
+    nextButton.disabled = loading || currentPage >= pageCount;
+    pageLabel.textContent = sblogText("media_picker_page", "第 {page} / {pages} 页", {
+      page: currentPage,
+      pages: pageCount,
+    });
+  };
+  const setStatus = (message) => {
+    status.textContent = message;
+    status.hidden = message === "";
+  };
+  const renderItem = (item) => {
+    const id = String(item.id);
+    const name = item.title || item.original_name || sblogText("file_preview_label", "FILE");
+    const label = document.createElement("label");
+    label.className = "media-picker-item";
+    label.classList.toggle("is-selected", selected.has(id));
+    label.title = [item.original_name, item.description].filter(Boolean).join(" · ");
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selected.has(id);
+    checkbox.setAttribute("aria-label", sblogText("media_picker_select", "选择 {name}", { name }));
+    if (checkbox.checked) selected.set(id, item);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selected.set(id, item);
+      else selected.delete(id);
+      label.classList.toggle("is-selected", checkbox.checked);
+      updateSelection();
+    });
+
+    const preview = document.createElement("span");
+    preview.className = "media-picker-item__preview";
+    if (item.is_image) {
+      const image = document.createElement("img");
+      image.src = item.url;
+      image.alt = "";
+      image.loading = "lazy";
+      preview.append(image);
+    } else {
+      const extension = String(item.original_name || "").match(/\.([a-z0-9]{1,10})$/i)?.[1];
+      const fileLabel = document.createElement("span");
+      fileLabel.textContent = extension ? extension.toUpperCase() : sblogText("file_preview_label", "FILE");
+      preview.append(fileLabel);
+    }
+
+    const meta = document.createElement("span");
+    meta.className = "media-picker-item__meta";
+    const title = document.createElement("strong");
+    title.textContent = name;
+    const description = document.createElement("span");
+    description.textContent = item.description || "";
+    meta.append(title, description);
+    label.append(checkbox, preview, meta);
+    return label;
+  };
+
+  const loadMedia = async (page) => {
+    requestController?.abort();
+    requestController = new AbortController();
+    const sequence = ++requestSequence;
+    loading = true;
+    grid.replaceChildren();
+    grid.setAttribute("aria-busy", "true");
+    setStatus(sblogText("media_picker_loading", "正在加载媒体…"));
+    updatePagination();
+
+    const url = new URL(mediaUrl, window.location.href);
+    url.searchParams.set("q", queryInput.value.trim());
+    url.searchParams.set("type", typeInput.value);
+    url.searchParams.set("page", String(page));
+    try {
+      const response = await fetch(url, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal: requestController.signal,
+      });
+      if (!response.ok) throw new Error("Media request failed");
+      const result = await response.json();
+      if (result?.ok !== true || !Array.isArray(result.items)) throw new Error("Invalid media response");
+      if (sequence !== requestSequence || !dialog.open) return;
+
+      currentPage = Math.max(1, Number(result.page) || 1);
+      pageCount = Math.max(currentPage, Number(result.pages) || 1);
+      const items = result.items.filter((item) => (
+        item && (typeof item.id === "string" || typeof item.id === "number")
+        && typeof item.url === "string" && typeof item.markdown === "string"
+      ));
+      grid.replaceChildren(...items.map(renderItem));
+      setStatus(items.length ? "" : queryInput.value.trim() || typeInput.value !== "all"
+        ? sblogText("media_picker_no_results", "没有匹配的媒体资料。")
+        : sblogText("media_picker_empty", "暂无媒体资料。"));
+    } catch (error) {
+      if (sequence !== requestSequence || !dialog.open || error?.name === "AbortError") return;
+      setStatus(sblogText("media_picker_load_failed", "加载媒体库失败，请重试。"));
+      currentPage = 1;
+      pageCount = 1;
+    } finally {
+      if (sequence === requestSequence) {
+        loading = false;
+        grid.removeAttribute("aria-busy");
+        updatePagination();
+      }
+    }
+  };
+
+  document.querySelectorAll("[data-media-picker-open]").forEach((button) => {
+    if (!(button instanceof HTMLButtonElement)) return;
+    button.addEventListener("click", () => {
+      if (dialog.open) return;
+      editorSelection = {
+        start: editor.selectionStart,
+        end: editor.selectionEnd,
+        direction: editor.selectionDirection,
+        scrollTop: editor.scrollTop,
+      };
+      selected.clear();
+      searchForm.reset();
+      currentPage = 1;
+      pageCount = 1;
+      updateSelection();
+      dialog.showModal();
+      queryInput.focus({ preventScroll: true });
+      void loadMedia(1);
+    });
+  });
+  searchForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void loadMedia(1);
+  });
+  typeInput.addEventListener("change", () => { void loadMedia(1); });
+  previousButton.addEventListener("click", () => {
+    if (!loading && currentPage > 1) void loadMedia(currentPage - 1);
+  });
+  nextButton.addEventListener("click", () => {
+    if (!loading && currentPage < pageCount) void loadMedia(currentPage + 1);
+  });
+  dialog.querySelectorAll("[data-media-picker-close]").forEach((button) => {
+    button.addEventListener("click", () => dialog.close());
+  });
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    dialog.close();
+  });
+  dialog.addEventListener("click", (event) => {
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
+      dialog.close();
+    }
+  });
+  dialog.addEventListener("close", () => {
+    requestController?.abort();
+    requestSequence += 1;
+    restoreEditor();
+  });
+  insertButton.addEventListener("click", () => {
+    if (!editorSelection || !selected.size) return;
+    const markdown = Array.from(selected.values()).map((item) => item.markdown).filter(Boolean).join("\n\n");
+    if (!markdown) return;
+    const start = Math.min(editorSelection.start, editor.value.length);
+    const end = Math.min(editorSelection.end, editor.value.length);
+    const before = editor.value.slice(0, start);
+    const after = editor.value.slice(end);
+    const leading = before === "" || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+    const trailing = after === "" || after.startsWith("\n\n") ? "" : after.startsWith("\n") ? "\n" : "\n\n";
+    const replacement = `${leading}${markdown}${trailing}`;
+    editor.setRangeText(replacement, start, end, "end");
+    const cursor = start + replacement.length;
+    editorSelection.start = cursor;
+    editorSelection.end = cursor;
+    editorSelection.direction = "none";
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+    dialog.close();
+  });
 }
 
 function initMarkdownEditor() {
@@ -977,9 +1219,11 @@ document.addEventListener("DOMContentLoaded", () => {
   initSettingsControls();
   initPostFormatControl();
   initPageSlugValidation();
+  initEditorSettings();
   initEditorLeaveWarning();
   initTagManager();
   initMarkdownEditor();
   initAttachmentUploader();
+  initEditorMediaPicker();
   initAiEditor();
 });

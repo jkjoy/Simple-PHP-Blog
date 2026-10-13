@@ -21,7 +21,7 @@ A lightweight blog built around a single-entry-point architecture:
 - Administrator login
 - Post management
 - Comment moderation, unread notifications, and deletion
-- Drafts, immediate publishing, and scheduled publishing
+- Separate Save draft and Publish post buttons, with scheduled publishing
 - Basic site settings
 - Extensible frontend themes, theme assets, and action/filter hooks
 - Toggleable plugins, plugin action/filter hooks, and administration UI
@@ -30,6 +30,9 @@ A lightweight blog built around a single-entry-point architecture:
 - Automatic GitHub Release checks and one-click application updates
 - Optional pretty URLs
 - Basic Markdown rendering
+- Attachment uploads from the editor toolbar, with multiple files, drag and drop, and pasted images
+- A media library picker in the editor toolbar, with search, filters, and multiple images or attachments inserted at the cursor
+- Collapsible More settings for the publication date, pinned posts, standalone-page comments, post access passwords, and plugin options
 - Automatic embeds for NetEase Cloud Music, Bilibili, YouTube, and Douban links
 
 ## Media Embeds

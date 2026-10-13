@@ -24,7 +24,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.8';
+const APP_VERSION = 'v1.14.13';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -2170,6 +2170,70 @@ function media_file_size(int $bytes): string
     return $bytes . ' B';
 }
 
+function handle_media_picker(): void
+{
+    header('Cache-Control: private, no-store');
+    if (!is_admin()) {
+        json_response(['ok' => false, 'error' => sblog_t('请先登录后台。')], 401);
+    }
+    if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+        header('Allow: GET');
+        json_response(['ok' => false, 'error' => sblog_t('请求无效')], 405);
+    }
+
+    $search = str_sub_u(trim(is_string($_GET['q'] ?? null) ? $_GET['q'] : ''), 0, 255);
+    $type = is_string($_GET['type'] ?? null) ? $_GET['type'] : 'all';
+    if (!in_array($type, ['all', 'images', 'files'], true)) {
+        $type = 'all';
+    }
+    $where = [];
+    $params = [];
+    if ($search !== '') {
+        $where[] = '(title LIKE ? OR original_name LIKE ? OR alt_text LIKE ? OR caption LIKE ?)';
+        $term = '%' . $search . '%';
+        array_push($params, $term, $term, $term, $term);
+    }
+    if ($type === 'images') {
+        $where[] = 'is_image = 1';
+    } elseif ($type === 'files') {
+        $where[] = 'is_image = 0';
+    }
+    $condition = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+    $total = (int)val('SELECT COUNT(*) FROM media' . $condition, $params);
+    $perPage = 24;
+    $pages = max(1, (int)ceil($total / $perPage));
+    $page = min($pages, max(1, is_scalar($_GET['page'] ?? 1) ? (int)($_GET['page'] ?? 1) : 1));
+    $offset = ($page - 1) * $perPage;
+    $rows = all_rows(
+        'SELECT id, original_name, title, alt_text, url, mime_type, file_size, is_image FROM media'
+            . $condition . ' ORDER BY created_at DESC, id DESC LIMIT ' . $perPage . ' OFFSET ' . $offset,
+        $params
+    );
+    $items = [];
+    foreach ($rows as $media) {
+        $isImage = !empty($media['is_image']);
+        $title = trim((string)$media['title']) ?: (string)$media['original_name'];
+        $label = $isImage && trim((string)$media['alt_text']) !== '' ? (string)$media['alt_text'] : $title;
+        // Keep labels literal with the editor's basic Markdown renderer.
+        $label = strtr(preg_replace('/[\r\n]+/', ' ', $label) ?? $label, [
+            '[' => '［', ']' => '］', '`' => '｀', '*' => '＊', '~' => '～',
+        ]);
+        $url = safe_link_url(strtr(trim((string)$media['url']), [' ' => '%20', '(' => '%28', ')' => '%29']));
+        $items[] = [
+            'id' => (int)$media['id'],
+            'title' => $title,
+            'original_name' => (string)$media['original_name'],
+            'alt_text' => (string)$media['alt_text'],
+            'url' => $url,
+            'is_image' => $isImage,
+            'description' => (string)$media['mime_type'] . ' · ' . media_file_size((int)$media['file_size']),
+            'markdown' => ($isImage ? '!' : '') . '[' . $label . '](' . $url . ')',
+        ];
+    }
+
+    json_response(['ok' => true, 'items' => $items, 'total' => $total, 'page' => $page, 'pages' => $pages]);
+}
+
 function media_local_file(string $relativePath): ?string
 {
     $relativePath = trim(str_replace('\\', '/', $relativePath), '/');
@@ -3005,6 +3069,7 @@ function url_for(string $route, array $params = []): string
         'delete_link' => script_url() . '?a=delete_link',
         'save_user' => script_url() . '?a=save_user',
         'upload_attachment' => script_url() . '?a=upload_attachment',
+        'media_picker' => script_url() . '?a=media_picker',
         'save_media' => script_url() . '?a=save_media',
         'delete_media' => script_url() . '?a=delete_media',
         'delete_post' => script_url() . '?a=delete_post',
@@ -3572,7 +3637,7 @@ function render_inline(string $text): string
         $escaped = preg_replace_callback(
             '/!\[(.*?)]\(([^\s)]+)\)/u',
             static function (array $matches): string {
-                $src = safe_link_url($matches[2]);
+                $src = safe_link_url(html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                 if ($src === '#') {
                     return $matches[0];
                 }
@@ -3585,7 +3650,7 @@ function render_inline(string $text): string
         $escaped = preg_replace_callback(
             '/(?<!!)\[(.+?)]\(([^\s)]+)\)/u',
             static function (array $matches): string {
-                $href = safe_link_url($matches[2]);
+                $href = safe_link_url(html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                 if ($href === '#') {
                     return $matches[0];
                 }
@@ -8240,6 +8305,42 @@ location / {
     render_admin_content_end(sblog_t('站点设置'), 'settings', sblog_t('博客站点设置'));
 }
 
+function render_editor_media_picker(): string
+{
+    ob_start();
+    ?>
+    <dialog id="editorMediaPicker" class="media-picker" data-media-picker data-media-url="<?= h(url_for('media_picker')) ?>" aria-labelledby="mediaPickerTitle" aria-describedby="mediaPickerHint">
+      <div class="media-picker__header">
+        <h2 id="mediaPickerTitle"><?= h(sblog_t('媒体库')) ?></h2>
+        <button class="media-picker__close" type="button" data-media-picker-close aria-label="<?= h(sblog_t('关闭媒体库')) ?>"><?= admin_icon('close') ?></button>
+      </div>
+      <p id="mediaPickerHint" class="media-picker__hint"><?= h(sblog_t('从媒体库选择图片或文件，插入到正文光标位置。')) ?></p>
+      <form class="media-picker__toolbar" data-media-picker-search>
+        <label class="media-library-search"><span class="sr-only"><?= h(sblog_t('搜索媒体')) ?></span><input name="q" type="search" placeholder="<?= h(sblog_t('搜索媒体')) ?>" maxlength="255" autocomplete="off"></label>
+        <label class="media-library-filter"><span class="sr-only"><?= h(sblog_t('媒体类型')) ?></span><select name="type"><option value="all"><?= h(sblog_t('全部媒体')) ?></option><option value="images"><?= h(sblog_t('图片')) ?></option><option value="files"><?= h(sblog_t('文件')) ?></option></select></label>
+        <button class="button button--secondary" type="submit"><?= h(sblog_t('筛选')) ?></button>
+      </form>
+      <div class="media-picker__body">
+        <p class="media-picker__status" data-media-picker-status role="status" aria-live="polite"></p>
+        <div class="media-picker__grid" data-media-picker-grid></div>
+      </div>
+      <nav class="media-picker__pagination">
+        <button class="button button--secondary" type="button" data-media-picker-prev disabled><?= h(sblog_t('上一页')) ?></button>
+        <span data-media-picker-page></span>
+        <button class="button button--secondary" type="button" data-media-picker-next disabled><?= h(sblog_t('下一页')) ?></button>
+      </nav>
+      <div class="media-picker__footer">
+        <span data-media-picker-count></span>
+        <div class="action-row">
+          <button class="button button--secondary" type="button" data-media-picker-close><?= h(sblog_t('取消')) ?></button>
+          <button class="button" type="button" data-media-picker-insert disabled><?= h(sblog_t('插入所选媒体')) ?></button>
+        </div>
+      </div>
+    </dialog>
+    <?php
+    return (string)ob_get_clean();
+}
+
 function render_editor_page(?array $existing = null, array $form = [], array $errors = []): void
 {
     require_admin();
@@ -8274,6 +8375,8 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
         $actionHtml = plugin_filter('editor_field_actions_html', '', $editorContext + ['field' => $field]);
         $editorActions[$field] = is_string($actionHtml) ? $actionHtml : '';
     }
+    $settingsHtml = plugin_filter('editor_settings_html', '', $editorContext);
+    $settingsHtml = is_string($settingsHtml) ? $settingsHtml : '';
     $afterFormHtml = plugin_filter('editor_after_form_html', '', $editorContext);
     $afterFormHtml = is_string($afterFormHtml) ? $afterFormHtml : '';
     $sidebar = render_admin_sidebar($isEdit ? 'edit' : 'write');
@@ -8308,12 +8411,11 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
 
             <form class="form-stack" method="post" action="<?= h($isEdit ? url_for('edit', ['id' => $existing['id']]) : url_for('write')) ?>" data-editor-form<?= $errors ? ' data-unsaved-initial="1"' : '' ?>>
               <?= csrf_field() ?>
-              <div class="field">
-                <label for="title"><?= h(sblog_t('标题')) ?></label>
-                <input id="title" name="title" type="text" value="<?= h((string)$values['title']) ?>" required>
-              </div>
-
-              <div class="field-grid field-grid--quad">
+              <div class="field-grid editor-heading-fields">
+                <div class="field">
+                  <label for="title"><?= h(sblog_t('标题')) ?></label>
+                  <input id="title" name="title" type="text" value="<?= h((string)$values['title']) ?>" required>
+                </div>
                 <div class="field">
                   <label for="kind"><?= h(sblog_t('内容类型')) ?></label>
                   <select id="kind" name="kind">
@@ -8321,6 +8423,9 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                     <option value="page"<?= (string)$values['kind'] === 'page' ? ' selected' : '' ?>><?= h(sblog_t('独立页面')) ?></option>
                   </select>
                 </div>
+              </div>
+
+              <div class="field-grid field-grid--triple editor-metadata-fields">
                 <div class="field">
                   <div class="field-label-row"><label for="slug"><?= h(sblog_t('Slug')) ?></label><?= $editorActions['slug'] ?></div>
                   <input id="slug" name="slug" type="text" value="<?= h((string)$values['slug']) ?>" placeholder="<?= h(sblog_t('留空将自动生成')) ?>" aria-describedby="slug-status" data-slug-check-url="<?= h(url_with_query(script_url(), ['a' => 'check_page_slug'])) ?>" data-post-id="<?= h((int)($existing['id'] ?? 0)) ?>">
@@ -8336,8 +8441,9 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                   </select>
                 </div>
                 <div class="field">
-                  <label for="published_at"><?= h(sblog_t('发布时间')) ?></label>
-                  <input id="published_at" name="published_at" type="datetime-local" value="<?= h((string)$values['published_at']) ?>">
+                  <label for="tags_input"><?= h(sblog_t('标签')) ?></label>
+                  <input id="tags_input" name="tags_input" type="text" value="<?= h((string)$values['tags_input']) ?>" placeholder="<?= h(sblog_t('用逗号分隔，例如 PHP, SQLite, 随笔')) ?>">
+                  <p class="field-hint"><?= h(sblog_t('独立页面可以留空，文章会用这些标签生成聚合页。')) ?></p>
                 </div>
               </div>
 
@@ -8360,54 +8466,9 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
               <?php endif; ?>
 
               <div class="field">
-                <label for="tags_input"><?= h(sblog_t('标签')) ?></label>
-                <input id="tags_input" name="tags_input" type="text" value="<?= h((string)$values['tags_input']) ?>" placeholder="<?= h(sblog_t('用逗号分隔，例如 PHP, SQLite, 随笔')) ?>">
-                <p class="field-hint"><?= h(sblog_t('独立页面可以留空，文章会用这些标签生成聚合页。')) ?></p>
-              </div>
-
-              <div class="field">
                 <div class="field-label-row"><label for="excerpt"><?= h(sblog_t('摘要')) ?></label><?= $editorActions['excerpt'] ?></div>
                 <textarea id="excerpt" name="excerpt" rows="3" placeholder="<?= h(sblog_t('留空将自动从正文截取')) ?>"><?= h((string)$values['excerpt']) ?></textarea>
               </div>
-
-              <div class="field">
-                <label for="status"><?= h(sblog_t('状态')) ?></label>
-                <select id="status" name="status">
-                  <option value="draft"<?= (string)$values['status'] === 'draft' ? ' selected' : '' ?>><?= h(sblog_t('草稿')) ?></option>
-                  <option value="published"<?= (string)$values['status'] === 'published' ? ' selected' : '' ?>><?= h(sblog_t('发布')) ?></option>
-                </select>
-                <p class="field-hint"><?= h(sblog_t('如果发布时间晚于当前时间，前台会按定时发布处理。')) ?></p>
-              </div>
-
-              <div class="field" data-post-only-field<?= (string)$values['kind'] === 'page' ? ' hidden' : '' ?>>
-                <label for="content_password"><?= h(sblog_t('文章访问密码（可选）')) ?></label>
-                <div class="auth-password">
-                  <input id="content_password" name="content_password" type="password" value="" minlength="8" maxlength="72" autocomplete="new-password"<?= (string)$values['kind'] === 'page' ? ' disabled' : '' ?>>
-                  <button class="auth-password-toggle" type="button" data-password-toggle="content_password" aria-label="<?= h(sblog_t('显示密码')) ?>" aria-pressed="false" title="<?= h(sblog_t('显示密码')) ?>">
-                    <span class="auth-password-toggle__icon auth-password-toggle__icon--show"><?= admin_icon('eye') ?></span>
-                    <span class="auth-password-toggle__icon auth-password-toggle__icon--hide"><?= admin_icon('eye-off') ?></span>
-                  </button>
-                </div>
-                <p class="field-hint"><?= h($hasContentPassword
-                    ? sblog_t('已设置访问密码；留空会保留当前密码。')
-                    : sblog_t('设置后，访客需要输入密码才能查看文章正文。')) ?></p>
-                <?php if ($hasContentPassword): ?>
-                  <label class="setting-option" for="remove_content_password">
-                    <input id="remove_content_password" name="remove_content_password" type="checkbox" value="1"<?= (string)$values['remove_content_password'] === '1' ? ' checked' : '' ?>>
-                    <span><?= h(sblog_t('移除现有访问密码')) ?></span>
-                  </label>
-                <?php endif; ?>
-              </div>
-
-              <label class="pin-option" for="is_pinned">
-                <input id="is_pinned" name="is_pinned" type="checkbox" value="1"<?= (string)$values['is_pinned'] === '1' ? ' checked' : '' ?>>
-                <span><strong><?= h(sblog_t('置顶文章')) ?></strong><small><?= h(sblog_t('发布后优先显示在前端文章列表顶部，仅对文章生效。')) ?></small></span>
-              </label>
-
-              <label class="pin-option page-comments-option" for="allow_comments">
-                <input id="allow_comments" name="allow_comments" type="checkbox" value="1"<?= (string)$values['allow_comments'] === '1' ? ' checked' : '' ?>>
-                <span><strong><?= h(sblog_t('显示评论')) ?></strong><small><?= h(sblog_t('仅对独立页面生效。')) ?></small></span>
-              </label>
 
               <div class="field">
                 <div class="field-label-row"><label for="content"><?= h(sblog_t('正文')) ?></label><?= $editorActions['content'] ?></div>
@@ -8433,6 +8494,8 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                     <span class="markdown-toolbar__separator" aria-hidden="true"></span>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="link" aria-label="<?= h(sblog_t('插入链接')) ?>" aria-keyshortcuts="Control+K Meta+K" title="<?= h(sblog_t('链接 (Ctrl/Cmd+K)')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="image" aria-label="<?= h(sblog_t('插入图片')) ?>" title="<?= h(sblog_t('图片')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-attachment-trigger="attachmentInput" aria-controls="attachmentInput" aria-label="<?= h(sblog_t('上传附件')) ?>" title="<?= h(sblog_t('上传附件') . ' · ' . sblog_t('每个附件最大 30M。')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.48-8.48l10.6-10.6a4 4 0 0 1 5.66 5.66l-10.61 10.6a2 2 0 0 1-2.83-2.83l9.2-9.19"/></svg></button>
+                    <button class="markdown-toolbar__button" type="button" data-media-picker-open aria-controls="editorMediaPicker" aria-haspopup="dialog" aria-label="<?= h(sblog_t('媒体库')) ?>" title="<?= h(sblog_t('媒体库')) ?>"><?= admin_icon('media') ?></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="table" aria-label="<?= h(sblog_t('插入表格')) ?>" title="<?= h(sblog_t('表格')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14M16 5v14"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="code-block" aria-label="<?= h(sblog_t('代码块')) ?>" title="<?= h(sblog_t('代码块')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9-3 3 3 3m8-6 3 3-3 3m-2-9-4 12"/></svg></button>
                     <button class="markdown-toolbar__button" type="button" data-markdown-action="horizontal-rule" aria-label="<?= h(sblog_t('分隔线')) ?>" title="<?= h(sblog_t('分隔线')) ?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
@@ -8441,26 +8504,66 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                   </div>
                   <textarea id="content" class="editor-textarea" name="content" rows="18" spellcheck="true" required><?= h((string)$values['content']) ?></textarea>
                   <div class="markdown-editor__status"><span><?= h(sblog_t('Markdown')) ?></span><span data-markdown-count aria-live="polite"><?= h(sblog_tn('{count} 个字符', 0)) ?></span></div>
+                  <div class="attachment-uploader attachment-uploader--editor" data-upload-url="<?= h(url_for('upload_attachment')) ?>" data-csrf="<?= h(csrf_token()) ?>">
+                    <input id="attachmentInput" class="attachment-input" type="file" name="attachments[]" aria-label="<?= h(sblog_t('上传附件')) ?>" multiple hidden>
+                    <div class="attachment-list" aria-live="polite"></div>
+                  </div>
                 </div>
                 <p class="field-hint"><?= h(sblog_t('支持 Markdown；将网易云音乐、哔哩哔哩、YouTube 或豆瓣链接单独放在一段可自动解析。')) ?></p>
               </div>
 
-              <div class="field">
-                <label for="attachmentInput"><?= h(sblog_t('上传附件')) ?></label>
-                <div class="attachment-uploader" data-upload-url="<?= h(url_for('upload_attachment')) ?>" data-csrf="<?= h(csrf_token()) ?>">
-                  <input id="attachmentInput" class="attachment-input" type="file" name="attachments[]" multiple>
-                  <label class="attachment-drop" for="attachmentInput">
-                    <span class="attachment-drop__title"><?= h(sblog_t('选择或拖入附件')) ?></span>
-                    <span class="attachment-drop__hint"><?= h(sblog_t('可同时上传多个附件，每个最大 30M；图片上传完成后显示缩略图并插入 Markdown，也可以直接粘贴图片。')) ?></span>
+              <details class="editor-settings" data-editor-settings<?= $errors ? ' open' : '' ?>>
+                <summary class="editor-settings__toggle">
+                  <?= admin_icon('settings') ?>
+                  <span><?= h(sblog_t('更多设置')) ?></span>
+                  <span class="editor-settings__chevron"><?= admin_icon('chevron-right') ?></span>
+                </summary>
+                <div class="editor-settings__body">
+                  <div class="field">
+                    <label for="published_at"><?= h(sblog_t('发布时间')) ?></label>
+                    <input id="published_at" name="published_at" type="datetime-local" value="<?= h((string)$values['published_at']) ?>">
+                    <p class="field-hint"><?= h(sblog_t('如果发布时间晚于当前时间，前台会按定时发布处理。')) ?></p>
+                  </div>
+
+                  <label class="pin-option" for="is_pinned">
+                    <input id="is_pinned" name="is_pinned" type="checkbox" value="1"<?= (string)$values['is_pinned'] === '1' ? ' checked' : '' ?>>
+                    <span><strong><?= h(sblog_t('置顶文章')) ?></strong><small><?= h(sblog_t('发布后优先显示在前端文章列表顶部，仅对文章生效。')) ?></small></span>
                   </label>
-                  <div class="attachment-list" aria-live="polite"></div>
+
+                  <label class="pin-option page-comments-option" for="allow_comments">
+                    <input id="allow_comments" name="allow_comments" type="checkbox" value="1"<?= (string)$values['allow_comments'] === '1' ? ' checked' : '' ?>>
+                    <span><strong><?= h(sblog_t('显示评论')) ?></strong><small><?= h(sblog_t('仅对独立页面生效。')) ?></small></span>
+                  </label>
+
+                  <div class="field" data-post-only-field<?= (string)$values['kind'] === 'page' ? ' hidden' : '' ?>>
+                    <label for="content_password"><?= h(sblog_t('文章访问密码（可选）')) ?></label>
+                    <div class="auth-password">
+                      <input id="content_password" name="content_password" type="password" value="" minlength="8" maxlength="72" autocomplete="new-password"<?= (string)$values['kind'] === 'page' ? ' disabled' : '' ?>>
+                      <button class="auth-password-toggle" type="button" data-password-toggle="content_password" aria-label="<?= h(sblog_t('显示密码')) ?>" aria-pressed="false" title="<?= h(sblog_t('显示密码')) ?>">
+                        <span class="auth-password-toggle__icon auth-password-toggle__icon--show"><?= admin_icon('eye') ?></span>
+                        <span class="auth-password-toggle__icon auth-password-toggle__icon--hide"><?= admin_icon('eye-off') ?></span>
+                      </button>
+                    </div>
+                    <p class="field-hint"><?= h($hasContentPassword
+                        ? sblog_t('已设置访问密码；留空会保留当前密码。')
+                        : sblog_t('设置后，访客需要输入密码才能查看文章正文。')) ?></p>
+                    <?php if ($hasContentPassword): ?>
+                      <label class="setting-option" for="remove_content_password">
+                        <input id="remove_content_password" name="remove_content_password" type="checkbox" value="1"<?= (string)$values['remove_content_password'] === '1' ? ' checked' : '' ?>>
+                        <span><?= h(sblog_t('移除现有访问密码')) ?></span>
+                      </label>
+                    <?php endif; ?>
+                  </div>
+                  <?= $settingsHtml ?>
                 </div>
-              </div>
+              </details>
 
               <div class="action-row">
-                <button class="button" type="submit"><?= h($isEdit ? sblog_t('保存修改') : sblog_t('创建文章')) ?></button>
+                <button class="button button--secondary" type="submit" name="status" value="draft"><?= h(sblog_t('保存草稿')) ?></button>
+                <button class="button" type="submit" name="status" value="published"><?= h($isEdit && (string)$existing['status'] === 'published' ? sblog_t('保存修改') : sblog_t('发布文章')) ?></button>
               </div>
             </form>
+            <?= render_editor_media_picker() ?>
             <?= $afterFormHtml ?>
           </div>
         </section>
@@ -8950,6 +9053,9 @@ switch ($action) {
         redirect_to(url_for('admin'));
         break;
 
+    case 'media_picker':
+        handle_media_picker();
+        break;
     case 'install_extension':
         require_admin_post(url_for('admin_store'));
         $type = strtolower(trim((string)($_POST['type'] ?? '')));

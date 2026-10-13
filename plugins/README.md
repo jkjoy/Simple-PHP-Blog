@@ -68,6 +68,7 @@ add_plugin_filter('output_html', static function (string $html, array $context):
 - `comment_meta_html`：为公开评论追加派生元信息 HTML；context 包含当前 `comment`、所属 `post` 与本页 `comments`。两个评论 filter 的数据均包含邮箱、IP 和 User-Agent 等敏感字段，插件必须只输出经过转义且适合公开展示的派生信息
 - `attachment_storage`：接管编辑器附件的最终存储位置
 - `editor_field_actions_html`：在 `slug`、`excerpt` 或 `content` 标签旁注入编辑器操作
+- `editor_settings_html`：在文章编辑表单的“更多设置”中追加插件选项；context 包含 `is_edit` 与 `post_id`，插件应输出经过转义的表单控件
 - `editor_after_form_html`：在文章编辑表单后注入弹窗等插件界面
 - `output_html`：过滤最终 HTML 文档
 

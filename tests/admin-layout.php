@@ -66,6 +66,8 @@ function plugin_filter(string $hook, mixed $value, array $context = []): mixed
         $value[] = ['label' => 'plugin.link', 'note' => 'plugin.note', 'href' => '/plugin', 'active' => false, 'icon' => 'posts'];
     } elseif ($hook === 'editor_field_actions_html') {
         return '<button type="button" data-plugin-field="' . h((string)$context['field']) . '">Plugin</button>';
+    } elseif ($hook === 'editor_settings_html') {
+        return '<label data-plugin-settings><input name="plugin_option" type="checkbox" value="1">Plugin option</label>';
     } elseif ($hook === 'editor_after_form_html') {
         return '<div data-plugin-after-form>Plugin</div>';
     }
@@ -110,7 +112,7 @@ $pageFunctions = [
 $sharedFunctions = ['render_admin_sidebar', 'render_admin_topbar', 'translated_admin_form_errors'];
 admin_layout_load(dirname(__DIR__) . '/index.php', array_merge($pageFunctions, $sharedFunctions, [
     'h', 'str_sub_u', 'admin_icon', 'render_admin_theme_toggle', 'social_profile_definitions',
-    'render_admin_content_start', 'render_admin_content_end', 'sblog_default_translations',
+    'render_admin_content_start', 'render_admin_content_end', 'render_editor_media_picker', 'sblog_default_translations',
     'sblog_i18n_register', 'sblog_i18n_set_locale', 'sblog_i18n_locale', 'sblog_i18n_message',
     'sblog_i18n_format', 'sblog_i18n_plural_form', 'sblog_t', 'sblog_tn',
 ]));
@@ -144,7 +146,7 @@ function admin_layout_capture(string $function, array $args = []): array
 
 $cases = array_fill_keys($pageFunctions, []);
 $cases['render_editor_page'] = [null, ['title' => '首页', 'content' => '文章管理']];
-$cases['edit'] = [['id' => 7, 'title' => '首页', 'content' => '文章管理', 'published_at' => 1]];
+$cases['edit'] = [['id' => 7, 'title' => '首页', 'content' => '文章管理', 'published_at' => 1, 'status' => 'published']];
 $runs = 0;
 set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
     throw new ErrorException($message, 0, $severity, $file, $line);
@@ -159,7 +161,12 @@ try {
                 admin_layout_assert(str_contains($result['content'], 'value="首页"'), 'User titles must keep their source language.');
                 admin_layout_assert(str_contains($result['content'], '>文章管理</textarea>'), 'User content must keep its source language.');
                 admin_layout_assert(substr_count($result['content'], 'data-plugin-field=') === 3, 'Editor action hooks must survive.');
+                admin_layout_assert(preg_match('/<details[^>]+data-editor-settings[^>]*>.*data-plugin-settings.*<\/details>/s', $result['content']) === 1, 'Plugin controls must remain inside More settings.');
                 admin_layout_assert(str_contains($result['content'], 'data-plugin-after-form'), 'Editor form hook must survive.');
+                admin_layout_assert(strpos($result['content'], 'id="title"') < strpos($result['content'], 'id="kind"'), 'The title must precede the content type.');
+                admin_layout_assert(str_contains($result['content'], 'name="status" value="draft"') && str_contains($result['content'], 'name="status" value="published"'), 'Both draft and publish actions must survive.');
+                admin_layout_assert(str_contains($result['content'], 'data-slug-check-url=') && str_contains($result['content'], 'data-media-picker-open'), 'Slug validation and media selection must coexist.');
+                admin_layout_assert(preg_match('/<\/form>\s*<dialog[^>]+data-media-picker/', $result['content']) === 1, 'Media picker search must remain outside the editor form.');
             }
             if ($locale === 'zh-CN' && $baseline !== '') {
                 $before = admin_layout_capture('baseline_' . $function, $args);
