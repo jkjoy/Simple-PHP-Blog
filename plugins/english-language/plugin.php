@@ -10,6 +10,10 @@ if (!defined('PLUGINS_DIR')) {
 function sblog_english_language_map(): array
 {
     return [
+        '语言' => 'Language',
+        '主题与插件' => 'Themes and plugins',
+        '安装语言包后可在此选择，保存后应用于前台、登录页和后台；所选语言包会自动启用。' => 'Installed language packs appear here. Save your selection to apply it to the public site, sign-in page, and admin panel; the selected language pack will be enabled automatically.',
+        '所选语言不可用，请重新选择。' => 'The selected language is unavailable. Choose another language.',
         '无法锁定更新流程，请稍后重试。' => 'Could not lock the update process. Try again shortly.',
         '无法锁定扩展安装流程，请稍后重试。' => 'Could not lock the extension operation. Try again shortly.',
         '无法删除文件或目录 {path}。' => 'Could not delete file or directory {path}.',
@@ -329,6 +333,10 @@ function sblog_english_language_map(): array
         '新标签不能包含逗号。' => 'The new tag cannot contain commas.',
         'Slug 格式不正确。' => 'The slug format is invalid.',
         'Slug 已被其他标签使用。' => 'The slug is already used by another tag.',
+        'Slug 与系统或插件路径冲突，请更换。' => 'This slug conflicts with a system or plugin route. Choose another slug.',
+        'Slug 与现有文件或目录冲突，请更换。' => 'This slug conflicts with an existing file or directory. Choose another slug.',
+        'Slug 已被其他文章或独立页面使用，请更换。' => 'This slug is already used by another post or page. Choose another slug.',
+        'Slug 可用：{slug}' => 'Slug available: {slug}',
         '请先选择需要删除的标签。' => 'Select tags to remove.',
         '找不到需要编辑的文章。' => 'The post to edit was not found.',
         '找不到需要变更状态的文章。' => 'The post was not found.',
@@ -1326,6 +1334,8 @@ function sblog_english_language_map(): array
 function sblog_english_client_translations(): array
 {
     return [
+        'slug_checking' => 'Checking slug…',
+        'slug_check_failed' => 'Cannot check right now. The slug will be validated when you save.',
         'switch_to_light' => 'Switch to light mode',
         'switch_to_dark' => 'Switch to dark mode',
         'hide_password' => 'Hide password',
@@ -1437,4 +1447,3 @@ sblog_i18n_register('en', array_merge(
     ]
 ));
 sblog_i18n_register_client('en', sblog_english_client_translations());
-sblog_i18n_set_locale('en');

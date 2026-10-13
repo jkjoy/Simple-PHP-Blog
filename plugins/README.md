@@ -12,13 +12,13 @@
   "url": "https://example.com/plugin-author",
   "description": "插件说明",
   "settings_action": "admin_example",
-  "exclusive_group": "language"
+  "exclusive_group": "storage"
 }
 ```
 
 `settings_action` 可选。填写后，插件启用时“插件管理”会显示设置入口；对应 action 应由插件的 `request` 回调处理。内置功能插件以此作为唯一设置入口，不额外注册侧边栏菜单。
 
-`url` 可选，用于插件管理中的作者链接，只接受完整的 HTTP 或 HTTPS 地址。`exclusive_group` 也可选；启用插件时，同一互斥组内已启用的其他插件会自动停用，适合语言包等不能同时工作的插件。
+`url` 可选，用于插件管理中的作者链接，只接受完整的 HTTP 或 HTTPS 地址。`exclusive_group` 也可选；启用插件时，同一互斥组内已启用的其他插件会自动停用，适合存储后端等确实不能同时工作的插件。语言包可以同时启用；为兼容旧版语言包，核心忽略 `exclusive_group: "language"` 的互斥限制。
 
 安装后进入“后台 -> 插件管理”启用。插件 PHP 是服务器端可信代码，只安装来源可信的插件。
 
@@ -56,6 +56,7 @@ add_plugin_filter('output_html', static function (string $html, array $context):
 核心提供以下 filter：
 
 - `route_action`：修改当前路由 action
+- `page_reserved_slugs`：追加插件实际占用的独立页面 Slug，例如返回 `array_merge($slugs, ['example'])`；核心在输入检测和保存时排除这些路径
 - `post_fields_before_defaults`：在留空的 Slug 和摘要应用核心默认值前提供候选值
 - `post_data_before_save`：在文章写入数据库前修改数据
 - `comment_submission_allowed`：在评论写入数据库前决定是否允许提交；当前值为布尔值，context 包含 `post`、`comment`、`status` 与 `authenticated`
@@ -76,6 +77,19 @@ filter 回调依次接收当前值和 `$context`，必须返回过滤后的值�
 
 ## 语言目录
 
+语言插件应在 `plugin.json` 中声明语言代码 `locale` 和语言的原生名称 `language_name`，例如：
+
+```json
+{
+  "name": "英文语言包",
+  "version": "1.0.0",
+  "locale": "en",
+  "language_name": "English"
+}
+```
+
+已安装且清单有效的语言包会出现在“系统设置”的“语言”选项中；`site_language` 默认值为 `zh-CN`（简体中文）。旧版内置英俄语言包的语言信息会自动识别，其他语言包需声明上述清单字段。选中语言并保存后，核心会自动启用对应插件，将该语言应用于前台、登录页和后台，其他语言插件保持启用状态。单独启用语言插件只加载其翻译目录，不会切换站点语言；插件应只注册翻译，不应调用 `sblog_i18n_set_locale()`。所选语言包停用、卸载或加载失败时，站点回退到简体中文。
+
 语言插件应注册固定翻译键，并在模板中通过命名参数格式化动态内容。翻译键可以使用稳定的语义键，也可以使用类似 gettext 的默认中文消息。语言插件不得通过 `output_html` 扫描或替换最终 HTML，也不要把文章标题、正文、评论等用户内容作为翻译键传入。
 
 ```php
@@ -83,8 +97,6 @@ sblog_i18n_register('en', [
     'post_navigation.previous' => 'Previous post',
     'post_navigation.previous_label' => 'Previous post: {title}',
 ]);
-sblog_i18n_set_locale('en');
-
 $label = sblog_t('post_navigation.previous_label', [
     'title' => (string)$post['title'],
 ]);

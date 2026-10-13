@@ -324,6 +324,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$databaseIsNewer) {
                 $changes[] = '更新数据库版本记录';
             }
 
+            $db->exec("DELETE FROM settings WHERE name = 'database_maintenance_version'");
             $db->commit();
             update_write_settings_cache($db);
             $message = $changes ? '数据库升级完成：' . implode('、', $changes) . '。' : '数据库已经是最新版本，无需变更。';

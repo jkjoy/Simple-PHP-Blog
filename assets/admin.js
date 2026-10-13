@@ -329,6 +329,66 @@ function initPostFormatControl() {
   syncVisibility();
 }
 
+function initPageSlugValidation() {
+  const input = document.querySelector("[data-slug-check-url]");
+  const kind = document.getElementById("kind");
+  const status = document.getElementById("slug-status");
+  if (!(input instanceof HTMLInputElement) || !(kind instanceof HTMLSelectElement) || !(status instanceof HTMLElement)) return;
+
+  let timer;
+  let request;
+  let revision = 0;
+  const showStatus = (message, invalid = false) => {
+    status.textContent = message;
+    status.hidden = message === "";
+    status.dataset.state = invalid ? "error" : "";
+    input.setCustomValidity(invalid ? message : "");
+    input.setAttribute("aria-invalid", String(invalid));
+  };
+  const check = async () => {
+    window.clearTimeout(timer);
+    request?.abort();
+    const currentRevision = ++revision;
+    const slug = input.value.trim();
+    if (kind.value !== "page" || slug === "") {
+      showStatus("");
+      return;
+    }
+    request = new AbortController();
+    showStatus(sblogText("slug_checking", "正在检测 Slug…"));
+    try {
+      const url = new URL(input.dataset.slugCheckUrl, window.location.href);
+      url.searchParams.set("slug", slug);
+      url.searchParams.set("id", input.dataset.postId || "0");
+      const response = await fetch(url, {
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+        signal: request.signal,
+      });
+      if (!response.ok) throw new Error("Slug check failed");
+      const result = await response.json();
+      if (currentRevision !== revision) return;
+      if (result.ok !== true || typeof result.available !== "boolean" || typeof result.message !== "string") throw new Error("Invalid slug check response");
+      showStatus(result.message, !result.available);
+    } catch (error) {
+      if (currentRevision === revision && error.name !== "AbortError") {
+        showStatus(sblogText("slug_check_failed", "暂时无法检测，保存时会再次校验。"));
+      }
+    }
+  };
+  input.addEventListener("input", () => {
+    window.clearTimeout(timer);
+    request?.abort();
+    revision++;
+    showStatus("");
+    if (kind.value === "page" && input.value.trim() !== "") timer = window.setTimeout(check, 350);
+  });
+  input.addEventListener("blur", check);
+  kind.addEventListener("change", check);
+  check();
+}
+
 function initEditorLeaveWarning() {
   const form = document.querySelector("[data-editor-form]");
   if (!(form instanceof HTMLFormElement)) return;
@@ -916,6 +976,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initAccountMenus();
   initSettingsControls();
   initPostFormatControl();
+  initPageSlugValidation();
   initEditorLeaveWarning();
   initTagManager();
   initMarkdownEditor();

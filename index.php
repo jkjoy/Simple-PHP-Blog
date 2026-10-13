@@ -26,6 +26,7 @@ session_start();
 
 const APP_VERSION = 'v1.14.8';
 const DATABASE_SCHEMA_VERSION = 1;
+const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -245,36 +246,54 @@ function ensure_comment_columns(PDO $pdo): void
 function ensure_schema(PDO $pdo): void
 {
     static $done = false;
-
     if ($done) {
         return;
     }
+    try {
+        $version = (int)$pdo->query("SELECT value FROM settings WHERE name = 'database_maintenance_version'")->fetchColumn();
+    } catch (PDOException) {
+        $version = 0;
+    }
+    // Older installers share schema version 1 but do not include every legacy repair.
+    if ($version < DATABASE_MAINTENANCE_VERSION) {
+        $ownsTransaction = !$pdo->inTransaction();
+        if ($ownsTransaction) { $pdo->exec('BEGIN IMMEDIATE'); }
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS settings(name TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')");
+            $version = (int)$pdo->query("SELECT value FROM settings WHERE name = 'database_maintenance_version'")->fetchColumn();
+            if ($version < DATABASE_MAINTENANCE_VERSION) {
+                migrate_legacy_schema($pdo);
+                $pdo->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)')
+                    ->execute(['database_maintenance_version', (string)DATABASE_MAINTENANCE_VERSION]);
+            }
+            if ($ownsTransaction) { $pdo->exec('COMMIT'); }
+        } catch (Throwable $exception) {
+            if ($ownsTransaction) { $pdo->exec('ROLLBACK'); }
+            throw $exception;
+        }
+    }
+    $done = !$pdo->inTransaction();
+}
 
-    $pdo->exec(
+function migrate_legacy_schema(PDO $pdo): void
+{
+    foreach ([
         "CREATE TABLE IF NOT EXISTS settings(
             name TEXT PRIMARY KEY,
             value TEXT NOT NULL DEFAULT ''
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS ai_settings(
             name TEXT PRIMARY KEY,
             value TEXT NOT NULL DEFAULT ''
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS mail_settings(
             name TEXT PRIMARY KEY,
             value TEXT NOT NULL DEFAULT ''
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS s3_settings(
             name TEXT PRIMARY KEY,
             value TEXT NOT NULL DEFAULT ''
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS users(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
@@ -295,9 +314,7 @@ function ensure_schema(PDO $pdo): void
             tiktok_url TEXT NOT NULL DEFAULT '',
             signature TEXT NOT NULL DEFAULT '',
             created_at INTEGER NOT NULL
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS password_resets(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -306,9 +323,7 @@ function ensure_schema(PDO $pdo): void
             used_at INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS posts(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             author_id INTEGER,
@@ -328,9 +343,7 @@ function ensure_schema(PDO $pdo): void
             published_at INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS categories(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -339,9 +352,7 @@ function ensure_schema(PDO $pdo): void
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS links(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -351,16 +362,12 @@ function ensure_schema(PDO $pdo): void
             sort_order INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS tag_meta(
             label TEXT NOT NULL UNIQUE,
             slug TEXT NOT NULL UNIQUE,
             updated_at INTEGER NOT NULL
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS comments(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             post_id INTEGER NOT NULL,
@@ -382,27 +389,21 @@ function ensure_schema(PDO $pdo): void
             FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,
             FOREIGN KEY(parent_id) REFERENCES comments(id) ON DELETE SET NULL
-        )"
-    );
-    $pdo->exec(
+        )",
         "CREATE TABLE IF NOT EXISTS post_views(
             post_id INTEGER NOT NULL,
             ip_hash TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             PRIMARY KEY(post_id, ip_hash),
             FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
-        ) WITHOUT ROWID"
-    );
-    $pdo->exec(
+        ) WITHOUT ROWID",
         "CREATE TABLE IF NOT EXISTS post_likes(
             post_id INTEGER NOT NULL,
             ip_hash TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             PRIMARY KEY(post_id, ip_hash),
             FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE
-        ) WITHOUT ROWID"
-    );
-    $pdo->exec(
+        ) WITHOUT ROWID",
         "CREATE TABLE IF NOT EXISTS media(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             original_name TEXT NOT NULL,
@@ -420,8 +421,8 @@ function ensure_schema(PDO $pdo): void
             height INTEGER NOT NULL DEFAULT 0,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
-        )"
-    );
+        )",
+    ] as $sql) { $pdo->exec($sql); }
 
     $columns = table_columns($pdo, 'posts');
     $userColumns = table_columns($pdo, 'users');
@@ -479,7 +480,7 @@ function ensure_schema(PDO $pdo): void
     }
 
     $pdo->exec("UPDATE posts SET kind = 'post' WHERE kind IS NULL OR trim(kind) = ''");
-    $pdo->exec("UPDATE posts SET post_format = 'text' WHERE kind = 'page' OR post_format NOT IN ('text', 'image')");
+    $pdo->exec("UPDATE posts SET post_format = 'text' WHERE (kind = 'page' AND post_format <> 'text') OR post_format NOT IN ('text', 'image') OR post_format IS NULL");
     $pdo->exec("UPDATE posts SET tags = '[]' WHERE tags IS NULL OR trim(tags) = ''");
     $pdo->exec("UPDATE posts SET views = 0 WHERE views IS NULL");
     $pdo->exec("UPDATE posts SET is_pinned = 0 WHERE is_pinned IS NULL");
@@ -516,7 +517,6 @@ function ensure_schema(PDO $pdo): void
     $statement = $pdo->prepare("UPDATE posts SET category_id = ? WHERE kind = 'post' AND (category_id IS NULL OR category_id NOT IN (SELECT id FROM categories))");
     $statement->execute([$defaultCategoryId]);
 
-    $done = true;
 }
 
 function db(): PDO
@@ -589,6 +589,7 @@ function default_settings(): array
         'custom_head_code' => '',
         'active_theme' => 'default',
         'active_plugins' => '[]',
+        'site_language' => 'zh-CN',
         'favicon_url' => 'favicon.png',
         'footer_beian' => '',
         'posts_per_page' => '6',
@@ -663,11 +664,30 @@ function database_upgrade_pending(): bool
     return database_schema_version() < DATABASE_SCHEMA_VERSION;
 }
 
+function &plugin_inventory_cache(): array
+{
+    static $cache = ['manifests' => [], 'available' => null];
+    return $cache;
+}
+
+function refresh_plugin_cache(): void
+{
+    $cache = &plugin_inventory_cache();
+    $cache = ['manifests' => [], 'available' => null];
+    clearstatcache(true);
+}
+
 function plugin_manifest(string $slug): ?array
 {
     if (!preg_match('/^[a-z0-9][a-z0-9_-]*$/', $slug)) {
         return null;
     }
+
+    $cache = &plugin_inventory_cache();
+    if (array_key_exists($slug, $cache['manifests'])) {
+        return $cache['manifests'][$slug];
+    }
+    $cache['manifests'][$slug] = null;
 
     $pluginsRoot = realpath(PLUGINS_DIR);
     $pluginDir = realpath(PLUGINS_DIR . '/' . $slug);
@@ -706,8 +726,25 @@ function plugin_manifest(string $slug): ?array
     if ($exclusiveGroup !== '' && !preg_match('/^[a-z0-9][a-z0-9_-]{0,79}$/', $exclusiveGroup)) {
         $exclusiveGroup = '';
     }
+    $locale = is_string($manifest['locale'] ?? null) ? trim($manifest['locale']) : '';
+    if (!preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale)) {
+        $locale = '';
+    }
+    $languageName = is_string($manifest['language_name'] ?? null) ? trim($manifest['language_name']) : '';
+    if (!array_key_exists('locale', $manifest) && $exclusiveGroup === 'language') {
+        $legacyLanguage = [
+            'english-language' => ['en', 'English'],
+            'russian-language' => ['ru', 'Русский'],
+        ][$slug] ?? null;
+        if ($legacyLanguage !== null) {
+            [$locale, $languageName] = $legacyLanguage;
+        }
+    }
+    if ($locale !== '' || $exclusiveGroup === 'language') {
+        $exclusiveGroup = '';
+    }
 
-    return [
+    return $cache['manifests'][$slug] = [
         'slug' => $slug,
         'name' => str_sub_u($name, 0, 100),
         'version' => str_sub_u(trim((string)($manifest['version'] ?? '')), 0, 40),
@@ -716,15 +753,24 @@ function plugin_manifest(string $slug): ?array
         'description' => str_sub_u(trim((string)($manifest['description'] ?? '')), 0, 300),
         'settings_action' => $settingsAction,
         'exclusive_group' => $exclusiveGroup,
+        'locale' => $locale,
+        'language_name' => str_sub_u($languageName !== '' ? $languageName : $name, 0, 100),
         'entry' => $entryFile,
     ];
 }
 
-function available_plugins(): array
+function available_plugins(bool $refresh = false): array
 {
+    if ($refresh) {
+        refresh_plugin_cache();
+    }
+    $cache = &plugin_inventory_cache();
+    if (is_array($cache['available'])) {
+        return $cache['available'];
+    }
     $plugins = [];
     if (!is_dir(PLUGINS_DIR)) {
-        return $plugins;
+        return $cache['available'] = $plugins;
     }
 
     foreach (scandir(PLUGINS_DIR) ?: [] as $entry) {
@@ -738,7 +784,7 @@ function available_plugins(): array
     }
 
     uasort($plugins, static fn(array $left, array $right): int => strcasecmp((string)$left['name'], (string)$right['name']));
-    return $plugins;
+    return $cache['available'] = $plugins;
 }
 
 function active_plugin_slugs(bool $fresh = false): array
@@ -758,22 +804,10 @@ function active_plugin_slugs(bool $fresh = false): array
         return [];
     }
 
-    $available = available_plugins();
-    $active = [];
-    foreach ($configured as $slug) {
-        $slug = trim((string)$slug);
-        if (isset($available[$slug]) && !in_array($slug, $active, true)) {
-            $group = (string)$available[$slug]['exclusive_group'];
-            if ($group !== '') {
-                $active = array_values(array_filter($active, static fn(string $activeSlug): bool => (string)$available[$activeSlug]['exclusive_group'] !== $group));
-            }
-            $active[] = $slug;
-        }
-    }
-    return $active;
+    return normalize_active_plugin_slugs($configured);
 }
 
-function save_active_plugins(array $slugs): void
+function normalize_active_plugin_slugs(array $slugs): array
 {
     $available = available_plugins();
     $valid = [];
@@ -787,7 +821,12 @@ function save_active_plugins(array $slugs): void
             $valid[] = $slug;
         }
     }
-    save_settings(['active_plugins' => json_encode($valid, JSON_UNESCAPED_SLASHES)]);
+    return $valid;
+}
+
+function save_active_plugins(array $slugs): void
+{
+    save_settings(['active_plugins' => json_encode(normalize_active_plugin_slugs($slugs), JSON_UNESCAPED_SLASHES)]);
 }
 
 function sblog_default_translations(): array
@@ -846,6 +885,52 @@ function sblog_i18n_locale(): string
 {
     $locale = (string)($GLOBALS['sblog_i18n_locale'] ?? 'zh-CN');
     return preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/', $locale) ? $locale : 'zh-CN';
+}
+
+function sblog_i18n_languages(): array
+{
+    $languages = ['zh-CN' => ['name' => '简体中文', 'plugin' => '']];
+    foreach (available_plugins() as $slug => $manifest) {
+        $locale = (string)$manifest['locale'];
+        if ($locale !== '' && !isset($languages[$locale])) {
+            $languages[$locale] = ['name' => (string)$manifest['language_name'], 'plugin' => $slug];
+        }
+    }
+    return $languages;
+}
+
+function sblog_i18n_apply_locale(): void
+{
+    $locale = setting('site_language', 'zh-CN');
+    $language = sblog_i18n_languages()[$locale] ?? null;
+    $catalogs = $GLOBALS['sblog_i18n_catalogs'] ?? [];
+    $baseLocale = explode('-', $locale, 2)[0];
+    if ($locale !== 'zh-CN' && ($language === null
+        || !in_array($language['plugin'], $GLOBALS['sblog_loaded_plugins'] ?? [], true)
+        || (!isset($catalogs[$locale]) && !isset($catalogs[$baseLocale])))) {
+        $locale = 'zh-CN';
+    }
+    sblog_i18n_set_locale($locale);
+}
+
+function sblog_i18n_save_language(string $locale): bool
+{
+    $language = sblog_i18n_languages()[$locale] ?? null;
+    if ($language === null) {
+        return false;
+    }
+    $slug = $language['plugin'];
+    $active = active_plugin_slugs(true);
+    $activate = $slug !== '' && !in_array($slug, $active, true);
+    if ($activate) {
+        $active[] = $slug;
+        save_active_plugins($active);
+    }
+    save_settings(['site_language' => $locale]);
+    if ($activate) {
+        plugin_action('plugin_status_changed', ['plugin' => $slug, 'operation' => 'activate']);
+    }
+    return true;
 }
 
 function sblog_i18n_message(string $key): string|array|null
@@ -1090,6 +1175,7 @@ function load_active_plugins(): void
             error_log('Plugin ' . $slug . ' failed: ' . $exception->getMessage());
         }
     }
+    sblog_i18n_apply_locale();
 }
 
 function plugin_output_buffer(string $output): string
@@ -1400,6 +1486,24 @@ function extension_remote_url_is_safe(string $url): bool
     return $scheme === 'http' && in_array($host, ['localhost', '127.0.0.1', '::1'], true);
 }
 
+function extension_remote_options(int $timeout, string $accept, callable $writer): array
+{
+    $options = [
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 5,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => $timeout,
+        CURLOPT_USERAGENT => 'Simple-PHP-Blog/' . APP_VERSION . ' Extension Store',
+        CURLOPT_HTTPHEADER => ['Accept: ' . $accept],
+        CURLOPT_WRITEFUNCTION => $writer,
+    ];
+    if (defined('CURLOPT_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
+        $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+        $options[CURLOPT_REDIR_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
+    }
+    return array_replace($options, curl_trust_options());
+}
+
 function extension_remote_get(string $url, int $maxBytes, int $timeout): string
 {
     if (!function_exists('curl_init')) {
@@ -1412,27 +1516,16 @@ function extension_remote_get(string $url, int $maxBytes, int $timeout): string
     $body = '';
     $tooLarge = false;
     $curl = curl_init($url);
-    $options = [
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS => 5,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_TIMEOUT => $timeout,
-        CURLOPT_USERAGENT => 'Simple-PHP-Blog/' . APP_VERSION . ' Extension Store',
-        CURLOPT_HTTPHEADER => ['Accept: application/json, application/zip, application/octet-stream;q=0.9'],
-        CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body, &$tooLarge, $maxBytes): int {
+    curl_setopt_array($curl, extension_remote_options($timeout, 'application/json, application/zip, application/octet-stream;q=0.9',
+        static function ($handle, string $chunk) use (&$body, &$tooLarge, $maxBytes): int {
             if (strlen($body) + strlen($chunk) > $maxBytes) {
                 $tooLarge = true;
                 return 0;
             }
             $body .= $chunk;
             return strlen($chunk);
-        },
-    ];
-    if (defined('CURLOPT_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
-        $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
-        $options[CURLOPT_REDIR_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
-    }
-    curl_setopt_array($curl, array_replace($options, curl_trust_options()));
+        }
+    ));
     $ok = curl_exec($curl);
     $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     $error = curl_error($curl);
@@ -1463,14 +1556,8 @@ function extension_remote_download(string $url, string $target, int $maxBytes, i
     $downloaded = 0;
     $tooLarge = false;
     $curl = curl_init($url);
-    $options = [
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_MAXREDIRS => 5,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_TIMEOUT => $timeout,
-        CURLOPT_USERAGENT => 'Simple-PHP-Blog/' . APP_VERSION . ' Extension Store',
-        CURLOPT_HTTPHEADER => ['Accept: application/zip, application/octet-stream;q=0.9'],
-        CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use ($file, &$downloaded, &$tooLarge, $maxBytes): int {
+    curl_setopt_array($curl, extension_remote_options($timeout, 'application/zip, application/octet-stream;q=0.9',
+        static function ($handle, string $chunk) use ($file, &$downloaded, &$tooLarge, $maxBytes): int {
             $length = strlen($chunk);
             $downloaded += $length;
             if ($downloaded > $maxBytes) {
@@ -1479,13 +1566,8 @@ function extension_remote_download(string $url, string $target, int $maxBytes, i
             }
             $written = fwrite($file, $chunk);
             return $written === false ? 0 : $written;
-        },
-    ];
-    if (defined('CURLOPT_PROTOCOLS') && defined('CURLPROTO_HTTP') && defined('CURLPROTO_HTTPS')) {
-        $options[CURLOPT_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
-        $options[CURLOPT_REDIR_PROTOCOLS] = CURLPROTO_HTTP | CURLPROTO_HTTPS;
-    }
-    curl_setopt_array($curl, array_replace($options, curl_trust_options()));
+        }
+    ));
     $ok = curl_exec($curl);
     $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     $error = curl_error($curl);
@@ -1724,6 +1806,11 @@ function uninstall_extension(string $type, string $slug): void
         }
         delete_managed_directory($directory);
     } finally {
+        if ($type === 'plugin') {
+            refresh_plugin_cache();
+        } elseif ($type === 'theme') {
+            refresh_theme_cache();
+        }
         flock($lock, LOCK_UN);
         fclose($lock);
     }
@@ -1962,6 +2049,11 @@ function install_store_extension(array $extension): array
         }
         throw $exception;
     } finally {
+        if ($extension['type'] === 'plugin') {
+            refresh_plugin_cache();
+        } elseif ($extension['type'] === 'theme') {
+            refresh_theme_cache();
+        }
         remove_extension_tree($workDirectory);
         flock($lock, LOCK_UN);
         fclose($lock);
@@ -1976,27 +2068,7 @@ function login_rate_file(): string
 
 function login_rate_state(bool $recordFailure = false, bool $clear = false): array
 {
-    ensure_runtime_dirs();
-    $file = login_rate_file();
-    $handle = fopen($file, 'c+');
-    if ($handle === false) { return ['count' => 0, 'since' => time()]; }
-
-    flock($handle, LOCK_EX);
-    $raw = stream_get_contents($handle);
-    $state = json_decode($raw ?: '', true);
-    $now = time();
-    if (!is_array($state) || $now - (int)($state['since'] ?? 0) >= 900) {
-        $state = ['count' => 0, 'since' => $now];
-    }
-    if ($recordFailure) { $state['count'] = (int)$state['count'] + 1; }
-    if ($clear) { $state = ['count' => 0, 'since' => $now]; }
-    ftruncate($handle, 0);
-    rewind($handle);
-    fwrite($handle, json_encode($state));
-    fflush($handle);
-    flock($handle, LOCK_UN);
-    fclose($handle);
-    return $state;
+    return authentication_rate_state(login_rate_file(), $recordFailure, $clear);
 }
 
 function password_reset_rate_file(): string
@@ -2007,8 +2079,12 @@ function password_reset_rate_file(): string
 
 function password_reset_rate_state(bool $recordAttempt = false): array
 {
+    return authentication_rate_state(password_reset_rate_file(), $recordAttempt);
+}
+
+function authentication_rate_state(string $file, bool $recordAttempt = false, bool $clear = false): array
+{
     ensure_runtime_dirs();
-    $file = password_reset_rate_file();
     $handle = fopen($file, 'c+');
     if ($handle === false) { return ['count' => 0, 'since' => time()]; }
 
@@ -2020,6 +2096,7 @@ function password_reset_rate_state(bool $recordAttempt = false): array
         $state = ['count' => 0, 'since' => $now];
     }
     if ($recordAttempt) { $state['count'] = (int)$state['count'] + 1; }
+    if ($clear) { $state = ['count' => 0, 'since' => $now]; }
     ftruncate($handle, 0);
     rewind($handle);
     fwrite($handle, json_encode($state));
@@ -2647,6 +2724,19 @@ function asset_url(string $path): string
     return app_path('/' . ltrim($path, '/'));
 }
 
+function &theme_inventory_cache(): array
+{
+    static $cache = ['manifests' => [], 'available' => null];
+    return $cache;
+}
+
+function refresh_theme_cache(): void
+{
+    $cache = &theme_inventory_cache();
+    $cache = ['manifests' => [], 'available' => null];
+    clearstatcache(true);
+}
+
 function theme_manifest(string $slug): ?array
 {
     if ($slug === 'default') {
@@ -2663,6 +2753,12 @@ function theme_manifest(string $slug): ?array
     if (!preg_match('/^[a-z0-9][a-z0-9_-]*$/', $slug)) {
         return null;
     }
+
+    $cache = &theme_inventory_cache();
+    if (array_key_exists($slug, $cache['manifests'])) {
+        return $cache['manifests'][$slug];
+    }
+    $cache['manifests'][$slug] = null;
 
     $themesRoot = realpath(THEMES_DIR);
     $themeDir = realpath(THEMES_DIR . '/' . $slug);
@@ -2693,7 +2789,7 @@ function theme_manifest(string $slug): ?array
         $url = '';
     }
 
-    return [
+    return $cache['manifests'][$slug] = [
         'slug' => $slug,
         'name' => str_sub_u($name, 0, 100),
         'version' => str_sub_u(trim((string)($manifest['version'] ?? '')), 0, 40),
@@ -2703,13 +2799,20 @@ function theme_manifest(string $slug): ?array
     ];
 }
 
-function available_themes(): array
+function available_themes(bool $refresh = false): array
 {
+    if ($refresh) {
+        refresh_theme_cache();
+    }
+    $cache = &theme_inventory_cache();
+    if (is_array($cache['available'])) {
+        return $cache['available'];
+    }
     $defaultTheme = theme_manifest('default');
     $themes = [];
 
     if (!is_dir(THEMES_DIR)) {
-        return ['default' => $defaultTheme];
+        return $cache['available'] = ['default' => $defaultTheme];
     }
 
     foreach (scandir(THEMES_DIR) ?: [] as $entry) {
@@ -2724,7 +2827,7 @@ function available_themes(): array
     }
 
     uasort($themes, static fn(array $left, array $right): int => strcasecmp((string)$left['name'], (string)$right['name']));
-    return ['default' => $defaultTheme] + $themes;
+    return $cache['available'] = ['default' => $defaultTheme] + $themes;
 }
 
 function active_theme_slug(): string
@@ -2787,13 +2890,7 @@ function add_theme_filter(string $hook, callable $callback, int $priority = 10):
 
 function theme_callbacks(string $type, string $hook): array
 {
-    $groups = $GLOBALS[$type][$hook] ?? [];
-    if (!is_array($groups)) {
-        return [];
-    }
-
-    ksort($groups, SORT_NUMERIC);
-    return array_merge(...array_values($groups));
+    return plugin_callbacks($type, $hook);
 }
 
 function theme_action(string $hook, array $context = []): void
@@ -3114,29 +3211,55 @@ function slugify(string $text): string
     return $text !== '' ? $text : 'post';
 }
 
+function page_slug_conflict(string $slug, ?int $excludeId = null): string
+{
+    $reserved = plugin_filter('page_reserved_slugs', [
+        'tags', 'categories', 'links', 'archives', 'login', 'logout',
+        'admin', 'write', 'forgot-password', 'reset-password',
+    ]);
+    if (is_array($reserved) && in_array($slug, $reserved, true)) {
+        return 'Slug 与系统或插件路径冲突，请更换。';
+    }
+    if (file_exists(__DIR__ . '/' . $slug)) {
+        return 'Slug 与现有文件或目录冲突，请更换。';
+    }
+    $row = $excludeId
+        ? one('SELECT id FROM posts WHERE slug = ? AND id != ?', [$slug, $excludeId])
+        : one('SELECT id FROM posts WHERE slug = ?', [$slug]);
+    return $row !== null ? 'Slug 已被其他文章或独立页面使用，请更换。' : '';
+}
+
 function unique_slug(string $seed, ?int $excludeId = null): string
 {
+    return unique_content_slug($seed, $excludeId);
+}
+
+function unique_content_slug(string $seed, ?int $excludeId = null, bool $category = false): string
+{
+    $table = $category ? 'categories' : 'posts';
     $base = slugify($seed);
-    $slug = $base;
-    $index = 2;
-
-    while (true) {
-        $row = $excludeId
-            ? one('SELECT id FROM posts WHERE slug = ? AND id != ?', [$slug, $excludeId])
-            : one('SELECT id FROM posts WHERE slug = ?', [$slug]);
-
-        if ($row === null) {
-            return $slug;
-        }
-
-        $slug = $base . '-' . $index;
-        $index++;
+    $excludeSql = $excludeId ? ' AND id != ?' : '';
+    $excludeParams = $excludeId ? [$excludeId] : [];
+    if (one('SELECT id FROM ' . $table . ' WHERE slug = ?' . $excludeSql, [$base, ...$excludeParams]) === null) {
+        return $base;
     }
+    // slugify permits only letters, numbers and hyphens, so GLOB has no user wildcards.
+    $used = array_fill_keys(array_column(all_rows(
+        'SELECT slug FROM ' . $table . ' WHERE slug GLOB ?' . $excludeSql,
+        [$base . '-*', ...$excludeParams]
+    ), 'slug'), true);
+    $index = 2;
+    while (isset($used[$base . '-' . $index])) { $index++; }
+    return $base . '-' . $index;
 }
 
 function parse_reply_hidden_blocks(string $markdown): array
 {
-    $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $markdown));
+    $markdown = str_replace(["\r\n", "\r"], "\n", $markdown);
+    if (!str_contains($markdown, '[reply]')) {
+        return [['hidden' => false, 'markdown' => $markdown]];
+    }
+    $lines = explode("\n", $markdown);
     $segments = [];
     $buffer = [];
     $depth = 0;
@@ -3179,6 +3302,9 @@ function parse_reply_hidden_blocks(string $markdown): array
 
 function reply_hidden_syntax_errors(string $markdown): array
 {
+    if (!str_contains($markdown, '[reply]') && !str_contains($markdown, '[/reply]')) {
+        return [];
+    }
     $lines = explode("\n", str_replace(["\r\n", "\r"], "\n", $markdown));
     $hidden = false;
     $inCode = false;
@@ -3216,6 +3342,9 @@ function reply_hidden_syntax_errors(string $markdown): array
 
 function strip_reply_hidden_blocks(string $markdown): string
 {
+    if (!str_contains($markdown, '[reply]')) {
+        return trim(str_replace(["\r\n", "\r"], "\n", $markdown));
+    }
     $public = [];
     foreach (parse_reply_hidden_blocks($markdown) as $segment) {
         if (empty($segment['hidden'])) {
@@ -3227,6 +3356,9 @@ function strip_reply_hidden_blocks(string $markdown): string
 
 function content_has_reply_hidden_blocks(string $markdown): bool
 {
+    if (!str_contains($markdown, '[reply]')) {
+        return false;
+    }
     foreach (parse_reply_hidden_blocks($markdown) as $segment) {
         if (!empty($segment['hidden'])) {
             return true;
@@ -3319,16 +3451,41 @@ function social_profile_definitions(): array
     ];
 }
 
+function &tag_meta_cache(bool $refresh = false): array
+{
+    static $cache = null;
+    if ($refresh || $cache === null) {
+        $cache = ['labels' => [], 'slugs' => []];
+        foreach (all_rows('SELECT label, slug FROM tag_meta') as $tag) {
+            $cache['labels'][(string)$tag['label']] = (string)$tag['slug'];
+            $cache['slugs'][(string)$tag['slug']] = (string)$tag['label'];
+        }
+    }
+    return $cache;
+}
+
 function tag_slug_for_label(string $label): string
 {
-    $stored = val('SELECT slug FROM tag_meta WHERE label = ?', [$label]);
-    if (is_string($stored) && $stored !== '') { return $stored; }
+    $meta =& tag_meta_cache();
+    if (isset($meta['labels'][$label]) && $meta['labels'][$label] !== '') {
+        return $meta['labels'][$label];
+    }
     $base = slugify($label);
-    $slug = $base;
-    $suffix = 2;
-    while (one('SELECT label FROM tag_meta WHERE slug = ?', [$slug])) { $slug = $base . '-' . $suffix++; }
-    q('INSERT OR IGNORE INTO tag_meta(label, slug, updated_at) VALUES(?,?,?)', [$label, $slug, time()]);
-    return (string)(val('SELECT slug FROM tag_meta WHERE label = ?', [$label]) ?: $slug);
+    while (true) {
+        $slug = $base;
+        $suffix = 2;
+        while (isset($meta['slugs'][$slug])) { $slug = $base . '-' . $suffix++; }
+        if (q('INSERT OR IGNORE INTO tag_meta(label, slug, updated_at) VALUES(?,?,?)', [$label, $slug, time()])->rowCount() > 0) {
+            $meta['labels'][$label] = $slug;
+            $meta['slugs'][$slug] = $label;
+            return $slug;
+        }
+        // Another request may have registered this label or claimed its slug.
+        $meta =& tag_meta_cache(true);
+        if (array_key_exists($label, $meta['labels'])) {
+            return $meta['labels'][$label] !== '' ? $meta['labels'][$label] : $slug;
+        }
+    }
 }
 
 function split_bare_url_suffix(string $url): array
@@ -4136,16 +4293,18 @@ function can_view_reply_hidden_content(array $post): bool
     if ($postId < 1 || !is_array($stored)) {
         return false;
     }
-    foreach (array_slice(array_reverse($stored), 0, 8) as $commentId) {
-        $commentId = (int)$commentId;
-        if ($commentId > 0 && one(
-            'SELECT id FROM comments WHERE id = ? AND post_id = ? AND status = ? LIMIT 1',
-            [$commentId, $postId, 'approved']
-        )) {
-            return true;
-        }
+    $ids = array_values(array_filter(
+        array_map('intval', array_slice(array_reverse($stored), 0, 8)),
+        static fn(int $id): bool => $id > 0
+    ));
+    if ($ids === []) {
+        return false;
     }
-    return false;
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    return one(
+        'SELECT id FROM comments WHERE id IN (' . $placeholders . ') AND post_id = ? AND status = ? LIMIT 1',
+        [...$ids, $postId, 'approved']
+    ) !== null;
 }
 
 function content_requires_password(array $post): bool
@@ -4345,7 +4504,7 @@ function render_content_html(array $post): string
         return render_password_content_gate($post);
     }
     $segments = parse_reply_hidden_blocks((string)($post['content'] ?? ''));
-    $canViewHidden = can_view_reply_hidden_content($post);
+    $canViewHidden = in_array(true, array_column($segments, 'hidden'), true) && can_view_reply_hidden_content($post);
     $html = [];
     foreach ($segments as $segment) {
         if (!empty($segment['hidden']) && !$canViewHidden) {
@@ -4516,21 +4675,7 @@ function category_options(): array
 
 function unique_category_slug(string $seed, ?int $excludeId = null): string
 {
-    $base = slugify($seed);
-    $slug = $base;
-    $i = 2;
-
-    while (true) {
-        $existing = $excludeId
-            ? one('SELECT id FROM categories WHERE slug = ? AND id <> ?', [$slug, $excludeId])
-            : one('SELECT id FROM categories WHERE slug = ?', [$slug]);
-
-        if (!$existing) {
-            return $slug;
-        }
-
-        $slug = $base . '-' . $i++;
-    }
+    return unique_content_slug($seed, $excludeId, true);
 }
 
 function validate_category_input(array $input, ?array $existing = null): array
@@ -4626,17 +4771,23 @@ function fetch_admin_posts(): array
 function admin_metrics(): array
 {
     $now = time();
-    $totalPosts = (int)val('SELECT COUNT(*) FROM posts WHERE kind = ? AND status = ? AND published_at <= ?', ['post', 'published', $now]);
-    $publishedPosts = (int)val('SELECT COUNT(*) FROM posts WHERE kind = ? AND status = ? AND published_at <= ?', ['post', 'published', $now]);
-    $totalViews = (int)val('SELECT COALESCE(SUM(views), 0) FROM posts WHERE status = ? AND published_at <= ?', ['published', $now]);
+    $counts = one("SELECT
+        COUNT(CASE WHEN kind = 'post' AND status = 'published' AND published_at <= ? THEN 1 END) AS published,
+        COUNT(CASE WHEN kind = 'page' AND status = 'published' AND published_at <= ? THEN 1 END) AS pages,
+        COUNT(CASE WHEN status = 'draft' THEN 1 END) AS drafts,
+        COUNT(CASE WHEN status = 'published' AND published_at > ? THEN 1 END) AS scheduled,
+        COALESCE(SUM(CASE WHEN status = 'published' AND published_at <= ? THEN views ELSE 0 END), 0) AS total_views
+        FROM posts", [$now, $now, $now, $now]);
+    $totalPosts = (int)$counts['published'];
+    $totalViews = (int)$counts['total_views'];
     $commentCounts = comment_admin_counts();
 
     return [
         'total_posts' => $totalPosts,
-        'published' => $publishedPosts,
-        'pages' => (int)val('SELECT COUNT(*) FROM posts WHERE kind = ? AND status = ? AND published_at <= ?', ['page', 'published', $now]),
-        'drafts' => (int)val("SELECT COUNT(*) FROM posts WHERE status = 'draft'"),
-        'scheduled' => (int)val('SELECT COUNT(*) FROM posts WHERE status = ? AND published_at > ?', ['published', $now]),
+        'published' => $totalPosts,
+        'pages' => (int)$counts['pages'],
+        'drafts' => (int)$counts['drafts'],
+        'scheduled' => (int)$counts['scheduled'],
         'categories' => (int)val('SELECT COUNT(*) FROM categories'),
         'total_views' => $totalViews,
         'avg_views' => $totalPosts > 0 ? (int)floor($totalViews / $totalPosts) : 0,
@@ -5152,17 +5303,12 @@ function duplicate_comment_error(int $postId, int $parentId, int $userId, string
 {
     $identitySql = $userId > 0 ? 'user_id = ?' : 'user_id IS NULL AND author_email = ?';
     $identityValue = $userId > 0 ? $userId : $email;
-    if ($parentId > 0) {
-        $duplicate = (int)val(
-            'SELECT COUNT(*) FROM comments WHERE post_id = ? AND parent_id = ? AND ' . $identitySql . ' AND content = ? AND created_at >= ?',
-            [$postId, $parentId, $identityValue, $content, time() - 86400]
-        );
-    } else {
-        $duplicate = (int)val(
-            'SELECT COUNT(*) FROM comments WHERE post_id = ? AND parent_id IS NULL AND ' . $identitySql . ' AND content = ? AND created_at >= ?',
-            [$postId, $identityValue, $content, time() - 86400]
-        );
-    }
+    $parentSql = $parentId > 0 ? 'parent_id = ?' : 'parent_id IS NULL';
+    $parentParams = $parentId > 0 ? [$parentId] : [];
+    $duplicate = (int)val(
+        'SELECT 1 FROM comments WHERE post_id = ? AND ' . $parentSql . ' AND ' . $identitySql . ' AND content = ? AND created_at >= ? LIMIT 1',
+        [$postId, ...$parentParams, $identityValue, $content, time() - 86400]
+    );
     return $duplicate > 0 ? '这条评论已经提交过了。' : '';
 }
 
@@ -5215,8 +5361,8 @@ function tag_index_data(bool $publishedOnly = true): array
 {
     $map = [];
     $posts = $publishedOnly
-        ? all_rows('SELECT * FROM posts WHERE kind = ? AND status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC', ['post', 'published', time()])
-        : all_rows('SELECT * FROM posts WHERE kind = ? ORDER BY updated_at DESC, id DESC', ['post']);
+        ? all_rows('SELECT tags FROM posts WHERE kind = ? AND status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC', ['post', 'published', time()])
+        : all_rows('SELECT tags FROM posts WHERE kind = ? ORDER BY updated_at DESC, id DESC', ['post']);
 
     foreach ($posts as $post) {
         foreach (post_tags($post) as $label) {
@@ -5246,19 +5392,26 @@ function fetch_posts_by_tag_slug(string $slug): array
         return [];
     }
 
-    $matches = [];
-    $posts = all_rows('SELECT * FROM posts WHERE kind = ? AND status = ? AND published_at <= ? ORDER BY is_pinned DESC, published_at DESC, id DESC', ['post', 'published', time()]);
+    $ids = [];
+    $now = time();
+    // Register legacy tags in the same order as the public tag index, before applying pinned ordering.
+    $posts = all_rows('SELECT id, tags FROM posts WHERE kind = ? AND status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC', ['post', 'published', $now]);
 
     foreach ($posts as $post) {
         foreach (tag_descriptors($post) as $tag) {
             if ($tag['slug'] === $slug) {
-                $matches[] = public_content_context($post);
+                $ids[] = (int)$post['id'];
                 break;
             }
         }
     }
 
-    return $matches;
+    if ($ids === []) {
+        return [];
+    }
+    // IDs come from SQLite and are cast to integers; this also avoids its bound-parameter limit.
+    $matches = all_rows('SELECT * FROM posts WHERE id IN (' . implode(',', $ids) . ') AND kind = ? AND status = ? AND published_at <= ? ORDER BY is_pinned DESC, published_at DESC, id DESC', ['post', 'published', $now]);
+    return array_map('public_content_context', $matches);
 }
 
 function tag_label_by_slug(string $slug): ?string
@@ -5338,6 +5491,7 @@ function validate_post_input(array $input, ?array $existing = null): array
     }
 
     $seed = trim((string)($input['slug'] ?? ''));
+    $hasExplicitSlug = $seed !== '';
     if ($errors === [] && ($seed === '' || $excerpt === '')) {
         $defaultFields = plugin_filter('post_fields_before_defaults', [
             'slug' => $seed,
@@ -5357,7 +5511,24 @@ function validate_post_input(array $input, ?array $existing = null): array
             }
         }
     }
-    $slug = unique_slug($seed !== '' ? $seed : $title, $existing ? (int)$existing['id'] : null);
+    $excludeId = $existing ? (int)$existing['id'] : null;
+    if ($kind === 'page') {
+        $slug = slugify($seed !== '' ? $seed : $title);
+        if ($hasExplicitSlug) {
+            $conflict = page_slug_conflict($slug, $excludeId);
+            if ($conflict !== '') {
+                $errors[] = $conflict;
+            }
+        } else {
+            $base = $slug;
+            $index = 2;
+            while (page_slug_conflict($slug, $excludeId) !== '') {
+                $slug = $base . '-' . $index++;
+            }
+        }
+    } else {
+        $slug = unique_slug($seed !== '' ? $seed : $title, $excludeId);
+    }
     $excerpt = $excerpt !== '' ? $excerpt : derive_excerpt($content);
     $tags = encode_tags(parse_tags_input($tagsInput));
 
@@ -5442,7 +5613,7 @@ function post_form_from_request(array $input): array
 function render_layout(string $title, string $content, array $options = []): void
 {
     $siteName = setting('site_name', default_settings()['site_name']);
-    $fullTitle = $title === $siteName ? $siteName : $title . ' · ' . $siteName;
+    $fullTitle = (string)($options['document_title'] ?? ($title === $siteName ? $siteName : $title . ' · ' . $siteName));
     $description = (string)($options['description'] ?? setting('site_description', setting('site_tagline')));
     $keywords = trim(setting('site_keywords'));
     $active = (string)($options['active'] ?? '');
@@ -5450,7 +5621,7 @@ function render_layout(string $title, string $content, array $options = []): voi
     $mode = (string)($options['mode'] ?? 'admin');
     $flash = pull_flash();
     $admin = current_admin();
-    $navPages = fetch_nav_pages();
+    $navPages = $mode === 'public' ? fetch_nav_pages() : [];
     $status = (int)($options['status'] ?? 200);
     $bodyClass = $mode === 'public' ? 'theme-public' : 'theme-admin';
     $customHeadCode = $mode === 'public' ? trim(setting('custom_head_code')) : '';
@@ -5738,86 +5909,26 @@ function render_admin_sidebar(string $active, array $summary = []): string
     $adminInitial = str_sub_u($adminName, 0, 1);
     $userSettingsUrl = url_for('admin_users');
     $unreadComments = unread_comment_count();
-    $links = [
-        [
-            'label' => '博客概览',
-            'icon' => 'overview',
-            'note' => '浏览与统计',
-            'href' => url_for('admin'),
-            'active' => $active === 'admin',
-        ],
-        [
-            'label' => '文章管理',
-            'icon' => 'posts',
-            'note' => '列表与发布',
-            'href' => url_for('admin_posts'),
-            'active' => in_array($active, ['posts', 'write', 'edit'], true),
-        ],
-        [
-            'label' => '媒体库',
-            'icon' => 'media',
-            'note' => '上传与文件管理',
-            'href' => url_for('admin_media'),
-            'active' => $active === 'media',
-        ],
-        [
-            'label' => '评论管理',
-            'icon' => 'comments',
-            'note' => '审核与通知',
-            'href' => url_for('admin_comments'),
-            'active' => $active === 'comments',
-            'badge' => $unreadComments,
-        ],
-        [
-            'label' => '分类管理',
-            'icon' => 'categories',
-            'note' => '分类与排序',
-            'href' => url_for('admin_categories'),
-            'active' => $active === 'categories',
-        ],
-        [
-            'label' => '标签管理',
-            'icon' => 'tags',
-            'note' => '重命名与清理',
-            'href' => url_for('admin_tags'),
-            'active' => $active === 'tags',
-        ],
-        [
-            'label' => '友情链接',
-            'icon' => 'links',
-            'note' => '添加、排序与维护',
-            'href' => url_for('admin_links'),
-            'active' => $active === 'links',
-        ],
-        [
-            'label' => '主题管理',
-            'icon' => 'themes',
-            'note' => '预览与切换',
-            'href' => url_for('admin_themes'),
-            'active' => $active === 'themes',
-        ],
-        [
-            'label' => '插件管理',
-            'icon' => 'plugins',
-            'note' => '扩展与语言包',
-            'href' => url_for('admin_plugins'),
-            'active' => $active === 'plugins',
-        ],
-        [
-            'label' => '扩展商店',
-            'icon' => 'store',
-            'note' => '主题与插件',
-            'href' => url_for('admin_store'),
-            'active' => $active === 'store',
-        ],
-        [
-            'label' => '站点设置',
-            'icon' => 'settings',
-            'note' => '基础配置',
-            'href' => url_for('admin_settings'),
-            'active' => $active === 'settings',
-        ],
+    $linkDefinitions = [
+        'admin' => ['label' => '博客概览', 'icon' => 'overview', 'note' => '浏览与统计'],
+        'posts' => ['label' => '文章管理', 'icon' => 'posts', 'note' => '列表与发布'],
+        'media' => ['label' => '媒体库', 'icon' => 'media', 'note' => '上传与文件管理'],
+        'comments' => ['label' => '评论管理', 'icon' => 'comments', 'note' => '审核与通知'],
+        'categories' => ['label' => '分类管理', 'icon' => 'categories', 'note' => '分类与排序'],
+        'tags' => ['label' => '标签管理', 'icon' => 'tags', 'note' => '重命名与清理'],
+        'links' => ['label' => '友情链接', 'icon' => 'links', 'note' => '添加、排序与维护'],
+        'themes' => ['label' => '主题管理', 'icon' => 'themes', 'note' => '预览与切换'],
+        'plugins' => ['label' => '插件管理', 'icon' => 'plugins', 'note' => '扩展与语言包'],
+        'store' => ['label' => '扩展商店', 'icon' => 'store', 'note' => '主题与插件'],
+        'settings' => ['label' => '站点设置', 'icon' => 'settings', 'note' => '基础配置'],
     ];
+    $links = [];
+    foreach ($linkDefinitions as $section => $link) {
+        $link['href'] = url_for($section === 'admin' ? 'admin' : 'admin_' . $section);
+        $link['active'] = $section === 'posts' ? in_array($active, ['posts', 'write', 'edit'], true) : $active === $section;
+        if ($section === 'comments') { $link['badge'] = $unreadComments; }
+        $links[] = $link;
+    }
     $filteredLinks = plugin_filter('admin_sidebar_links', $links, ['active' => $active, 'admin' => $admin]);
     if (is_array($filteredLinks)) {
         $links = $filteredLinks;
@@ -5840,32 +5951,8 @@ function render_admin_sidebar(string $active, array $summary = []): string
         <nav class="admin-side__nav" aria-label="<?= h(sblog_t('后台导航')) ?>">
           <?php foreach ($links as $link): ?>
             <?php $linkBadge = (int)($link['badge'] ?? 0); ?>
-            <?php $linkDisplayLabel = match ((string)$link['label']) {
-                '博客概览' => sblog_t('博客概览'),
-                '媒体库' => sblog_t('媒体库'),
-                '文章管理' => sblog_t('文章管理'),
-                '评论管理' => sblog_t('评论管理'),
-                '分类管理' => sblog_t('分类管理'),
-                '标签管理' => sblog_t('标签管理'),
-                '友情链接' => sblog_t('友情链接'),
-                '主题管理' => sblog_t('主题管理'),
-                '插件管理' => sblog_t('插件管理'),
-                '站点设置' => sblog_t('站点设置'),
-                default => (string)$link['label'],
-            }; ?>
-            <?php $linkDisplayNote = match ((string)$link['note']) {
-                '浏览与统计' => sblog_t('浏览与统计'),
-                '上传与文件管理' => sblog_t('上传与文件管理'),
-                '列表与发布' => sblog_t('列表与发布'),
-                '审核与通知' => sblog_t('审核与通知'),
-                '分类与排序' => sblog_t('分类与排序'),
-                '重命名与清理' => sblog_t('重命名与清理'),
-                '添加、排序与维护' => sblog_t('添加、排序与维护'),
-                '预览与切换' => sblog_t('预览与切换'),
-                '扩展与语言包' => sblog_t('扩展与语言包'),
-                '基础配置' => sblog_t('基础配置'),
-                default => (string)$link['note'],
-            }; ?>
+            <?php $linkDisplayLabel = sblog_t((string)$link['label']); ?>
+            <?php $linkDisplayNote = sblog_t((string)$link['note']); ?>
             <?php $linkLabel = $linkBadge > 0
                 ? sblog_tn('{label}，{count} 条未读评论', $linkBadge, ['label' => $linkDisplayLabel])
                 : $linkDisplayLabel; ?>
@@ -5949,22 +6036,7 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
     $flashContext = (string)($flash['context'] ?? '');
     $databaseUpgradePending = database_upgrade_pending()
         && $flashContext !== 'database_upgrade';
-    $displayTitle = match ($title) {
-        '博客数据预览' => sblog_t('博客数据预览'),
-        '文章管理' => sblog_t('文章管理'),
-        '评论管理' => sblog_t('评论管理'),
-        '分类管理' => sblog_t('分类管理'),
-        '友情链接' => sblog_t('友情链接'),
-        '标签管理' => sblog_t('标签管理'),
-        '用户设置' => sblog_t('用户设置'),
-        '媒体库' => sblog_t('媒体库'),
-        '插件管理' => sblog_t('插件管理'),
-        '主题管理' => sblog_t('主题管理'),
-        '站点设置' => sblog_t('站点设置'),
-        '编辑内容' => sblog_t('编辑内容'),
-        '撰写文章' => sblog_t('撰写文章'),
-        default => $title,
-    };
+    $displayTitle = sblog_t($title);
     ob_start();
     ?>
     <div class="admin-topbar">
@@ -6065,13 +6137,20 @@ function render_home(int $page): void
     $total = count_published_posts();
     $totalPages = max(1, (int)ceil($total / $perPage));
 
-    if ($page > $totalPages && $total > 0) {
+    if ($page > $totalPages) {
         simple_error_page(sblog_t('页面不存在'), sblog_t('分页超出了范围。'), 404);
     }
 
     $posts = fetch_published_posts($perPage, ($page - 1) * $perPage);
     $siteName = setting('site_name', default_settings()['site_name']);
     $tagline = setting('site_tagline', '');
+    $documentTitle = $siteName;
+    $description = setting('site_description', $tagline);
+    if ($page > 1) {
+        $documentTitle .= ' · ' . sblog_t('第 {page} 页', ['page' => $page]);
+        $description = sblog_t('第 {page} / {pages} 页', ['page' => $page, 'pages' => $totalPages])
+            . ' · ' . (trim($description) !== '' ? trim($description) : $siteName);
+    }
 
     ob_start();
     ?>
@@ -6110,8 +6189,14 @@ function render_home(int $page): void
     render_layout($siteName, $content, [
         'active' => 'home',
         'mode' => 'public',
-        'description' => setting('site_description', $tagline),
+        'document_title' => $documentTitle,
+        'description' => $description,
     ]);
+}
+
+function render_public_layout(string $title, string $content, string $active, string $description): void
+{
+    render_layout($title, $content, ['active' => $active, 'mode' => 'public', 'description' => $description]);
 }
 
 function render_archives(): void
@@ -6150,11 +6235,7 @@ function render_archives(): void
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout(sblog_t('归档'), $content, [
-        'active' => 'archives',
-        'mode' => 'public',
-        'description' => sblog_t('已发布文章归档'),
-    ]);
+    render_public_layout(sblog_t('归档'), $content, 'archives', sblog_t('已发布文章归档'));
 }
 
 function render_comments_section(array $post, array $form = [], array $errors = []): string
@@ -6202,6 +6283,13 @@ function render_comments_section(array $post, array $form = [], array $errors = 
         if (str_contains($error, '网站地址')) { $invalidFields['author_url'] = true; }
         if (str_contains($error, '评论内容') || str_contains($error, '已经提交过')) { $invalidFields['content'] = true; }
     }
+    $commentErrorMessages = [
+        '回复目标不存在或当前不可用。', '请填写昵称。', '昵称不能超过 50 个字符。',
+        '请填写有效的邮箱地址。', '网站地址必须是有效的 HTTP 或 HTTPS 链接。',
+        '请填写评论内容。', '评论内容不能超过 3000 个字符。', '这条评论已经提交过了。',
+        '提交过于频繁，请稍后再试。', '提交过快，请稍后再试。',
+        '评论表单已失效，请刷新文章后重试。', '回复目标已不可用，请重新选择。',
+    ];
 
     load_active_theme();
     $defaultLabels = [
@@ -6307,21 +6395,7 @@ function render_comments_section(array $post, array $form = [], array $errors = 
             <div class="comment-notice comment-notice--error" id="comment-errors" role="alert">
               <ul>
                 <?php foreach ($errors as $error): ?>
-                  <?php $displayError = match ((string)$error) {
-                      '回复目标不存在或当前不可用。' => sblog_t('回复目标不存在或当前不可用。'),
-                      '请填写昵称。' => sblog_t('请填写昵称。'),
-                      '昵称不能超过 50 个字符。' => sblog_t('昵称不能超过 50 个字符。'),
-                      '请填写有效的邮箱地址。' => sblog_t('请填写有效的邮箱地址。'),
-                      '网站地址必须是有效的 HTTP 或 HTTPS 链接。' => sblog_t('网站地址必须是有效的 HTTP 或 HTTPS 链接。'),
-                      '请填写评论内容。' => sblog_t('请填写评论内容。'),
-                      '评论内容不能超过 3000 个字符。' => sblog_t('评论内容不能超过 3000 个字符。'),
-                      '这条评论已经提交过了。' => sblog_t('这条评论已经提交过了。'),
-                      '提交过于频繁，请稍后再试。' => sblog_t('提交过于频繁，请稍后再试。'),
-                      '提交过快，请稍后再试。' => sblog_t('提交过快，请稍后再试。'),
-                      '评论表单已失效，请刷新文章后重试。' => sblog_t('评论表单已失效，请刷新文章后重试。'),
-                      '回复目标已不可用，请重新选择。' => sblog_t('回复目标已不可用，请重新选择。'),
-                      default => (string)$error,
-                  }; ?>
+                  <?php $displayError = in_array((string)$error, $commentErrorMessages, true) ? sblog_t((string)$error) : (string)$error; ?>
                   <li><?= h($displayError) ?></li>
                 <?php endforeach; ?>
               </ul>
@@ -6435,11 +6509,7 @@ function render_post_page(array $post, array $commentForm = [], array $commentEr
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout((string)$post['title'], $content, [
-        'active' => 'home',
-        'mode' => 'public',
-        'description' => public_content_description($post),
-    ]);
+    render_public_layout((string)$post['title'], $content, 'home', public_content_description($post));
 }
 
 function render_page_view(array $page): void
@@ -6465,11 +6535,7 @@ function render_page_view(array $page): void
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout((string)$page['title'], $content, [
-        'active' => 'page:' . (string)$page['slug'],
-        'mode' => 'public',
-        'description' => public_content_description($page),
-    ]);
+    render_public_layout((string)$page['title'], $content, 'page:' . (string)$page['slug'], public_content_description($page));
 }
 
 function render_tags_index(): void
@@ -6499,11 +6565,7 @@ function render_tags_index(): void
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout(sblog_t('标签'), $content, [
-        'active' => 'tags',
-        'mode' => 'public',
-        'description' => sblog_t('标签索引'),
-    ]);
+    render_public_layout(sblog_t('标签'), $content, 'tags', sblog_t('标签索引'));
 }
 
 function render_categories_index(): void
@@ -6525,17 +6587,13 @@ function render_categories_index(): void
       <div class="empty-notice"><p><?= h(sblog_t('还没有分类。')) ?></p></div>
     <?php endif; ?>
     <?php
-    render_layout(sblog_t('分类'), (string)ob_get_clean(), [
-        'active' => 'categories',
-        'mode' => 'public',
-        'description' => sblog_t('文章分类'),
-    ]);
+    render_public_layout(sblog_t('分类'), (string)ob_get_clean(), 'categories', sblog_t('文章分类'));
 }
 
 function render_tag_page(string $slug): void
 {
-    $label = tag_label_by_slug($slug);
     $posts = fetch_posts_by_tag_slug($slug);
+    $label = $posts === [] ? null : (tag_meta_cache()['slugs'][trim($slug)] ?? null);
 
     if ($label === null && $posts === []) {
         simple_error_page(sblog_t('标签不存在'), sblog_t('没有找到这个标签下的文章。'), 404);
@@ -6563,11 +6621,7 @@ function render_tag_page(string $slug): void
     <?php
     $content = (string)ob_get_clean();
 
-    render_layout('#' . $label, $content, [
-        'active' => 'tags',
-        'mode' => 'public',
-        'description' => sblog_t('标签 {label} 下的文章', ['label' => $label]),
-    ]);
+    render_public_layout('#' . $label, $content, 'tags', sblog_t('标签 {label} 下的文章', ['label' => $label]));
 }
 
 function render_category_page(string $slug): void
@@ -6583,7 +6637,7 @@ function render_category_page(string $slug): void
     <?php if (trim((string)$category['description']) !== ''): ?><div class="meta"><?= h((string)$category['description']) ?></div><?php endif; ?>
     <?php if ($posts): ?><article><div class="recent-posts section"><?= render_public_post_list($posts) ?></div></article><?php else: ?><div class="empty-notice"><p><?= h(sblog_t('这个分类下还没有已发布文章。')) ?></p></div><?php endif; ?>
     <?php
-    render_layout((string)$category['name'], (string)ob_get_clean(), ['active' => 'home', 'mode' => 'public', 'description' => trim((string)$category['description']) ?: sblog_t('分类文章')]);
+    render_public_layout((string)$category['name'], (string)ob_get_clean(), 'home', trim((string)$category['description']) ?: sblog_t('分类文章'));
 }
 
 function render_rss_feed(): void
@@ -6826,67 +6880,51 @@ function render_reset_password_page(string $token, string $error = ''): void
     ]);
 }
 
+// Keep page bodies in their original local scope and consume topbar notices before rendering them.
+function render_admin_content_start(string $title, string $sidebar): string
+{
+    return '<div class="admin-shell">' . $sidebar . '<div class="admin-main">'
+        . render_admin_topbar($title);
+}
+
+function render_admin_content_end(string $title, string $active, string $description): void
+{
+    echo '</div></div>';
+    $content = (string)ob_get_clean();
+    render_layout($title, $content, ['active' => $active, 'wide' => true, 'description' => $description]);
+}
+
 function translated_admin_form_errors(array $errors): array
 {
     $systemMessages = [
-        '分类名称不能为空。' => sblog_t('分类名称不能为空。'),
-        '请填写网站名称。' => sblog_t('请填写网站名称。'),
-        '请填写有效的 HTTP 或 HTTPS 地址。' => sblog_t('请填写有效的 HTTP 或 HTTPS 地址。'),
-        '网站图标地址格式不正确。' => sblog_t('网站图标地址格式不正确。'),
-        '原标签和新标签不能为空。' => sblog_t('原标签和新标签不能为空。'),
-        '新标签不能包含逗号。' => sblog_t('新标签不能包含逗号。'),
-        'Slug 格式不正确。' => sblog_t('Slug 格式不正确。'),
-        'Slug 已被其他标签使用。' => sblog_t('Slug 已被其他标签使用。'),
-        '用户名不能为空。' => sblog_t('用户名不能为空。'),
-        '昵称不能为空。' => sblog_t('昵称不能为空。'),
-        '邮箱地址格式不正确。' => sblog_t('邮箱地址格式不正确。'),
-        '用户名已存在。' => sblog_t('用户名已存在。'),
-        '请输入原密码。' => sblog_t('请输入原密码。'),
-        '原密码不正确。' => sblog_t('原密码不正确。'),
-        '新密码至少需要 8 个字符。' => sblog_t('新密码至少需要 8 个字符。'),
-        '两次输入的密码不一致。' => sblog_t('两次输入的密码不一致。'),
-        '标题不能为空。' => sblog_t('标题不能为空。'),
-        '正文不能为空。' => sblog_t('正文不能为空。'),
-        '文章必须选择一个分类。' => sblog_t('文章必须选择一个分类。'),
-        '发布时间格式不正确。' => sblog_t('发布时间格式不正确。'),
-        '回复可见标记不能嵌套。' => sblog_t('回复可见标记不能嵌套。'),
-        '回复可见结束标记缺少对应的开始标记。' => sblog_t('回复可见结束标记缺少对应的开始标记。'),
-        '回复可见内容缺少结束标记。' => sblog_t('回复可见内容缺少结束标记。'),
-        '独立页面使用回复可见内容时必须开启评论。' => sblog_t('独立页面使用回复可见内容时必须开启评论。'),
-        '不能同时设置和移除文章访问密码。' => sblog_t('不能同时设置和移除文章访问密码。'),
-        '文章访问密码至少需要 8 个字符。' => sblog_t('文章访问密码至少需要 8 个字符。'),
-        '文章访问密码不能超过 72 个字节。' => sblog_t('文章访问密码不能超过 72 个字节。'),
+        '分类名称不能为空。', '请填写网站名称。', '请填写有效的 HTTP 或 HTTPS 地址。',
+        '网站图标地址格式不正确。', '原标签和新标签不能为空。', '新标签不能包含逗号。',
+        'Slug 格式不正确。', 'Slug 已被其他标签使用。',
+        'Slug 与系统或插件路径冲突，请更换。', 'Slug 与现有文件或目录冲突，请更换。',
+        'Slug 已被其他文章或独立页面使用，请更换。',
+        '用户名不能为空。', '昵称不能为空。', '邮箱地址格式不正确。', '用户名已存在。',
+        '请输入原密码。', '原密码不正确。', '新密码至少需要 8 个字符。', '两次输入的密码不一致。',
+        '标题不能为空。', '正文不能为空。', '文章必须选择一个分类。', '发布时间格式不正确。',
+        '回复可见标记不能嵌套。', '回复可见结束标记缺少对应的开始标记。', '回复可见内容缺少结束标记。',
+        '独立页面使用回复可见内容时必须开启评论。', '不能同时设置和移除文章访问密码。',
+        '文章访问密码至少需要 8 个字符。', '文章访问密码不能超过 72 个字节。',
     ];
-    $formatFields = [
-        '头像地址' => sblog_t('头像地址'),
-        '网站地址' => sblog_t('网站地址'),
-    ];
-    $linkFields = [
-        'GitHub' => sblog_t('GitHub'),
-        'QQ' => sblog_t('QQ'),
-        '微信' => sblog_t('微信'),
-        '微博' => sblog_t('微博'),
-        'X' => sblog_t('X'),
-        'Telegram' => sblog_t('Telegram'),
-        'Mastodon' => sblog_t('Mastodon'),
-        '哔哩哔哩' => sblog_t('哔哩哔哩'),
-        'Instagram' => sblog_t('Instagram'),
-        'TikTok' => sblog_t('TikTok'),
-    ];
+    $formatFields = ['头像地址', '网站地址'];
+    $linkFields = ['GitHub', 'QQ', '微信', '微博', 'X', 'Telegram', 'Mastodon', '哔哩哔哩', 'Instagram', 'TikTok'];
 
     return array_map(static function ($error) use ($systemMessages, $formatFields, $linkFields): string {
         $message = (string)$error;
-        if (isset($systemMessages[$message])) {
-            return $systemMessages[$message];
+        if (in_array($message, $systemMessages, true)) {
+            return sblog_t($message);
         }
-        foreach ($formatFields as $source => $translated) {
-            if ($message === $source . '格式不正确。') {
-                return sblog_t('{field}格式不正确。', ['field' => $translated]);
+        foreach ($formatFields as $field) {
+            if ($message === $field . '格式不正确。') {
+                return sblog_t('{field}格式不正确。', ['field' => sblog_t($field)]);
             }
         }
-        foreach ($linkFields as $source => $translated) {
-            if ($message === $source . '链接格式不正确。') {
-                return sblog_t('{field}链接格式不正确。', ['field' => $translated]);
+        foreach ($linkFields as $field) {
+            if ($message === $field . '链接格式不正确。') {
+                return sblog_t('{field}链接格式不正确。', ['field' => sblog_t($field)]);
             }
         }
         return $message;
@@ -6913,11 +6951,7 @@ function render_admin_page(): void
 
     ob_start();
     ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('博客数据预览')) ?>
+    <?= render_admin_content_start(sblog_t('博客数据预览'), $sidebar) ?>
 
         <div class="admin-grid">
           <?php if (!empty($update['available'])): ?>
@@ -7011,16 +7045,8 @@ function render_admin_page(): void
             </div>
           </section>
         </div>
-      </div>
-    </div>
     <?php
-    $content = (string)ob_get_clean();
-
-    render_layout(sblog_t('后台概览'), $content, [
-        'active' => 'admin',
-        'wide' => true,
-        'description' => sblog_t('博客后台概览'),
-    ]);
+    render_admin_content_end(sblog_t('后台概览'), 'admin', sblog_t('博客后台概览'));
 }
 
 function render_sitemap(): void
@@ -7106,11 +7132,7 @@ function render_links_page(): void
       <?php endif; ?>
     </article>
     <?php
-    render_layout(sblog_t('链接'), (string)ob_get_clean(), [
-        'active' => 'links',
-        'mode' => 'public',
-        'description' => sblog_t('友情链接'),
-    ]);
+    render_public_layout(sblog_t('链接'), (string)ob_get_clean(), 'links', sblog_t('友情链接'));
 }
 
 function render_admin_posts_page(): void
@@ -7122,11 +7144,7 @@ function render_admin_posts_page(): void
 
     ob_start();
     ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('文章管理')) ?>
+    <?= render_admin_content_start(sblog_t('文章管理'), $sidebar) ?>
 
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
@@ -7197,16 +7215,8 @@ function render_admin_posts_page(): void
             <?php endif; ?>
           </div>
         </section>
-      </div>
-    </div>
     <?php
-    $content = (string)ob_get_clean();
-
-    render_layout(sblog_t('文章管理'), $content, [
-        'active' => 'posts',
-        'wide' => true,
-        'description' => sblog_t('博客文章管理'),
-    ]);
+    render_admin_content_end(sblog_t('文章管理'), 'posts', sblog_t('博客文章管理'));
 }
 
 function render_admin_comments_page(): void
@@ -7229,10 +7239,7 @@ function render_admin_comments_page(): void
 
     ob_start();
     ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('评论管理')) ?>
+    <?= render_admin_content_start(sblog_t('评论管理'), $sidebar) ?>
 
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
@@ -7361,14 +7368,8 @@ function render_admin_comments_page(): void
             <?php endif; ?>
           </div>
         </section>
-      </div>
-    </div>
     <?php
-    render_layout(sblog_t('评论管理'), (string)ob_get_clean(), [
-        'active' => 'comments',
-        'wide' => true,
-        'description' => sblog_t('博客评论管理'),
-    ]);
+    render_admin_content_end(sblog_t('评论管理'), 'comments', sblog_t('博客评论管理'));
 }
 
 function render_admin_categories_page(array $form = [], array $errors = []): void
@@ -7393,11 +7394,7 @@ function render_admin_categories_page(array $form = [], array $errors = []): voi
 
     ob_start();
     ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('分类管理')) ?>
+    <?= render_admin_content_start(sblog_t('分类管理'), $sidebar) ?>
 
         <div class="admin-grid admin-grid--split">
           <section class="panel admin-list-panel admin-animate admin-animate--2">
@@ -7494,16 +7491,8 @@ function render_admin_categories_page(array $form = [], array $errors = []): voi
             </div>
           </section>
         </div>
-      </div>
-    </div>
     <?php
-    $content = (string)ob_get_clean();
-
-    render_layout(sblog_t('分类管理'), $content, [
-        'active' => 'categories',
-        'wide' => true,
-        'description' => sblog_t('博客分类管理'),
-    ]);
+    render_admin_content_end(sblog_t('分类管理'), 'categories', sblog_t('博客分类管理'));
 }
 
 function render_admin_links_page(array $form = [], array $errors = []): void
@@ -7520,8 +7509,7 @@ function render_admin_links_page(array $form = [], array $errors = []): void
     $sidebar = render_admin_sidebar('links');
     ob_start();
     ?>
-    <div class="admin-shell"><?= $sidebar ?><div class="admin-main">
-      <?= render_admin_topbar(sblog_t('友情链接')) ?>
+    <?= render_admin_content_start(sblog_t('友情链接'), $sidebar) ?>
       <div class="admin-grid admin-grid--split">
         <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h(sblog_t('链接列表')) ?></h2><p class="panel__meta"><?= h(sblog_t('排序数字越小越靠前。')) ?></p></div><div class="panel__body panel__body--flush">
           <?php if ($links): ?><div class="table-wrap"><table class="admin-table"><thead><tr><th><?= h(sblog_t('名称')) ?></th><th><?= h(sblog_t('网址')) ?></th><th><?= h(sblog_t('排序')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead><tbody>
@@ -7540,19 +7528,19 @@ function render_admin_links_page(array $form = [], array $errors = []): void
           </form>
         </div></section>
       </div>
-    </div></div>
     <?php
-    render_layout(sblog_t('友情链接'), (string)ob_get_clean(), ['active' => 'links', 'wide' => true, 'description' => sblog_t('友情链接管理')]);
+    render_admin_content_end(sblog_t('友情链接'), 'links', sblog_t('友情链接管理'));
 }
 
 function replace_tag_everywhere(string $old, ?string $new): void
 {
+    $oldLower = str_lower_u($old);
     foreach (all_rows('SELECT id, tags FROM posts') as $post) {
         $tags = post_tags($post);
         $changed = false;
         $result = [];
         foreach ($tags as $tag) {
-            if (str_lower_u($tag) === str_lower_u($old)) {
+            if (str_lower_u($tag) === $oldLower) {
                 $changed = true;
                 if ($new !== null && $new !== '') { $result[] = $new; }
             } else { $result[] = $tag; }
@@ -7577,13 +7565,10 @@ function render_admin_tags_page(array $form = [], array $errors = []): void
         $old = '';
     }
     $currentSlug = (string)($form['tag_slug'] ?? $selectedTag['slug'] ?? '');
-    $maxTagCount = max(1, ...array_map(static fn(array $tag): int => (int)$tag['count'], $tags));
+    $maxTagCount = max([1, ...array_map(static fn(array $tag): int => (int)$tag['count'], $tags)]);
     $sidebar = render_admin_sidebar('tags');
     ob_start(); ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('标签管理')) ?>
+    <?= render_admin_content_start(sblog_t('标签管理'), $sidebar) ?>
         <div class="admin-grid admin-grid--split tag-manager" data-tag-manager data-base-url="<?= h(url_for('admin_tags')) ?>">
           <section class="panel admin-list-panel tag-cloud-panel">
             <div class="panel__header">
@@ -7639,9 +7624,8 @@ function render_admin_tags_page(array $form = [], array $errors = []): void
             </div>
           </section>
         </div>
-      </div>
-    </div><?php
-    render_layout(sblog_t('标签管理'), (string)ob_get_clean(), ['active' => 'tags', 'wide' => true, 'description' => sblog_t('标签管理')]);
+    <?php
+    render_admin_content_end(sblog_t('标签管理'), 'tags', sblog_t('标签管理'));
 }
 
 function render_admin_users_page(array $form = [], array $errors = []): void
@@ -7653,21 +7637,9 @@ function render_admin_users_page(array $form = [], array $errors = []): void
     $profileDefaults = ['nickname' => '', 'email' => '', 'avatar_url' => '', 'website_url' => '', 'signature' => ''];
     foreach (social_profile_definitions() as $definition) { $profileDefaults[$definition['column']] = ''; }
     $profile = array_merge($profileDefaults, $account, $form);
-    $socialLabels = [
-        'github' => sblog_t('GitHub'),
-        'qq' => sblog_t('QQ'),
-        'wechat' => sblog_t('微信'),
-        'weibo' => sblog_t('微博'),
-        'x' => sblog_t('X'),
-        'telegram' => sblog_t('Telegram'),
-        'mastodon' => sblog_t('Mastodon'),
-        'bilibili' => sblog_t('哔哩哔哩'),
-        'instagram' => sblog_t('Instagram'),
-        'tiktok' => sblog_t('TikTok'),
-    ];
     $sidebar = render_admin_sidebar('users');
     ob_start(); ?>
-    <div class="admin-shell"><?= $sidebar ?><div class="admin-main"><?= render_admin_topbar(sblog_t('用户设置')) ?><div class="admin-grid admin-user-settings">
+    <?= render_admin_content_start(sblog_t('用户设置'), $sidebar) ?><div class="admin-grid admin-user-settings">
       <section class="admin-profile-settings" aria-labelledby="user-settings-title">
         <header class="admin-profile-settings__header">
           <h2 id="user-settings-title"><?= h(sblog_t('用户设置')) ?></h2>
@@ -7707,7 +7679,7 @@ function render_admin_users_page(array $form = [], array $errors = []): void
             <div class="admin-profile-section__fields field-grid">
               <?php foreach (social_profile_definitions() as $key => $definition): ?>
                 <div class="field">
-                  <label for="social-<?= h($key) ?>"><?= h($socialLabels[$key] ?? (string)$definition['label']) ?></label>
+                  <label for="social-<?= h($key) ?>"><?= h(sblog_t((string)($definition['source_label'] ?? $definition['label']))) ?></label>
                   <input id="social-<?= h($key) ?>" name="social_<?= h($key) ?>" type="url" maxlength="300" value="<?= h((string)$profile[$definition['column']]) ?>" placeholder="<?= h((string)$definition['placeholder']) ?>">
                 </div>
               <?php endforeach; ?>
@@ -7716,8 +7688,8 @@ function render_admin_users_page(array $form = [], array $errors = []): void
           <div class="admin-profile-actions"><button class="button" type="submit"><?= h(sblog_t('保存修改')) ?></button></div>
         </form>
       </section>
-    </div></div></div><?php
-    render_layout(sblog_t('用户设置'), (string)ob_get_clean(), ['active' => 'users', 'wide' => true, 'description' => sblog_t('用户设置')]);
+    </div><?php
+    render_admin_content_end(sblog_t('用户设置'), 'users', sblog_t('用户设置'));
 }
 
 function render_admin_media_page(): void
@@ -7748,10 +7720,7 @@ function render_admin_media_page(): void
     $editing = $editId > 0 ? one('SELECT * FROM media WHERE id = ?', [$editId]) : null;
 
     ob_start(); ?>
-    <div class="admin-shell">
-      <?= render_admin_sidebar('media') ?>
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('媒体库')) ?>
+    <?= render_admin_content_start(sblog_t('媒体库'), render_admin_sidebar('media')) ?>
         <div class="media-library admin-animate admin-animate--2">
           <section class="panel media-library-upload">
             <div class="panel__header"><h2><?= h(sblog_t('上传媒体')) ?></h2><p class="panel__meta"><?= h(sblog_t('图片、PDF、文本和 ZIP 文件，每个最大 30M。')) ?></p></div>
@@ -7817,10 +7786,8 @@ function render_admin_media_page(): void
             <div class="empty-state media-library-empty"><p><?= h($search !== '' || $type !== 'all' ? sblog_t('没有匹配的媒体资料。') : sblog_t('暂无媒体资料。')) ?></p></div>
           <?php endif; ?>
         </div>
-      </div>
-    </div>
     <?php
-    render_layout(sblog_t('媒体库'), (string)ob_get_clean(), ['active' => 'media', 'wide' => true, 'description' => sblog_t('媒体资料管理')]);
+    render_admin_content_end(sblog_t('媒体库'), 'media', sblog_t('媒体资料管理'));
 }
 
 function render_admin_store_page(): void
@@ -7841,11 +7808,7 @@ function render_admin_store_page(): void
 
     ob_start();
     ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('扩展商店')) ?>
+    <?= render_admin_content_start(sblog_t('扩展商店'), $sidebar) ?>
 
         <section class="extension-store admin-animate admin-animate--2" aria-labelledby="extension-store-title">
           <header class="extension-store__header">
@@ -7933,14 +7896,8 @@ function render_admin_store_page(): void
 
           <p class="extension-store__trust"><?= h(sblog_t('主题和插件会在服务器上执行代码。仅安装来自可信商店的扩展。')) ?></p>
         </section>
-      </div>
-    </div>
     <?php
-    render_layout(sblog_t('扩展商店'), (string)ob_get_clean(), [
-        'active' => 'store',
-        'wide' => true,
-        'description' => sblog_t('主题与插件商店'),
-    ]);
+    render_admin_content_end(sblog_t('扩展商店'), 'store', sblog_t('主题与插件商店'));
 }
 
 function render_admin_plugins_page(): void
@@ -7956,11 +7913,7 @@ function render_admin_plugins_page(): void
 
     ob_start();
     ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('插件管理')) ?>
+    <?= render_admin_content_start(sblog_t('插件管理'), $sidebar) ?>
 
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
@@ -8056,14 +8009,8 @@ function render_admin_plugins_page(): void
             <?php endif; ?>
           </div>
         </section>
-      </div>
-    </div>
     <?php
-    render_layout(sblog_t('插件管理'), (string)ob_get_clean(), [
-        'active' => 'plugins',
-        'wide' => true,
-        'description' => sblog_t('博客插件管理'),
-    ]);
+    render_admin_content_end(sblog_t('插件管理'), 'plugins', sblog_t('博客插件管理'));
 }
 
 function render_admin_themes_page(): void
@@ -8079,11 +8026,7 @@ function render_admin_themes_page(): void
 
     ob_start();
     ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('主题管理')) ?>
+    <?= render_admin_content_start(sblog_t('主题管理'), $sidebar) ?>
 
         <section class="panel admin-list-panel admin-animate admin-animate--2" aria-labelledby="theme-manager-title" data-theme-manager>
           <div class="panel__header">
@@ -8176,31 +8119,22 @@ function render_admin_themes_page(): void
             </div>
           </div>
         </section>
-      </div>
-    </div>
     <?php
-    render_layout(sblog_t('主题管理'), (string)ob_get_clean(), [
-        'active' => 'themes',
-        'wide' => true,
-        'description' => sblog_t('博客前台主题管理'),
-    ]);
+    render_admin_content_end(sblog_t('主题管理'), 'themes', sblog_t('博客前台主题管理'));
 }
 
 function render_admin_settings_page(): void
 {
     require_admin();
 
+    $languages = sblog_i18n_languages();
     $backupCount = count(managed_cache_targets('backups'));
     $cacheCount = count(managed_cache_targets('cache'));
     $sidebar = render_admin_sidebar('settings');
 
     ob_start();
     ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-
-      <div class="admin-main">
-        <?= render_admin_topbar(sblog_t('站点设置')) ?>
+    <?= render_admin_content_start(sblog_t('站点设置'), $sidebar) ?>
 
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
@@ -8211,6 +8145,15 @@ function render_admin_settings_page(): void
             <form class="form-stack" method="post" action="<?= h(url_for('save_settings')) ?>">
               <?= csrf_field() ?>
               <div class="field"><label for="site_name"><?= h(sblog_t('站点名称')) ?></label><input id="site_name" name="site_name" type="text" value="<?= h(setting('site_name')) ?>" required></div>
+              <div class="field">
+                <label for="site_language"><?= h(sblog_t('语言')) ?></label>
+                <select id="site_language" name="site_language">
+                  <?php foreach ($languages as $locale => $language): ?>
+                    <option value="<?= h($locale) ?>"<?= sblog_i18n_locale() === $locale ? ' selected' : '' ?>><?= h($language['name']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <p class="field-hint"><?= h(sblog_t('安装语言包后可在此选择，保存后应用于前台、登录页和后台；所选语言包会自动启用。')) ?></p>
+              </div>
               <div class="field"><label for="site_tagline"><?= h(sblog_t('首页副标题')) ?></label><input id="site_tagline" name="site_tagline" type="text" value="<?= h(setting('site_tagline')) ?>"></div>
               <div class="field"><label for="site_description"><?= h(sblog_t('站点描述')) ?></label><textarea id="site_description" name="site_description" rows="3"><?= h(setting('site_description')) ?></textarea></div>
               <div class="field"><label for="site_keywords"><?= h(sblog_t('站点关键字')) ?></label><input id="site_keywords" name="site_keywords" value="<?= h(setting('site_keywords')) ?>" placeholder="<?= h(sblog_t('PHP, SQLite, 博客')) ?>"><p class="field-hint"><?= h(sblog_t('使用英文逗号分隔，页面将输出为 SEO keywords 元信息。')) ?></p></div>
@@ -8293,16 +8236,8 @@ location / {
             </div>
           </div>
         </section>
-      </div>
-    </div>
     <?php
-    $content = (string)ob_get_clean();
-
-    render_layout(sblog_t('站点设置'), $content, [
-        'active' => 'settings',
-        'wide' => true,
-        'description' => sblog_t('博客站点设置'),
-    ]);
+    render_admin_content_end(sblog_t('站点设置'), 'settings', sblog_t('博客站点设置'));
 }
 
 function render_editor_page(?array $existing = null, array $form = [], array $errors = []): void
@@ -8345,11 +8280,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
 
     ob_start();
     ?>
-    <div class="admin-shell">
-      <?= $sidebar ?>
-
-      <div class="admin-main">
-        <?= render_admin_topbar($isEdit ? sblog_t('编辑内容') : sblog_t('撰写文章')) ?>
+    <?= render_admin_content_start($isEdit ? sblog_t('编辑内容') : sblog_t('撰写文章'), $sidebar) ?>
 
         <section class="panel admin-masthead admin-masthead--compact admin-animate admin-animate--2">
           <div class="panel__body admin-masthead__body">
@@ -8392,7 +8323,8 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                 </div>
                 <div class="field">
                   <div class="field-label-row"><label for="slug"><?= h(sblog_t('Slug')) ?></label><?= $editorActions['slug'] ?></div>
-                  <input id="slug" name="slug" type="text" value="<?= h((string)$values['slug']) ?>" placeholder="<?= h(sblog_t('留空将自动生成')) ?>">
+                  <input id="slug" name="slug" type="text" value="<?= h((string)$values['slug']) ?>" placeholder="<?= h(sblog_t('留空将自动生成')) ?>" aria-describedby="slug-status" data-slug-check-url="<?= h(url_with_query(script_url(), ['a' => 'check_page_slug'])) ?>" data-post-id="<?= h((int)($existing['id'] ?? 0)) ?>">
+                  <p id="slug-status" class="field-hint" role="status" aria-live="polite" hidden></p>
                 </div>
                 <div class="field">
                   <label for="category_id"><?= h(sblog_t('分类')) ?></label>
@@ -8532,16 +8464,8 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
             <?= $afterFormHtml ?>
           </div>
         </section>
-      </div>
-    </div>
     <?php
-    $content = (string)ob_get_clean();
-
-    render_layout($isEdit ? sblog_t('编辑文章') : sblog_t('写新文章'), $content, [
-        'active' => $isEdit ? 'edit' : 'write',
-        'wide' => true,
-        'description' => sblog_t('博客文章编辑器'),
-    ]);
+    render_admin_content_end($isEdit ? sblog_t('编辑文章') : sblog_t('写新文章'), $isEdit ? 'edit' : 'write', sblog_t('博客文章编辑器'));
 }
 
 if (!is_installed()) {
@@ -8565,37 +8489,35 @@ $action = (string)plugin_filter('route_action', (string)($_GET['a'] ?? 'home'), 
 $GLOBALS['sblog_current_action'] = $action;
 plugin_action('request', ['action' => $action, 'request' => $pluginRequest]);
 
-switch ($action) {
-    case 'douban_cover':
-        render_douban_cover();
-        break;
+$pageRenderers = [
+    'douban_cover' => 'render_douban_cover',
+    'rss' => 'render_rss_feed',
+    'sitemap' => 'render_sitemap',
+    'archives' => 'render_archives',
+    'tags' => 'render_tags_index',
+    'categories' => 'render_categories_index',
+    'links' => 'render_links_page',
+    'admin' => 'render_admin_page',
+    'admin_posts' => 'render_admin_posts_page',
+    'admin_comments' => 'render_admin_comments_page',
+    'admin_categories' => 'render_admin_categories_page',
+    'admin_tags' => 'render_admin_tags_page',
+    'admin_links' => 'render_admin_links_page',
+    'admin_users' => 'render_admin_users_page',
+    'admin_media' => 'render_admin_media_page',
+    'admin_themes' => 'render_admin_themes_page',
+    'admin_settings' => 'render_admin_settings_page',
+    'admin_plugins' => 'render_admin_plugins_page',
+    'admin_store' => 'render_admin_store_page',
+];
+if (isset($pageRenderers[$action])) {
+    $pageRenderers[$action]();
+    exit;
+}
 
+switch ($action) {
     case 'home':
         render_home((int)($_GET['p'] ?? 1));
-        break;
-
-    case 'rss':
-        render_rss_feed();
-        break;
-
-    case 'sitemap':
-        render_sitemap();
-        break;
-
-    case 'archives':
-        render_archives();
-        break;
-
-    case 'tags':
-        render_tags_index();
-        break;
-
-    case 'categories':
-        render_categories_index();
-        break;
-
-    case 'links':
-        render_links_page();
         break;
 
     case 'tag':
@@ -8968,10 +8890,6 @@ switch ($action) {
         redirect_to(url_for('home'));
         break;
 
-    case 'admin':
-        render_admin_page();
-        break;
-
     case 'install_update':
         require_admin_post(url_for('admin'));
         try {
@@ -9030,50 +8948,6 @@ switch ($action) {
             set_flash('success', sblog_t('暂无更新，当前已是最新版本 {version}。', ['version' => APP_VERSION]));
         }
         redirect_to(url_for('admin'));
-        break;
-
-    case 'admin_posts':
-        render_admin_posts_page();
-        break;
-
-    case 'admin_comments':
-        render_admin_comments_page();
-        break;
-
-    case 'admin_categories':
-        render_admin_categories_page();
-        break;
-
-    case 'admin_tags':
-        render_admin_tags_page();
-        break;
-
-    case 'admin_links':
-        render_admin_links_page();
-        break;
-
-    case 'admin_users':
-        render_admin_users_page();
-        break;
-
-    case 'admin_media':
-        render_admin_media_page();
-        break;
-
-    case 'admin_themes':
-        render_admin_themes_page();
-        break;
-
-    case 'admin_settings':
-        render_admin_settings_page();
-        break;
-
-    case 'admin_plugins':
-        render_admin_plugins_page();
-        break;
-
-    case 'admin_store':
-        render_admin_store_page();
         break;
 
     case 'install_extension':
@@ -9228,6 +9102,11 @@ switch ($action) {
 
     case 'save_settings':
         require_admin_post(url_for('admin_settings'));
+        $siteLanguage = $_POST['site_language'] ?? sblog_i18n_locale();
+        if (!is_string($siteLanguage) || !sblog_i18n_save_language($siteLanguage)) {
+            set_flash('error', sblog_t('所选语言不可用，请重新选择。'));
+            redirect_to(url_for('admin_settings'));
+        }
         $siteName = trim((string)($_POST['site_name'] ?? ''));
         $postsPerPage = max(1, min(24, (int)($_POST['posts_per_page'] ?? (int)default_settings()['posts_per_page'])));
         $prettyUrl = (string)($_POST['pretty_url'] ?? '0') === '1' ? '1' : '0';
@@ -9400,6 +9279,7 @@ switch ($action) {
         if (str_lower_u($oldTag) !== str_lower_u($newTag)) { replace_tag_everywhere($oldTag, $newTag); }
         q('DELETE FROM tag_meta WHERE label = ?', [$oldTag]);
         q('INSERT OR REPLACE INTO tag_meta(label, slug, updated_at) VALUES(?,?,?)', [$newTag, $tagSlug, time()]);
+        tag_meta_cache(true);
         set_flash('success', sblog_t('标签名称和 Slug 已更新。'));
         redirect_to(url_for('admin_tags'));
         break;
@@ -9413,6 +9293,7 @@ switch ($action) {
             replace_tag_everywhere($tag, null);
             q('DELETE FROM tag_meta WHERE label = ?', [$tag]);
         }
+        if ($selected) { tag_meta_cache(true); }
         set_flash('success', $selected ? sblog_t('所选标签已移除，文章内容保持不变。') : sblog_t('请先选择需要删除的标签。'));
         redirect_to(url_for('admin_tags'));
         break;
@@ -9482,34 +9363,38 @@ switch ($action) {
         handle_attachment_upload();
         break;
 
-    case 'write':
-        require_admin();
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            verify_csrf();
-            [$data, $errors] = validate_post_input($_POST);
-            if (!$errors) {
-                $id = save_post($data);
-                set_flash('success', sblog_t('文章已创建。'));
-                redirect_to(url_for('edit', ['id' => $id]));
-            }
-            render_editor_page(null, post_form_from_request($_POST), $errors);
+    case 'check_page_slug':
+        header('Cache-Control: no-store');
+        if (!is_admin()) {
+            json_response(['ok' => false], 403);
         }
-        render_editor_page();
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            json_response(['ok' => false], 405);
+        }
+        $seed = trim((string)($_GET['slug'] ?? ''));
+        $slug = $seed !== '' ? slugify($seed) : '';
+        $conflict = $slug !== '' ? page_slug_conflict($slug, (int)($_GET['id'] ?? 0) ?: null) : '';
+        json_response([
+            'ok' => true,
+            'available' => $conflict === '',
+            'slug' => $slug,
+            'message' => $conflict !== '' ? sblog_t($conflict) : ($slug !== '' ? sblog_t('Slug 可用：{slug}', ['slug' => $slug]) : ''),
+        ]);
         break;
 
+    case 'write':
     case 'edit':
         require_admin();
-        $id = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
-        $post = fetch_post_by_id($id);
-        if (!$post) {
+        $post = $action === 'edit' ? fetch_post_by_id((int)($_GET['id'] ?? $_POST['id'] ?? 0)) : null;
+        if ($action === 'edit' && !$post) {
             simple_error_page(sblog_t('文章不存在'), sblog_t('找不到需要编辑的文章。'), 404);
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             verify_csrf();
             [$data, $errors] = validate_post_input($_POST, $post);
             if (!$errors) {
-                save_post($data, $id);
-                set_flash('success', sblog_t('文章已保存。'));
+                $id = save_post($data, $post ? (int)$post['id'] : null);
+                set_flash('success', $post ? sblog_t('文章已保存。') : sblog_t('文章已创建。'));
                 redirect_to(url_for('edit', ['id' => $id]));
             }
             render_editor_page($post, post_form_from_request($_POST), $errors);

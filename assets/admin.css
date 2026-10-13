@@ -112,6 +112,14 @@ textarea {
   overflow: hidden;
 }
 
+.theme-admin .field-hint[data-state="error"] {
+  color: var(--admin-danger-text);
+}
+
+.theme-admin input[aria-invalid="true"] {
+  border-color: var(--admin-danger-border);
+}
+
 .theme-admin .button {
   cursor: pointer;
   text-decoration: none;
