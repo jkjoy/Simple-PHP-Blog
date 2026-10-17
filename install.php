@@ -358,6 +358,18 @@ function i_base_path(): string
     return $dir === '' || $dir === '.' ? '' : $dir;
 }
 
+function i_request_site_url(): string
+{
+    $https = ((string)($_SERVER['HTTPS'] ?? '') !== '' && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+        || (string)($_SERVER['SERVER_PORT'] ?? '') === '443';
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? ''));
+    if ($host === '' || !preg_match('/^[A-Za-z0-9.\-\[\]:]+$/', $host)) {
+        return '';
+    }
+    $url = ($https ? 'https' : 'http') . '://' . $host . i_base_path();
+    return filter_var($url, FILTER_VALIDATE_URL) ? $url : '';
+}
+
 function i_asset_url(string $path): string
 {
     return (i_base_path() !== '' ? i_base_path() : '') . '/' . ltrim($path, '/');
@@ -807,6 +819,7 @@ $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_media_local_path ON media(local
 $now = time();
 $settings = i_default_settings();
 $settings['site_name'] = $form['site_name'];
+$settings['site_url'] = i_request_site_url();
 $settings['site_description'] = $settings['site_tagline'];
 $settings['database_schema_version'] = (string)INSTALL_DATABASE_SCHEMA_VERSION;
 
