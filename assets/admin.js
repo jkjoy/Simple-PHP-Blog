@@ -135,8 +135,10 @@ function initExtensionInstalls() {
       const button = form.querySelector('button[type="submit"]');
       form.setAttribute("aria-busy", "true");
       if (button instanceof HTMLButtonElement) {
+        button.style.minWidth = window.getComputedStyle(button).width;
         button.disabled = true;
-        button.textContent = button.dataset.installLabel || "Installing...";
+        const label = button.querySelector("[data-install-text]") || button;
+        label.textContent = button.dataset.installLabel || "Installing...";
       }
     });
   });

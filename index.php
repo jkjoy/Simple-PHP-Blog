@@ -8024,7 +8024,7 @@ function render_admin_store_page(): void
                           <input type="hidden" name="slug" value="<?= h($slug) ?>">
                           <input type="hidden" name="return_type" value="<?= h($filter) ?>">
                           <input type="hidden" name="return_to" value="store">
-                          <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在安装…')) ?>"><?= h($actionLabel) ?></button>
+                          <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在安装…')) ?>"><span data-install-text><?= h($actionLabel) ?></span></button>
                         </form>
                       <?php endif; ?>
                     </div>
@@ -8119,7 +8119,7 @@ function render_admin_plugins_page(): void
                                 <input type="hidden" name="type" value="plugin">
                                 <input type="hidden" name="slug" value="<?= h($slug) ?>">
                                 <input type="hidden" name="return_to" value="plugins">
-                                <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><?= h(sblog_t('升级')) ?></button>
+                                <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><span data-install-text><?= h(sblog_t('升级')) ?></span></button>
                               </form>
                             <?php else: ?>
                               <span class="button button--ghost is-disabled" aria-disabled="true" title="<?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) ?>"><?= h(sblog_t('版本不兼容')) ?></span>
@@ -8228,7 +8228,7 @@ function render_admin_themes_page(): void
                               <input type="hidden" name="type" value="theme">
                               <input type="hidden" name="slug" value="<?= h($slug) ?>">
                               <input type="hidden" name="return_to" value="themes">
-                              <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><?= h(sblog_t('升级')) ?></button>
+                              <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><span data-install-text><?= h(sblog_t('升级')) ?></span></button>
                             </form>
                           <?php else: ?>
                             <span class="button button--ghost is-disabled" aria-disabled="true" title="<?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) ?>"><?= h(sblog_t('版本不兼容')) ?></span>

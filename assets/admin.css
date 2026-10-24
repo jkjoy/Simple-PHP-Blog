@@ -500,6 +500,22 @@ textarea {
   transform: translateY(1px);
 }
 
+/* Reserve both labels so installing or upgrading cannot resize table columns. */
+.theme-admin .button[data-install-label] {
+  display: inline-grid;
+}
+
+.theme-admin .button[data-install-label] [data-install-text],
+.theme-admin .button[data-install-label]::after {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+}
+
+.theme-admin .button[data-install-label]::after {
+  content: attr(data-install-label);
+  visibility: hidden;
+}
+
 .theme-admin .button--secondary,
 .theme-admin .button--ghost {
   border-color: var(--admin-border);
