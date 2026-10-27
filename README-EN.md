@@ -95,7 +95,7 @@ store/         Extension-store catalog protocol documentation (not deployed to t
 
 - The `settings` table stores basic site settings.
 - Legacy field, index, and data repairs run once and record `database_maintenance_version`; subsequent requests only read that version. Increment `DATABASE_MAINTENANCE_VERSION` when adding compatibility repairs. Running `update.php` schedules a fresh check on the next request.
-- **Language** under **System Settings** is stored as `site_language` and defaults to `zh-CN` (Simplified Chinese). Installed language packs add options through the `locale` and `language_name` fields in their `plugin.json` manifest.
+- **Language** under **Site Settings → General** is stored as `site_language` and defaults to `zh-CN` (Simplified Chinese). Installed language packs add options through the `locale` and `language_name` fields in their `plugin.json` manifest.
 - `cache/settings.php` caches basic site settings to reduce database reads on regular pages.
 - The `ai_settings` table stores the AI endpoint, model, prompts, and API key. These values are not written to the cache file.
 - The `mail_settings` table stores the SMTP host, account, password, sender, and notification recipient. These values are not written to the cache file.
@@ -118,7 +118,8 @@ store/         Extension-store catalog protocol documentation (not deployed to t
 - Core source retains only the English and Russian language plugins. Other official feature plugins are maintained in the standalone extensions repository.
 - Place each plugin in `plugins/<plugin-directory>/` with both `plugin.json` and `plugin.php`.
 - Install plugins remotely under **Extension Store**, then enable, disable, and configure them under **Plugins**.
-- Multiple language packs can be enabled together. Enabling a pack only loads its translations; **Language** under **System Settings** selects the language in use. Saving a selection automatically enables its pack without disabling other packs. If the selected pack is disabled, uninstalled, or fails to load, the public site, sign-in page, and admin panel fall back to Simplified Chinese.
+- Installed language packs are enabled automatically and can be uninstalled directly. Choose the language in use under **Site Settings → General → Language**; installing a pack does not change the current language. If the selected pack is uninstalled or fails to load, the public site, sign-in page, and admin panel fall back to Simplified Chinese.
+- Enabled plugins with a settings page appear automatically under **Extension Settings**. Pages with three or more independent settings sections use tabs without discarding unsaved form values. Existing tabs and individual detail pages keep their layout.
 - **Plugins** shows newer store versions and provides an in-place update action in the installed plugin list.
 - Priority-based actions and filters can extend requests, post saves, comment creation, the admin sidebar, and final HTML output.
 - See `plugins/README.md` for the plugin API and complete hook reference.

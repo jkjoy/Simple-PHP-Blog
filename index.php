@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.15';
+const APP_VERSION = 'v1.14.16';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -796,11 +796,7 @@ function active_plugin_slugs(bool $fresh = false): array
         }
     }
     $configured = json_decode($configuredValue, true);
-    if (!is_array($configured)) {
-        return [];
-    }
-
-    return normalize_active_plugin_slugs($configured);
+    return normalize_active_plugin_slugs(is_array($configured) ? $configured : []);
 }
 
 function normalize_active_plugin_slugs(array $slugs): array
@@ -817,12 +813,32 @@ function normalize_active_plugin_slugs(array $slugs): array
             $valid[] = $slug;
         }
     }
+    foreach ($available as $slug => $manifest) {
+        if ((string)$manifest['locale'] !== '' && !in_array($slug, $valid, true)) {
+            $valid[] = $slug;
+        }
+    }
     return $valid;
 }
 
 function save_active_plugins(array $slugs): void
 {
     save_settings(['active_plugins' => json_encode(normalize_active_plugin_slugs($slugs), JSON_UNESCAPED_SLASHES)]);
+}
+
+function admin_plugin_settings(): array
+{
+    $pages = [];
+    $active = active_plugin_slugs();
+    foreach (available_plugins() as $slug => $manifest) {
+        if ((string)$manifest['settings_action'] === '' || !in_array($slug, $active, true)
+            || isset($GLOBALS['sblog_plugin_errors'][$slug])
+            || (isset($GLOBALS['sblog_loaded_plugins']) && !in_array($slug, $GLOBALS['sblog_loaded_plugins'], true))) {
+            continue;
+        }
+        $pages[$slug] = $manifest;
+    }
+    return $pages;
 }
 
 function sblog_default_translations(): array
@@ -1788,7 +1804,8 @@ function uninstall_extension(string $type, string $slug): void
         throw new RuntimeException(sblog_t('无法锁定扩展安装流程，请稍后重试。'));
     }
     try {
-        if ($type === 'plugin' && in_array($slug, active_plugin_slugs(true), true)) {
+        if ($type === 'plugin' && (string)(plugin_manifest($slug)['locale'] ?? '') === ''
+            && in_array($slug, active_plugin_slugs(true), true)) {
             throw new RuntimeException(sblog_t('请先停用插件，再卸载。'));
         }
         if ($type === 'theme') {
@@ -5776,6 +5793,15 @@ function render_layout(string $title, string $content, array $options = []): voi
     $theme = theme_manifest('default');
     $themeContext = [];
     $themeStyleUrl = '';
+    $pluginSettingsSlug = '';
+    if ($mode !== 'public' && $admin) {
+        foreach (admin_plugin_settings() as $slug => $manifest) {
+            if ((string)$manifest['settings_action'] === ($GLOBALS['sblog_current_action'] ?? '')) {
+                $pluginSettingsSlug = $slug;
+                break;
+            }
+        }
+    }
 
     if ($mode !== 'public' && !$admin) {
         $bodyClass .= ' theme-admin--guest';
@@ -5876,13 +5902,26 @@ function render_layout(string $title, string $content, array $options = []): voi
   <link rel="stylesheet" href="<?= h(asset_url('assets/index.css')) ?>?v=<?= h(APP_VERSION . '-' . (string)filemtime(__DIR__ . '/assets/index.css')) ?>">
   <?php else: ?>
   <link rel="stylesheet" href="<?= h(asset_url('assets/admin.css')) ?>?v=<?= h(APP_VERSION . '-' . (string)filemtime(__DIR__ . '/assets/admin.css')) ?>">
+  <script src="<?= h(asset_url('assets/admin.js')) ?>?v=<?= h(APP_VERSION . '-' . (string)filemtime(__DIR__ . '/assets/admin.js')) ?>"></script>
   <?php endif; ?>
   <?php if ($customHeadCode !== ''): ?>
 <?= $customHeadCode . "\n" ?>
   <?php endif; ?>
   <?php if ($mode === 'public') { theme_action('head', $themeContext); } ?>
 </head>
-<body class="<?= h($bodyClass) ?>">
+<body class="<?= h($bodyClass) ?>"<?= $pluginSettingsSlug !== '' ? ' data-admin-plugin-settings="' . h($pluginSettingsSlug) . '"' : '' ?>>
+  <?php if ($mode !== 'public' && $admin): ?>
+  <script>
+    try {
+      if (window.matchMedia('(min-width: 761px) and (max-width: 1280px)').matches
+        && localStorage.getItem('sblog-admin-sidebar-expanded') === '1') {
+        document.body.classList.add('admin-side-expanded');
+      }
+    } catch (error) {
+      // The sidebar keeps its default width when storage is unavailable.
+    }
+  </script>
+  <?php endif; ?>
   <?php if ($mode === 'public'): ?>
     <?php theme_action('body_open', $themeContext); ?>
     <div class="text-site<?= $defaultPublicTheme ? ' text-site--default' : '' ?>">
@@ -5992,7 +6031,13 @@ function render_layout(string $title, string $content, array $options = []): voi
       </footer>
     </div>
   <?php endif; ?>
-  <script src="<?= h(asset_url($mode === 'public' ? 'assets/index.js' : 'assets/admin.js')) ?>?v=<?= h(APP_VERSION . '-' . (string)filemtime(__DIR__ . ($mode === 'public' ? '/assets/index.js' : '/assets/admin.js'))) ?>"></script>
+  <?php if ($mode === 'public'): ?>
+  <script src="<?= h(asset_url('assets/index.js')) ?>?v=<?= h(APP_VERSION . '-' . (string)filemtime(__DIR__ . '/assets/index.js')) ?>"></script>
+  <?php elseif ($pluginSettingsSlug !== ''): ?>
+  <script>
+    if (typeof initPluginSettingsTabs === 'function') initPluginSettingsTabs();
+  </script>
+  <?php endif; ?>
   <?php if ($mode === 'public') { theme_action('body_close', $themeContext); } ?>
 </body>
 </html>
@@ -6022,6 +6067,7 @@ function admin_icon(string $name): string
         'themes' => '<path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a2 2 0 0 1 0-4h2a7 7 0 0 0 0-14h-2z"></path><circle cx="7.5" cy="10" r=".5"></circle><circle cx="9" cy="6.5" r=".5"></circle><circle cx="14" cy="6.5" r=".5"></circle><circle cx="16.5" cy="10" r=".5"></circle>',
         'store' => '<path d="M3 9h18l-1-5H4L3 9z"></path><path d="M5 9v11h14V9M9 20v-6h6v6"></path><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"></path>',
         'settings' => '<path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5z"></path><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 1 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h.1a1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path>',
+        'wrench' => '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94L14.7 6.3z"></path>',
         'menu' => '<path d="M4 6h16M4 12h16M4 18h16"></path>',
         'chevron-right' => '<path d="m9 18 6-6-6-6"></path>',
         'close' => '<path d="m6 6 12 12M18 6 6 18"></path>',
@@ -6060,6 +6106,16 @@ function render_admin_sidebar(string $active, array $summary = []): string
     $adminInitial = str_sub_u($adminName, 0, 1);
     $userSettingsUrl = url_for('admin_users');
     $unreadComments = unread_comment_count();
+    $extensionPages = admin_plugin_settings();
+    $extensionChildren = [];
+    foreach ($extensionPages as $slug => $manifest) {
+        $extensionChildren[] = [
+            'label' => plugin_display_metadata($slug, $manifest)['name'],
+            'href' => script_url() . '?a=' . rawurlencode((string)$manifest['settings_action']),
+            'active' => (string)$manifest['settings_action'] === ($GLOBALS['sblog_current_action'] ?? ''),
+        ];
+    }
+    $extensionActive = in_array(true, array_column($extensionChildren, 'active'), true);
     $linkDefinitions = [
         'admin' => ['label' => '博客概览', 'icon' => 'overview', 'note' => '浏览与统计'],
         'posts' => ['label' => '文章管理', 'icon' => 'posts', 'note' => '列表与发布'],
@@ -6071,19 +6127,62 @@ function render_admin_sidebar(string $active, array $summary = []): string
         'themes' => ['label' => '主题管理', 'icon' => 'themes', 'note' => '预览与切换'],
         'plugins' => ['label' => '插件管理', 'icon' => 'plugins', 'note' => '扩展与语言包'],
         'store' => ['label' => '扩展商店', 'icon' => 'store', 'note' => '主题与插件'],
+        'extensions' => ['label' => '扩展设置', 'icon' => 'wrench', 'note' => '已启用插件的设置'],
         'settings' => ['label' => '站点设置', 'icon' => 'settings', 'note' => '基础配置'],
     ];
     $links = [];
     foreach ($linkDefinitions as $section => $link) {
+        if ($section === 'extensions' && $extensionChildren === []) {
+            continue;
+        }
+        $link['section'] = $section;
         $link['href'] = url_for($section === 'admin' ? 'admin' : 'admin_' . $section);
-        $link['active'] = $section === 'posts' ? in_array($active, ['posts', 'write', 'edit'], true) : $active === $section;
+        $link['active'] = $section === 'posts' ? in_array($active, ['posts', 'write', 'edit'], true)
+            : ($section === 'extensions' ? $extensionActive : $active === $section && !($section === 'plugins' && $extensionActive));
         if ($section === 'comments') { $link['badge'] = $unreadComments; }
+        if ($section === 'extensions') {
+            $link['children'] = $extensionChildren;
+            $link['href'] = $extensionChildren[0]['href'];
+        }
+        if ($section === 'settings') {
+            $link['children'] = [];
+            foreach (admin_settings_sections() as $settingsSection => $settingsPage) {
+                $link['children'][] = [
+                    'label' => $settingsPage['label'],
+                    'href' => url_with_query(url_for('admin_settings'), ['section' => $settingsSection]),
+                    'active' => $active === 'settings' && admin_settings_section($_GET['section'] ?? null) === $settingsSection,
+                ];
+            }
+        }
         $links[] = $link;
     }
     $filteredLinks = plugin_filter('admin_sidebar_links', $links, ['active' => $active, 'admin' => $admin]);
     if (is_array($filteredLinks)) {
         $links = $filteredLinks;
     }
+    $groupedLinks = [];
+    $contentIndex = null;
+    foreach ($links as $link) {
+        if (!in_array($link['section'] ?? '', ['posts', 'categories', 'tags'], true)) {
+            $groupedLinks[] = $link;
+            continue;
+        }
+        if ($contentIndex === null) {
+            $contentIndex = count($groupedLinks);
+            $groupedLinks[] = [
+                'section' => 'content',
+                'label' => '内容管理',
+                'icon' => 'posts',
+                'note' => '文章、分类与标签',
+                'href' => $link['href'],
+                'active' => false,
+                'children' => [],
+            ];
+        }
+        $groupedLinks[$contentIndex]['children'][] = $link;
+        $groupedLinks[$contentIndex]['active'] = $groupedLinks[$contentIndex]['active'] || !empty($link['active']);
+    }
+    $links = $groupedLinks;
 
     ob_start();
     ?>
@@ -6107,6 +6206,20 @@ function render_admin_sidebar(string $active, array $summary = []): string
             <?php $linkLabel = $linkBadge > 0
                 ? sblog_tn('{label}，{count} 条未读评论', $linkBadge, ['label' => $linkDisplayLabel])
                 : $linkDisplayLabel; ?>
+            <?php if (!empty($link['children']) && is_array($link['children'])): ?>
+            <details class="admin-side__group" data-admin-nav-group="<?= h((string)($link['section'] ?? '')) ?>"<?= ($link['section'] ?? '') === 'settings' ? ' data-admin-settings-nav' : '' ?><?= $link['active'] ? ' open' : '' ?>>
+              <summary class="admin-side__link<?= $link['active'] ? ' is-active' : '' ?>" title="<?= h($linkDisplayLabel) ?>">
+                <?= admin_icon((string)$link['icon']) ?>
+                <strong><?= h($linkDisplayLabel) ?></strong>
+                <span><?= h($linkDisplayNote) ?></span>
+              </summary>
+              <nav class="admin-side__submenu" aria-label="<?= h($linkDisplayLabel) ?>">
+                <?php foreach ($link['children'] as $child): ?>
+                  <a class="admin-side__sublink<?= $child['active'] ? ' is-active' : '' ?>" href="<?= h((string)$child['href']) ?>"<?= $child['active'] ? ' aria-current="page"' : '' ?>><?= h(sblog_t((string)$child['label'])) ?></a>
+                <?php endforeach; ?>
+              </nav>
+            </details>
+            <?php else: ?>
             <a class="admin-side__link<?= $link['active'] ? ' is-active' : '' ?>" href="<?= h($link['href']) ?>" title="<?= h($linkDisplayLabel) ?>" aria-label="<?= h($linkLabel) ?>"<?= $link['active'] ? ' aria-current="page"' : '' ?>>
               <?= admin_icon((string)$link['icon']) ?>
               <strong><?= h($linkDisplayLabel) ?></strong>
@@ -6115,10 +6228,12 @@ function render_admin_sidebar(string $active, array $summary = []): string
                 <small class="admin-count-badge" aria-hidden="true"><?= h((string)min(99, $linkBadge)) ?><?= $linkBadge > 99 ? '+' : '' ?></small>
               <?php endif; ?>
             </a>
+            <?php endif; ?>
           <?php endforeach; ?>
         </nav>
-        <button class="admin-side__expand" type="button" data-admin-side-expand aria-controls="admin-sidebar" aria-expanded="false" data-expand-label="<?= h(sblog_t('展开侧边栏')) ?>" data-collapse-label="<?= h(sblog_t('收起侧边栏')) ?>" aria-label="<?= h(sblog_t('展开侧边栏')) ?>" title="<?= h(sblog_t('展开侧边栏')) ?>">
+        <button class="admin-side__expand" type="button" data-admin-side-expand aria-controls="admin-sidebar" aria-expanded="false" data-expand-label="<?= h(sblog_t('展开侧边栏')) ?>" data-collapse-label="<?= h(sblog_t('收起边栏')) ?>" aria-label="<?= h(sblog_t('展开侧边栏')) ?>" title="<?= h(sblog_t('展开侧边栏')) ?>">
           <?= admin_icon('chevron-right') ?>
+          <span class="admin-side__expand-label"><?= h(sblog_t('收起边栏')) ?></span>
         </button>
       </section>
 
@@ -6152,11 +6267,14 @@ function render_admin_sidebar(string $active, array $summary = []): string
             <span class="admin-side__avatar">
               <span aria-hidden="true"><?= h($adminInitial) ?></span>
               <?php if ($adminAvatarUrl !== ''): ?>
-                <img src="<?= h($adminAvatarUrl) ?>" alt="" decoding="async" onerror="this.remove()">
+                <img data-admin-avatar-src="<?= h($adminAvatarUrl) ?>" alt="" width="28" height="28" decoding="async" hidden>
+                <noscript><img src="<?= h($adminAvatarUrl) ?>" alt="" width="28" height="28" decoding="async"></noscript>
+                <script>
+                  if (typeof initAdminAvatar === 'function') initAdminAvatar(document.currentScript.parentElement);
+                </script>
               <?php endif; ?>
             </span>
             <span class="admin-side__footer-text"><?= h($adminName) ?></span>
-            <span class="admin-side__account-caret" aria-hidden="true"></span>
           </summary>
           <div class="admin-side__account-menu" role="menu">
             <a class="admin-side__account-item" role="menuitem" href="<?= h($userSettingsUrl) ?>">
@@ -6199,13 +6317,6 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
       </div>
       <div class="admin-topbar__actions">
         <?= render_admin_theme_toggle() ?>
-        <form class="admin-update-check" method="post" action="<?= h(url_for('check_update')) ?>">
-          <?= csrf_field() ?>
-          <button class="button button--secondary button--compact" type="submit" aria-label="<?= h(sblog_t('检测更新')) ?>" title="<?= h(sblog_t('检测更新')) ?>">
-            <?= admin_icon('refresh') ?>
-            <span><?= h(sblog_t('检测更新')) ?></span>
-          </button>
-        </form>
         <a class="admin-icon-btn admin-icon-btn--notifications" href="<?= h($notificationUrl) ?>" title="<?= h(sblog_t('评论通知')) ?>" aria-label="<?= h($unreadComments > 0 ? sblog_tn('{count} 条未读评论', $unreadComments) : sblog_t('暂无未读评论')) ?>">
           <?= admin_icon('bell') ?>
           <?php if ($unreadComments > 0): ?><small class="admin-count-badge"><?= h((string)min(99, $unreadComments)) ?><?= $unreadComments > 99 ? '+' : '' ?></small><?php endif; ?>
@@ -7146,10 +7257,21 @@ function render_admin_page(): void
               </div>
             </section>
           <?php endif; ?>
-          <section class="panel admin-list-panel admin-animate admin-animate--3">
+          <section class="panel admin-list-panel admin-overview admin-animate admin-animate--3">
             <div class="panel__header">
-              <h2><?= h(sblog_t('博客概览')) ?></h2>
-              <p class="panel__meta"><?= h(sblog_t('只显示访问和内容统计数据。')) ?></p>
+              <div class="admin-head">
+                <div class="admin-head-left">
+                  <h2><?= h(sblog_t('博客概览')) ?></h2>
+                  <p class="panel__meta"><?= h(sblog_t('只显示访问和内容统计数据。')) ?></p>
+                </div>
+                <form class="admin-update-check" method="post" action="<?= h(url_for('check_update')) ?>">
+                  <?= csrf_field() ?>
+                  <button class="button button--secondary button--compact" type="submit" aria-label="<?= h(sblog_t('检测更新')) ?>" title="<?= h(sblog_t('检测更新')) ?>">
+                    <?= admin_icon('refresh') ?>
+                    <span><?= h(sblog_t('检测更新')) ?></span>
+                  </button>
+                </form>
+              </div>
             </div>
             <div class="panel__body">
               <div class="metric-grid">
@@ -8062,7 +8184,7 @@ function render_admin_plugins_page(): void
             <div class="admin-head admin-head--with-actions">
               <div class="admin-head-left">
                 <h2><?= h(sblog_t('插件管理')) ?></h2>
-                <p class="panel__meta"><?= h(sblog_t('启用可信插件，为博客增加功能或语言支持。')) ?></p>
+                <p class="panel__meta"><?= h(sblog_t('语言包安装后自动启用，插件设置可在扩展设置中打开。')) ?></p>
               </div>
               <div class="admin-head-actions">
                 <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_plugins'), ['check_updates' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('检查更新')) ?></a>
@@ -8080,6 +8202,7 @@ function render_admin_plugins_page(): void
                   <?php foreach ($plugins as $slug => $plugin): ?>
                     <?php
                     $isActive = in_array($slug, $active, true);
+                    $isLanguage = (string)$plugin['locale'] !== '';
                     $displayMetadata = plugin_display_metadata((string)$slug, $plugin);
                     $update = $updates[$slug] ?? null;
                     $updateCompatible = is_array($update) && extension_is_compatible($update);
@@ -8125,13 +8248,17 @@ function render_admin_plugins_page(): void
                               <span class="button button--ghost is-disabled" aria-disabled="true" title="<?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) ?>"><?= h(sblog_t('版本不兼容')) ?></span>
                             <?php endif; ?>
                           <?php endif; ?>
+                          <?php if ($isLanguage): ?>
+                            <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_settings'), ['section' => 'general'])) ?>"><?= h(sblog_t('选择语言')) ?></a>
+                          <?php else: ?>
                           <form method="post" action="<?= h(url_for('toggle_plugin')) ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="plugin" value="<?= h($slug) ?>">
                             <input type="hidden" name="operation" value="<?= $isActive ? 'deactivate' : 'activate' ?>">
                             <button class="button <?= $isActive ? 'button--ghost' : '' ?>" type="submit"><?= h($isActive ? sblog_t('停用') : sblog_t('启用')) ?></button>
                           </form>
-                          <?php if (!$isActive): ?>
+                          <?php endif; ?>
+                          <?php if (!$isActive || $isLanguage): ?>
                             <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定卸载插件 {name} 吗？服务器上的插件文件将被永久删除。', ['name' => (string)$displayMetadata['name']]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                               <?= csrf_field() ?>
                               <input type="hidden" name="type" value="plugin">
@@ -8265,27 +8392,90 @@ function render_admin_themes_page(): void
     render_admin_content_end(sblog_t('主题管理'), 'themes', sblog_t('博客前台主题管理'));
 }
 
+function admin_settings_sections(): array
+{
+    return [
+        'general' => ['label' => '常规', 'title' => '常规设置', 'description' => '站点名称、语言、地址与图标。'],
+        'reading' => ['label' => '阅读', 'title' => '阅读设置', 'description' => '首页文章数量与搜索引擎摘要。'],
+        'discussion' => ['label' => '讨论', 'title' => '讨论设置', 'description' => '评论提交、审核与通知。'],
+        'permalinks' => ['label' => '固定链接', 'title' => '固定链接设置', 'description' => '文章链接格式与服务器配置。'],
+        'code' => ['label' => '页脚与代码', 'title' => '页脚与代码', 'description' => '备案信息、页脚文案与 Head 自定义代码。'],
+        'maintenance' => ['label' => '维护工具', 'title' => '维护工具', 'description' => '清理更新备份与可重建缓存。'],
+    ];
+}
+
+function admin_settings_section(mixed $section): string
+{
+    return is_string($section) && isset(admin_settings_sections()[$section]) ? $section : 'general';
+}
+
+function admin_settings_values(string $section, array $input): array
+{
+    $value = static fn(string $key, string $fallback = ''): string => is_scalar($input[$key] ?? null)
+        ? trim((string)$input[$key]) : $fallback;
+
+    return match ($section) {
+        'general' => [
+            'site_name' => $value('site_name') !== '' ? $value('site_name') : default_settings()['site_name'],
+            'site_tagline' => $value('site_tagline'),
+            'site_url' => $value('site_url'),
+            'favicon_url' => $value('favicon_url') ?: default_settings()['favicon_url'],
+        ],
+        'reading' => [
+            'posts_per_page' => (string)max(1, min(24, (int)$value('posts_per_page', default_settings()['posts_per_page']))),
+            'site_description' => $value('site_description'),
+            'site_keywords' => $value('site_keywords'),
+        ],
+        'discussion' => [
+            'comments_enabled' => isset($input['comments_enabled']) ? '1' : '0',
+            'comments_require_approval' => isset($input['comments_require_approval']) ? '1' : '0',
+            'comments_notify' => isset($input['comments_notify']) ? '1' : '0',
+        ],
+        'permalinks' => ['pretty_url' => $value('pretty_url') === '1' ? '1' : '0'],
+        'code' => [
+            'footer_beian' => $value('footer_beian'),
+            'site_footer' => $value('site_footer'),
+            'custom_head_code' => $value('custom_head_code'),
+        ],
+        default => [],
+    };
+}
+
 function render_admin_settings_page(): void
 {
     require_admin();
 
-    $languages = sblog_i18n_languages();
-    $backupCount = count(managed_cache_targets('backups'));
-    $cacheCount = count(managed_cache_targets('cache'));
+    $sections = admin_settings_sections();
+    $section = admin_settings_section($_GET['section'] ?? null);
+    $page = $sections[$section];
+    $languages = $section === 'general' ? sblog_i18n_languages() : [];
+    $backupCount = $section === 'maintenance' ? count(managed_cache_targets('backups')) : 0;
+    $cacheCount = $section === 'maintenance' ? count(managed_cache_targets('cache')) : 0;
     $sidebar = render_admin_sidebar('settings');
 
     ob_start();
     ?>
-    <?= render_admin_content_start(sblog_t('站点设置'), $sidebar) ?>
+    <?= render_admin_content_start(sblog_t($page['title']), $sidebar) ?>
 
+        <nav class="admin-settings-nav" aria-label="<?= h(sblog_t('站点设置')) ?>">
+          <?php foreach ($sections as $sectionKey => $sectionPage): ?>
+            <a class="admin-settings-nav__link<?= $sectionKey === $section ? ' is-active' : '' ?>" href="<?= h(url_with_query(url_for('admin_settings'), ['section' => $sectionKey])) ?>"<?= $sectionKey === $section ? ' aria-current="page"' : '' ?>><?= h(sblog_t($sectionPage['label'])) ?></a>
+          <?php endforeach; ?>
+        </nav>
+
+        <?php if ($section !== 'maintenance'): ?>
         <section class="panel admin-list-panel admin-animate admin-animate--2">
           <div class="panel__header">
-            <h2><?= h(sblog_t('站点设置')) ?></h2>
-            <p class="panel__meta"><?= h(sblog_t('名称、地址、首页展示与伪静态配置。')) ?></p>
+            <div class="admin-settings-heading">
+              <h2><?= h(sblog_t($page['title'])) ?></h2>
+              <p class="panel__meta"><?= h(sblog_t($page['description'])) ?></p>
+            </div>
           </div>
           <div class="panel__body">
-            <form class="form-stack" method="post" action="<?= h(url_for('save_settings')) ?>">
+            <form id="site-settings-form" class="form-stack" method="post" action="<?= h(url_for('save_settings')) ?>">
               <?= csrf_field() ?>
+              <input type="hidden" name="settings_section" value="<?= h($section) ?>">
+              <?php if ($section === 'general'): ?>
               <div class="field"><label for="site_name"><?= h(sblog_t('站点名称')) ?></label><input id="site_name" name="site_name" type="text" value="<?= h(setting('site_name')) ?>" required></div>
               <div class="field">
                 <label for="site_language"><?= h(sblog_t('语言')) ?></label>
@@ -8294,25 +8484,23 @@ function render_admin_settings_page(): void
                     <option value="<?= h($locale) ?>"<?= sblog_i18n_locale() === $locale ? ' selected' : '' ?>><?= h($language['name']) ?></option>
                   <?php endforeach; ?>
                 </select>
-                <p class="field-hint"><?= h(sblog_t('安装语言包后可在此选择，保存后应用于前台、登录页和后台；所选语言包会自动启用。')) ?></p>
+                <p class="field-hint"><?= h(sblog_t('语言包安装后自动启用；在此选择并保存后，应用于前台、登录页和后台。')) ?></p>
               </div>
               <div class="field"><label for="site_tagline"><?= h(sblog_t('首页副标题')) ?></label><input id="site_tagline" name="site_tagline" type="text" value="<?= h(setting('site_tagline')) ?>"></div>
-              <div class="field"><label for="site_description"><?= h(sblog_t('站点描述')) ?></label><textarea id="site_description" name="site_description" rows="3"><?= h(setting('site_description')) ?></textarea></div>
-              <div class="field"><label for="site_keywords"><?= h(sblog_t('站点关键字')) ?></label><input id="site_keywords" name="site_keywords" value="<?= h(setting('site_keywords')) ?>" placeholder="<?= h(sblog_t('PHP, SQLite, 博客')) ?>"><p class="field-hint"><?= h(sblog_t('使用英文逗号分隔，页面将输出为 SEO keywords 元信息。')) ?></p></div>
               <div class="field">
                 <label for="site_url"><?= h(sblog_t('站点地址')) ?></label>
                 <input id="site_url" name="site_url" type="url" value="<?= h(setting('site_url')) ?>" placeholder="https://example.com/blog">
                 <p class="field-hint"><?= h(sblog_t('RSS 和找回密码链接会优先使用这里的绝对地址，子目录部署时请带上完整路径。')) ?></p>
               </div>
               <div class="field"><label for="favicon_url"><?= h(sblog_t('Favicon 地址')) ?></label><input id="favicon_url" name="favicon_url" value="<?= h(setting('favicon_url', 'favicon.png')) ?>" placeholder="favicon.png"><p class="field-hint"><?= h(sblog_t('默认使用项目根目录的 {file}，也可以填写完整图片 URL 或站内绝对路径。', ['file' => 'favicon.png'])) ?></p></div>
-              <div class="field">
-                <label for="footer_beian"><?= h(sblog_t('备案号')) ?></label>
-                <input id="footer_beian" name="footer_beian" type="text" value="<?= h(setting('footer_beian')) ?>" placeholder="<?= h(sblog_t('京 ICP 备 12345678 号')) ?>">
-              </div>
+              <?php elseif ($section === 'reading'): ?>
               <div class="field">
                 <label for="posts_per_page"><?= h(sblog_t('首页每页文章数')) ?></label>
                 <input id="posts_per_page" name="posts_per_page" type="number" min="1" max="24" value="<?= h(setting('posts_per_page', '6')) ?>">
               </div>
+              <div class="field"><label for="site_description"><?= h(sblog_t('站点描述')) ?></label><textarea id="site_description" name="site_description" rows="3"><?= h(setting('site_description')) ?></textarea></div>
+              <div class="field"><label for="site_keywords"><?= h(sblog_t('站点关键字')) ?></label><input id="site_keywords" name="site_keywords" value="<?= h(setting('site_keywords')) ?>" placeholder="<?= h(sblog_t('PHP, SQLite, 博客')) ?>"><p class="field-hint"><?= h(sblog_t('使用英文逗号分隔，页面将输出为 SEO keywords 元信息。')) ?></p></div>
+              <?php elseif ($section === 'discussion'): ?>
               <fieldset class="field settings-field">
                 <legend><?= h(sblog_t('评论设置')) ?></legend>
                 <div class="settings-option-list">
@@ -8321,6 +8509,7 @@ function render_admin_settings_page(): void
                   <label class="setting-option"><input name="comments_notify" type="checkbox" value="1"<?= setting('comments_notify', '1') === '1' ? ' checked' : '' ?>><span><?= h(sblog_t('新评论显示后台提醒')) ?></span></label>
                 </div>
               </fieldset>
+              <?php elseif ($section === 'permalinks'): ?>
               <div class="field">
                   <label for="pretty_url"><?= h(sblog_t('伪静态 URL')) ?></label>
                   <select id="pretty_url" name="pretty_url">
@@ -8343,6 +8532,11 @@ location / {
                     <p><?= h(sblog_t('若博客安装在子目录，请把 {entry} 改为包含子目录的入口路径，例如 {example}。', ['entry' => '/index.php', 'example' => '/blog/index.php'])) ?></p>
                   </div>
               </div>
+              <?php elseif ($section === 'code'): ?>
+              <div class="field">
+                <label for="footer_beian"><?= h(sblog_t('备案号')) ?></label>
+                <input id="footer_beian" name="footer_beian" type="text" value="<?= h(setting('footer_beian')) ?>" placeholder="<?= h(sblog_t('京 ICP 备 12345678 号')) ?>">
+              </div>
               <div class="field">
                 <label for="site_footer"><?= h(sblog_t('页脚文案')) ?></label>
                 <input id="site_footer" name="site_footer" type="text" value="<?= h(setting('site_footer')) ?>" placeholder="<?= h(sblog_t('支持 {year} 占位符')) ?>">
@@ -8352,12 +8546,14 @@ location / {
                 <textarea id="custom_head_code" name="custom_head_code" rows="10" spellcheck="false" placeholder="&lt;script&gt;...&lt;/script&gt;"><?= h(setting('custom_head_code')) ?></textarea>
                 <p class="field-hint"><?= h(sblog_t('原样插入前台页面的 {closing_tag} 前，可用于统计脚本、{meta} 或 {style}；请仅使用可信代码。', ['closing_tag' => '</head>', 'meta' => 'meta', 'style' => 'style'])) ?></p>
               </div>
+              <?php endif; ?>
               <div class="action-row">
                 <button class="button" type="submit"><?= h(sblog_t('保存设置')) ?></button>
               </div>
             </form>
           </div>
         </section>
+        <?php else: ?>
         <section class="panel admin-list-panel admin-animate admin-animate--3">
           <div class="panel__header">
             <h2><?= h(sblog_t('服务器文件清理')) ?></h2>
@@ -8367,19 +8563,22 @@ location / {
             <div class="action-row action-row--start">
               <form method="post" action="<?= h(url_for('clear_cache')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定永久删除所有更新和扩展备份吗？删除后无法从这些备份恢复。'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                 <?= csrf_field() ?>
+                <input type="hidden" name="settings_section" value="maintenance">
                 <input type="hidden" name="kind" value="backups">
                 <button class="button button--danger" type="submit"<?= $backupCount === 0 ? ' disabled' : '' ?>><?= h(sblog_t('清理备份（{count} 项）', ['count' => $backupCount])) ?></button>
               </form>
               <form method="post" action="<?= h(url_for('clear_cache')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除可重建的缓存文件吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                 <?= csrf_field() ?>
+                <input type="hidden" name="settings_section" value="maintenance">
                 <input type="hidden" name="kind" value="cache">
                 <button class="button button--secondary" type="submit"<?= $cacheCount === 0 ? ' disabled' : '' ?>><?= h(sblog_t('清理缓存（{count} 项）', ['count' => $cacheCount])) ?></button>
               </form>
             </div>
           </div>
         </section>
+        <?php endif; ?>
     <?php
-    render_admin_content_end(sblog_t('站点设置'), 'settings', sblog_t('博客站点设置'));
+    render_admin_content_end(sblog_t($page['title']), 'settings', sblog_t($page['description']));
 }
 
 function render_editor_media_picker(): string
@@ -9186,14 +9385,15 @@ switch ($action) {
         break;
 
     case 'clear_cache':
-        require_admin_post(url_for('admin_settings'));
+        $returnUrl = url_with_query(url_for('admin_settings'), ['section' => 'maintenance']);
+        require_admin_post($returnUrl);
         try {
             $count = clear_managed_cache(trim((string)($_POST['kind'] ?? '')));
             set_flash('success', sblog_t('已删除 {count} 项服务器文件。', ['count' => $count]));
         } catch (Throwable $exception) {
             set_flash('error', sblog_t('清理失败：{error}', ['error' => $exception->getMessage()]));
         }
-        redirect_to(url_for('admin_settings'), 303);
+        redirect_to($returnUrl, 303);
         break;
 
     case 'toggle_plugin':
@@ -9204,6 +9404,10 @@ switch ($action) {
         if (!isset($plugins[$slug]) || !in_array($operation, ['activate', 'deactivate'], true)) {
             set_flash('error', sblog_t('插件不存在或操作无效。'));
             redirect_to(url_for('admin_plugins'));
+        }
+        if ((string)$plugins[$slug]['locale'] !== '') {
+            set_flash('error', sblog_t('语言包安装后自动启用，请在常规设置中选择站点语言。'));
+            redirect_to(url_for('admin_plugins'), 303);
         }
         $activePlugins = active_plugin_slugs(true);
         if ($operation === 'activate' && !in_array($slug, $activePlugins, true)) {
@@ -9282,38 +9486,38 @@ switch ($action) {
         break;
 
     case 'save_settings':
-        require_admin_post(url_for('admin_settings'));
-        $siteLanguage = $_POST['site_language'] ?? sblog_i18n_locale();
-        if (!is_string($siteLanguage) || !sblog_i18n_save_language($siteLanguage)) {
-            set_flash('error', sblog_t('所选语言不可用，请重新选择。'));
-            redirect_to(url_for('admin_settings'));
+        $sections = admin_settings_sections();
+        $requestedSection = $_POST['settings_section'] ?? null;
+        $section = admin_settings_section($requestedSection);
+        $returnUrl = url_with_query(url_for('admin_settings'), ['section' => $section]);
+        require_admin_post($returnUrl);
+        // Accept a complete form left open before settings were split into separate pages.
+        $legacyForm = !array_key_exists('settings_section', $_POST) && array_diff([
+            'site_name', 'site_tagline', 'site_url', 'favicon_url', 'posts_per_page',
+            'site_description', 'site_keywords', 'pretty_url', 'footer_beian', 'site_footer', 'custom_head_code',
+        ], array_keys($_POST)) === [];
+        if (!$legacyForm && (!is_string($requestedSection) || !isset($sections[$requestedSection]) || $section === 'maintenance')) {
+            set_flash('error', sblog_t('设置分组无效，请重新选择。'));
+            redirect_to($returnUrl, 303);
         }
-        $siteName = trim((string)($_POST['site_name'] ?? ''));
-        $siteUrl = trim((string)($_POST['site_url'] ?? ''));
-        if ($siteUrl !== '' && !valid_site_url($siteUrl)) {
+        $values = [];
+        foreach ($legacyForm ? array_keys($sections) : [$section] as $saveSection) {
+            $values = array_merge($values, admin_settings_values($saveSection, $_POST));
+        }
+        if (isset($values['site_url']) && $values['site_url'] !== '' && !valid_site_url($values['site_url'])) {
             set_flash('error', sblog_t('站点地址必须是不带查询参数的完整 HTTP 或 HTTPS 地址。'));
-            redirect_to(url_for('admin_settings'));
+            redirect_to($returnUrl, 303);
         }
-        $postsPerPage = max(1, min(24, (int)($_POST['posts_per_page'] ?? (int)default_settings()['posts_per_page'])));
-        $prettyUrl = (string)($_POST['pretty_url'] ?? '0') === '1' ? '1' : '0';
-        save_settings([
-            'site_name' => $siteName !== '' ? $siteName : default_settings()['site_name'],
-            'site_url' => $siteUrl,
-            'favicon_url' => trim((string)($_POST['favicon_url'] ?? '')) ?: default_settings()['favicon_url'],
-            'footer_beian' => trim((string)($_POST['footer_beian'] ?? '')),
-            'posts_per_page' => (string)$postsPerPage,
-            'pretty_url' => $prettyUrl,
-            'comments_enabled' => isset($_POST['comments_enabled']) ? '1' : '0',
-            'comments_require_approval' => isset($_POST['comments_require_approval']) ? '1' : '0',
-            'comments_notify' => isset($_POST['comments_notify']) ? '1' : '0',
-            'site_tagline' => trim((string)($_POST['site_tagline'] ?? '')),
-            'site_description' => trim((string)($_POST['site_description'] ?? '')),
-            'site_keywords' => trim((string)($_POST['site_keywords'] ?? '')),
-            'site_footer' => trim((string)($_POST['site_footer'] ?? '')),
-            'custom_head_code' => trim((string)($_POST['custom_head_code'] ?? '')),
-        ]);
+        if ($legacyForm || $section === 'general') {
+            $siteLanguage = $_POST['site_language'] ?? sblog_i18n_locale();
+            if (!is_string($siteLanguage) || !sblog_i18n_save_language($siteLanguage)) {
+                set_flash('error', sblog_t('所选语言不可用，请重新选择。'));
+                redirect_to($returnUrl, 303);
+            }
+        }
+        save_settings($values);
         set_flash('success', sblog_t('站点设置已更新。'));
-        redirect_to(url_for('admin_settings'));
+        redirect_to(url_with_query(url_for('admin_settings'), ['section' => $section]), 303);
         break;
 
     case 'mark_comments_read':

@@ -202,6 +202,41 @@ function initAccountMenus() {
   });
 }
 
+function initAdminAvatar(container) {
+  const image = container.querySelector("[data-admin-avatar-src]");
+  if (!(image instanceof HTMLImageElement)) return;
+  const url = image.dataset.adminAvatarSrc;
+  const storageKey = "sblog-admin-avatar-failure";
+  try {
+    const failure = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+    const age = Date.now() - Number(failure?.time);
+    if (failure?.url === url && age >= 0 && age < 5 * 60 * 1000) {
+      image.remove();
+      return;
+    }
+  } catch (error) {
+    // Loading remains available when browser storage is unavailable.
+  }
+  image.addEventListener("load", () => {
+    image.hidden = false;
+    try {
+      const failure = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+      if (failure?.url === url) sessionStorage.removeItem(storageKey);
+    } catch (error) {
+      // The loaded avatar does not depend on browser storage.
+    }
+  }, { once: true });
+  image.addEventListener("error", () => {
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify({ url, time: Date.now() }));
+    } catch (error) {
+      // The initial remains visible when failures cannot be remembered.
+    }
+    image.remove();
+  }, { once: true });
+  image.src = url;
+}
+
 function initAdminNavigation() {
   const body = document.body;
   const sidebar = document.querySelector("#admin-sidebar");
@@ -270,6 +305,15 @@ function initAdminNavigation() {
       syncSidebar();
     });
   }
+  sidebar.querySelectorAll("[data-admin-nav-group] > summary").forEach((summary) => {
+    summary.addEventListener("click", (event) => {
+      if (!compact.matches || sidebarExpanded || !(expand instanceof HTMLButtonElement)) return;
+      event.preventDefault();
+      expand.click();
+      const group = summary.parentElement;
+      if (group instanceof HTMLDetailsElement) group.open = true;
+    });
+  });
   closeControls.forEach((control) => control.addEventListener("click", () => setOpen(false, true)));
   sidebar.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => setOpen(false)));
   document.addEventListener("keydown", (event) => {
@@ -288,6 +332,130 @@ function initAdminNavigation() {
   }
   syncSidebar();
   setOpen(false);
+}
+
+function initPluginSettingsTabs() {
+  const slug = document.body.dataset.adminPluginSettings;
+  const main = document.querySelector(".admin-main");
+  if (!slug || !(main instanceof HTMLElement) || main.querySelector("[role=tablist], .admin-plugin-tabs")) return;
+  if (new URLSearchParams(window.location.search).has("id")) return;
+
+  const panels = Array.from(main.querySelectorAll(":scope > section.panel")).filter((panel) => (
+    panel.querySelector(":scope > .panel__header > h2")?.textContent.trim()
+  ));
+  if (panels.length < 3) return;
+
+  const prefix = `admin-plugin-${slug}-panel-`;
+  const labels = panels.map((panel) => (
+    panel.querySelector(":scope > .panel__header > h2").textContent.trim().replace(/\s+/g, " ")
+  ));
+  const storageKey = `sblog-admin-plugin-tab:${slug}:${window.location.pathname}${window.location.search}`;
+  const remember = (index) => {
+    try {
+      sessionStorage.setItem(storageKey, labels[index]);
+    } catch (error) {
+      // Tabs remain usable when browser storage is unavailable.
+    }
+  };
+  const tablist = document.createElement("nav");
+  tablist.className = "admin-plugin-tabs admin-settings-nav";
+  tablist.setAttribute("role", "tablist");
+  tablist.setAttribute("aria-label", main.querySelector(".admin-topbar h1")?.textContent.trim() || document.title);
+
+  const tabs = panels.map((panel, index) => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "admin-settings-nav__link";
+    tab.id = `admin-plugin-${slug}-tab-${index + 1}`;
+    tab.textContent = labels[index];
+    tab.setAttribute("role", "tab");
+    panel.id ||= `${prefix}${index + 1}`;
+    panel.classList.add("admin-plugin-settings-panel");
+    panel.setAttribute("role", "tabpanel");
+    panel.setAttribute("aria-labelledby", tab.id);
+    panel.tabIndex = 0;
+    tab.setAttribute("aria-controls", panel.id);
+    tablist.append(tab);
+    return tab;
+  });
+
+  const activate = (index, focus = false, updateHash = false) => {
+    panels.forEach((panel, panelIndex) => {
+      const active = panelIndex === index;
+      panel.hidden = !active;
+      tabs[panelIndex].classList.toggle("is-active", active);
+      tabs[panelIndex].setAttribute("aria-selected", active ? "true" : "false");
+      tabs[panelIndex].tabIndex = active ? 0 : -1;
+    });
+    remember(index);
+    if (focus) tabs[index].focus();
+    if (updateHash && (!window.location.hash || window.location.hash.startsWith(`#${prefix}`))) {
+      try {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.hash = panels[index].id;
+        window.history.replaceState(window.history.state, "", nextUrl);
+      } catch (error) {
+        // Keeping the current URL does not affect tab selection.
+      }
+    }
+  };
+  const panelFromHash = () => {
+    let target;
+    try {
+      target = document.getElementById(decodeURIComponent(window.location.hash.slice(1)));
+    } catch (error) {
+      return -1;
+    }
+    return target ? panels.findIndex((panel) => panel.contains(target)) : -1;
+  };
+
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => activate(index, false, true));
+    tab.addEventListener("keydown", (event) => {
+      let nextIndex;
+      if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") nextIndex = (index + tabs.length - 1) % tabs.length;
+      else if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      activate(nextIndex, true, true);
+    });
+  });
+  main.addEventListener("invalid", (event) => {
+    const form = event.target.form;
+    if (!(form instanceof HTMLFormElement)) return;
+    const firstInvalid = Array.from(form.elements).find((control) => (
+      control.willValidate && !control.validity.valid
+    ));
+    const index = panels.findIndex((panel) => firstInvalid && panel.contains(firstInvalid));
+    if (index !== -1) {
+      activate(index);
+      if (event.target !== firstInvalid && panels.some((panel) => panel.hidden && panel.contains(event.target))) {
+        event.preventDefault();
+      }
+    }
+  }, true);
+  main.addEventListener("submit", (event) => {
+    const source = event.submitter || event.target;
+    const index = panels.findIndex((panel) => panel.contains(source));
+    if (index !== -1) remember(index);
+  }, true);
+  window.addEventListener("hashchange", () => {
+    const index = panelFromHash();
+    if (index !== -1) activate(index);
+  });
+
+  let initialIndex = panelFromHash();
+  if (initialIndex === -1) {
+    try {
+      initialIndex = labels.indexOf(sessionStorage.getItem(storageKey));
+    } catch (error) {
+      initialIndex = -1;
+    }
+  }
+  main.insertBefore(tablist, panels[0]);
+  activate(initialIndex === -1 ? 0 : initialIndex);
 }
 
 function initSettingsControls() {
@@ -1218,6 +1386,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initPasswordToggles();
   initAdminNavigation();
   initAccountMenus();
+  initPluginSettingsTabs();
   initSettingsControls();
   initPostFormatControl();
   initPageSlugValidation();
