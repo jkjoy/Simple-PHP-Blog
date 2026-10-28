@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.16';
+const APP_VERSION = 'v1.14.17';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -2015,6 +2015,7 @@ function install_store_extension(array $extension): array
     $target = $root . '/' . $slug;
     $staging = $root . '/.' . $slug . '-install-' . bin2hex(random_bytes(4));
     $backup = '';
+    $previous = '';
     try {
         if (!mkdir($workDirectory, 0700, true)) {
             throw new RuntimeException(sblog_t('无法创建扩展安装临时目录。'));
@@ -2048,22 +2049,30 @@ function install_store_extension(array $extension): array
                 throw new RuntimeException(sblog_t('扩展目标路径不是可替换的目录。'));
             }
             $backup = CACHE_DIR . '/extension-backup-' . $extension['type'] . '-' . $slug . '-' . date('Ymd-His') . '-' . bin2hex(random_bytes(2));
-            if (!rename($target, $backup)) {
-                throw new RuntimeException(sblog_t('无法备份当前扩展。'));
+            try {
+                copy_extension_tree($target, $backup);
+            } catch (Throwable $exception) {
+                remove_extension_tree($backup);
+                $backup = '';
+                throw new RuntimeException(sblog_t('无法备份当前扩展。'), 0, $exception);
+            }
+            $previous = $root . '/.' . $slug . '-previous-' . bin2hex(random_bytes(4));
+            if (!@rename($target, $previous)) {
+                $previous = '';
+                throw new RuntimeException(sblog_t('无法替换当前扩展，请检查目录权限或文件占用。'));
             }
         }
-        if (!rename($staging, $target)) {
-            if ($backup !== '' && !file_exists($target)) {
-                @rename($backup, $target);
-                $backup = '';
-            }
+        if (!@rename($staging, $target)) {
             throw new RuntimeException(sblog_t('无法启用新扩展文件。'));
+        }
+        if ($previous !== '') {
+            remove_extension_tree($previous);
         }
         return ['backup' => $backup !== '' ? basename($backup) : ''];
     } catch (Throwable $exception) {
         remove_extension_tree($staging);
-        if ($backup !== '' && !file_exists($target)) {
-            @rename($backup, $target);
+        if ($previous !== '' && !file_exists($target) && !@rename($previous, $target)) {
+            throw new RuntimeException(sblog_t('无法恢复旧扩展，请从 cache/{path} 恢复备份。', ['path' => basename($backup)]), 0, $exception);
         }
         throw $exception;
     } finally {
@@ -8140,13 +8149,13 @@ function render_admin_store_page(): void
                       <?php elseif ($isCurrent): ?>
                         <span class="button button--ghost is-disabled" aria-disabled="true"><?= h(sblog_t('已安装')) ?></span>
                       <?php else: ?>
-                        <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install>
+                        <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install data-install-notice="<?= h(sblog_t($isUpdate ? '正在升级 {name}，请稍候。请勿关闭或刷新页面。' : '正在安装 {name}，请稍候。请勿关闭或刷新页面。', ['name' => (string)$extension['name']])) ?>">
                           <?= csrf_field() ?>
                           <input type="hidden" name="type" value="<?= h($type) ?>">
                           <input type="hidden" name="slug" value="<?= h($slug) ?>">
                           <input type="hidden" name="return_type" value="<?= h($filter) ?>">
                           <input type="hidden" name="return_to" value="store">
-                          <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在安装…')) ?>"><span data-install-text><?= h($actionLabel) ?></span></button>
+                          <button class="button" type="submit"><?= h($actionLabel) ?></button>
                         </form>
                       <?php endif; ?>
                     </div>
@@ -8179,11 +8188,11 @@ function render_admin_plugins_page(): void
     ?>
     <?= render_admin_content_start(sblog_t('插件管理'), $sidebar) ?>
 
-        <section class="panel admin-list-panel admin-animate admin-animate--2">
+        <section class="panel admin-list-panel extension-manager admin-animate admin-animate--2" aria-labelledby="plugin-manager-title">
           <div class="panel__header">
             <div class="admin-head admin-head--with-actions">
               <div class="admin-head-left">
-                <h2><?= h(sblog_t('插件管理')) ?></h2>
+                <h2 id="plugin-manager-title"><?= h(sblog_t('插件管理')) ?></h2>
                 <p class="panel__meta"><?= h(sblog_t('语言包安装后自动启用，插件设置可在扩展设置中打开。')) ?></p>
               </div>
               <div class="admin-head-actions">
@@ -8195,9 +8204,9 @@ function render_admin_plugins_page(): void
           <div class="panel__body panel__body--flush">
             <?php if ((string)$updateState['error'] !== ''): ?><div class="flash flash--error extension-update-error" role="alert"><?= h(sblog_t('检查插件更新失败：{error}', ['error' => (string)$updateState['error']])) ?></div><?php endif; ?>
             <?php if ($plugins): ?>
-              <div class="table-wrap table-wrap--plugins">
-                <table class="admin-table plugin-table">
-                  <thead><tr><th><?= h(sblog_t('插件')) ?></th><th><?= h(sblog_t('作者')) ?></th><th><?= h(sblog_t('版本')) ?></th><th><?= h(sblog_t('状态')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead>
+              <div class="table-wrap extension-table-wrap">
+                <table class="admin-table extension-table">
+                  <thead><tr><th scope="col"><?= h(sblog_t('插件')) ?></th><th scope="col"><?= h(sblog_t('状态')) ?></th><th scope="col"><?= h(sblog_t('操作')) ?></th></tr></thead>
                   <tbody>
                   <?php foreach ($plugins as $slug => $plugin): ?>
                     <?php
@@ -8211,14 +8220,12 @@ function render_admin_plugins_page(): void
                       <td>
                         <div class="table-title">
                           <strong><?= h($displayMetadata['name']) ?></strong>
-                          <span><?= h($displayMetadata['description']) ?></span>
+                          <span class="extension-description"><?= h($displayMetadata['description']) ?></span>
                         </div>
-                      </td>
-                      <td data-label="<?= h(sblog_t('作者')) ?>"><?php if ($plugin['author'] !== ''): ?><?php if ($plugin['url'] !== ''): ?><a href="<?= h($plugin['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h($plugin['author']) ?></a><?php else: ?><?= h($plugin['author']) ?><?php endif; ?><?php else: ?>—<?php endif; ?></td>
-                      <td data-label="<?= h(sblog_t('版本')) ?>">
-                        <div class="extension-version">
-                          <span><?= h((string)($plugin['version'] ?: '—')) ?></span>
-                          <?php if (is_array($update)): ?><span class="status-badge status-badge--scheduled"><?= h(sblog_t('新版本 {version}', ['version' => (string)$update['version']])) ?></span><?php endif; ?>
+                        <div class="extension-meta">
+                          <span aria-label="<?= h(sblog_t('版本')) ?>"><?= h((string)($plugin['version'] ?: '—')) ?></span>
+                          <?php if ($plugin['author'] !== ''): ?><span><?php if ($plugin['url'] !== ''): ?><a href="<?= h($plugin['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h($plugin['author']) ?></a><?php else: ?><?= h($plugin['author']) ?><?php endif; ?></span><?php endif; ?>
+                          <?php if (is_array($update)): ?><span class="extension-update-label"<?= $updateCompatible ? '' : ' title="' . h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) . '"' ?>><?= h(sblog_t('新版本 {version}', ['version' => (string)$update['version']])) ?><?= $updateCompatible ? '' : ' · ' . h(sblog_t('版本不兼容')) ?></span><?php endif; ?>
                         </div>
                       </td>
                       <td data-label="<?= h(sblog_t('状态')) ?>">
@@ -8231,40 +8238,40 @@ function render_admin_plugins_page(): void
                         <?php endif; ?>
                       </td>
                       <td data-label="<?= h(sblog_t('操作')) ?>">
-                        <div class="table-actions">
-                          <?php if ($isActive && (string)$plugin['settings_action'] !== ''): ?>
-                            <a class="button button--secondary" href="<?= h(script_url() . '?a=' . rawurlencode((string)$plugin['settings_action'])) ?>"><?= h(sblog_t('设置')) ?></a>
-                          <?php endif; ?>
-                          <?php if (is_array($update)): ?>
-                            <?php if ($updateCompatible): ?>
-                              <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install>
+                        <div class="extension-actions">
+                          <?php if ($updateCompatible): ?>
+                              <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install data-install-notice="<?= h(sblog_t('正在升级 {name}，请稍候。请勿关闭或刷新页面。', ['name' => (string)$displayMetadata['name']])) ?>">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="type" value="plugin">
                                 <input type="hidden" name="slug" value="<?= h($slug) ?>">
                                 <input type="hidden" name="return_to" value="plugins">
-                                <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><span data-install-text><?= h(sblog_t('升级')) ?></span></button>
+                                <button class="button" type="submit"><?= h(sblog_t('升级')) ?></button>
                               </form>
-                            <?php else: ?>
-                              <span class="button button--ghost is-disabled" aria-disabled="true" title="<?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) ?>"><?= h(sblog_t('版本不兼容')) ?></span>
-                            <?php endif; ?>
                           <?php endif; ?>
-                          <?php if ($isLanguage): ?>
-                            <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_settings'), ['section' => 'general'])) ?>"><?= h(sblog_t('选择语言')) ?></a>
-                          <?php else: ?>
+                          <?php if (!$isLanguage): ?>
                           <form method="post" action="<?= h(url_for('toggle_plugin')) ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="plugin" value="<?= h($slug) ?>">
                             <input type="hidden" name="operation" value="<?= $isActive ? 'deactivate' : 'activate' ?>">
-                            <button class="button <?= $isActive ? 'button--ghost' : '' ?>" type="submit"><?= h($isActive ? sblog_t('停用') : sblog_t('启用')) ?></button>
+                            <button class="button <?= $isActive || $updateCompatible ? 'button--secondary' : '' ?>" type="submit"><?= h($isActive ? sblog_t('停用') : sblog_t('启用')) ?></button>
                           </form>
                           <?php endif; ?>
-                          <?php if (!$isActive || $isLanguage): ?>
+                          <?php if ($isLanguage || !$isActive || (string)$plugin['settings_action'] !== ''): ?>
+                          <details class="extension-actions-menu" data-extension-menu>
+                            <summary class="button button--ghost"><?= h(sblog_t('更多')) ?></summary>
+                            <div class="extension-actions-menu__items">
+                              <?php if ($isActive && (string)$plugin['settings_action'] !== ''): ?><a href="<?= h(script_url() . '?a=' . rawurlencode((string)$plugin['settings_action'])) ?>"><?= h(sblog_t('设置')) ?></a><?php endif; ?>
+                              <?php if ($isLanguage): ?><a href="<?= h(url_with_query(url_for('admin_settings'), ['section' => 'general'])) ?>"><?= h(sblog_t('选择语言')) ?></a><?php endif; ?>
+                              <?php if (!$isActive || $isLanguage): ?>
                             <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定卸载插件 {name} 吗？服务器上的插件文件将被永久删除。', ['name' => (string)$displayMetadata['name']]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                               <?= csrf_field() ?>
                               <input type="hidden" name="type" value="plugin">
                               <input type="hidden" name="slug" value="<?= h($slug) ?>">
-                              <button class="button button--danger" type="submit"><?= h(sblog_t('卸载')) ?></button>
+                              <button class="extension-action--danger" type="submit"><?= h(sblog_t('卸载')) ?></button>
                             </form>
+                              <?php endif; ?>
+                            </div>
+                          </details>
                           <?php endif; ?>
                         </div>
                       </td>
@@ -8297,7 +8304,7 @@ function render_admin_themes_page(): void
     ?>
     <?= render_admin_content_start(sblog_t('主题管理'), $sidebar) ?>
 
-        <section class="panel admin-list-panel admin-animate admin-animate--2" aria-labelledby="theme-manager-title" data-theme-manager>
+        <section class="panel admin-list-panel extension-manager admin-animate admin-animate--2" aria-labelledby="theme-manager-title" data-theme-manager>
           <div class="panel__header">
             <div class="admin-head admin-head--with-actions">
               <div class="admin-head-left">
@@ -8312,9 +8319,9 @@ function render_admin_themes_page(): void
           </div>
           <div class="panel__body panel__body--flush">
             <?php if ((string)$updateState['error'] !== ''): ?><div class="flash flash--error extension-update-error" role="alert"><?= h(sblog_t('检查主题更新失败：{error}', ['error' => (string)$updateState['error']])) ?></div><?php endif; ?>
-            <div class="table-wrap table-wrap--plugins">
-              <table class="admin-table plugin-table theme-table">
-                <thead><tr><th><?= h(sblog_t('主题')) ?></th><th><?= h(sblog_t('作者')) ?></th><th><?= h(sblog_t('版本')) ?></th><th><?= h(sblog_t('状态')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead>
+            <div class="table-wrap extension-table-wrap">
+              <table class="admin-table extension-table theme-table">
+                <thead><tr><th scope="col"><?= h(sblog_t('主题')) ?></th><th scope="col"><?= h(sblog_t('状态')) ?></th><th scope="col"><?= h(sblog_t('操作')) ?></th></tr></thead>
                 <tbody>
                 <?php foreach ($themes as $slug => $theme): ?>
                   <?php
@@ -8331,14 +8338,12 @@ function render_admin_themes_page(): void
                     <td>
                       <div class="table-title">
                         <strong><?= h($themeName) ?></strong>
-                        <span><?= h($themeDescription !== '' ? $themeDescription : sblog_t('该主题没有提供说明。')) ?></span>
+                        <span class="extension-description"><?= h($themeDescription !== '' ? $themeDescription : sblog_t('该主题没有提供说明。')) ?></span>
                       </div>
-                    </td>
-                    <td data-label="<?= h(sblog_t('作者')) ?>"><?php if ($theme['author'] !== ''): ?><?php if ($theme['url'] !== ''): ?><a href="<?= h($theme['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h($theme['author']) ?></a><?php else: ?><?= h($theme['author']) ?><?php endif; ?><?php else: ?>—<?php endif; ?></td>
-                    <td data-label="<?= h(sblog_t('版本')) ?>">
-                      <div class="extension-version">
-                        <span><?= h((string)($theme['version'] ?: '—')) ?></span>
-                        <?php if (is_array($update)): ?><span class="status-badge status-badge--scheduled"><?= h(sblog_t('新版本 {version}', ['version' => (string)$update['version']])) ?></span><?php endif; ?>
+                      <div class="extension-meta">
+                        <span aria-label="<?= h(sblog_t('版本')) ?>"><?= h((string)($theme['version'] ?: '—')) ?></span>
+                        <?php if ($theme['author'] !== ''): ?><span><?php if ($theme['url'] !== ''): ?><a href="<?= h($theme['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h($theme['author']) ?></a><?php else: ?><?= h($theme['author']) ?><?php endif; ?></span><?php endif; ?>
+                        <?php if (is_array($update)): ?><span class="extension-update-label"<?= $updateCompatible ? '' : ' title="' . h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) . '"' ?>><?= h(sblog_t('新版本 {version}', ['version' => (string)$update['version']])) ?><?= $updateCompatible ? '' : ' · ' . h(sblog_t('版本不兼容')) ?></span><?php endif; ?>
                       </div>
                     </td>
                     <td data-label="<?= h(sblog_t('状态')) ?>">
@@ -8346,39 +8351,42 @@ function render_admin_themes_page(): void
                       <span class="status-badge status-badge--draft" data-theme-inactive<?= $isActive ? ' hidden' : '' ?>><?= h(sblog_t('未启用')) ?></span>
                     </td>
                     <td data-label="<?= h(sblog_t('操作')) ?>">
-                      <div class="table-actions">
-                        <a class="button button--secondary" href="<?= h($previewUrl) ?>" target="_blank" rel="noopener noreferrer" aria-label="<?= h($previewLabel) ?>"><?= h(sblog_t('打开预览')) ?></a>
-                        <?php if (is_array($update)): ?>
-                          <?php if ($updateCompatible): ?>
-                            <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install>
+                      <div class="extension-actions">
+                        <?php if ($updateCompatible): ?>
+                            <form method="post" action="<?= h(url_for('install_extension')) ?>" data-extension-install data-install-notice="<?= h(sblog_t('正在升级 {name}，请稍候。请勿关闭或刷新页面。', ['name' => $themeName])) ?>">
                               <?= csrf_field() ?>
                               <input type="hidden" name="type" value="theme">
                               <input type="hidden" name="slug" value="<?= h($slug) ?>">
                               <input type="hidden" name="return_to" value="themes">
-                              <button class="button" type="submit" data-install-label="<?= h(sblog_t('正在升级…')) ?>"><span data-install-text><?= h(sblog_t('升级')) ?></span></button>
+                              <button class="button" type="submit"><?= h(sblog_t('升级')) ?></button>
                             </form>
-                          <?php else: ?>
-                            <span class="button button--ghost is-disabled" aria-disabled="true" title="<?= h(sblog_t('需要 SBlog {version}+', ['version' => (string)$update['requires']])) ?>"><?= h(sblog_t('版本不兼容')) ?></span>
-                          <?php endif; ?>
                         <?php endif; ?>
                         <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-activate<?= $isActive ? ' hidden' : '' ?>>
                           <?= csrf_field() ?>
                           <input type="hidden" name="theme" value="<?= h($slug) ?>">
-                          <button class="button<?= is_array($update) ? ' button--secondary' : '' ?>" type="submit"><?= h(sblog_t('启用')) ?></button>
+                          <button class="button<?= $updateCompatible ? ' button--secondary' : '' ?>" type="submit"><?= h(sblog_t('启用')) ?></button>
                         </form>
                         <?php if ($slug !== 'default'): ?>
                           <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-deactivate<?= $isActive ? '' : ' hidden' ?>>
                             <?= csrf_field() ?>
                             <input type="hidden" name="theme" value="default">
-                            <button class="button button--ghost" type="submit"><?= h(sblog_t('停用')) ?></button>
+                            <button class="button button--secondary" type="submit"><?= h(sblog_t('停用')) ?></button>
                           </form>
+                        <?php endif; ?>
+                        <details class="extension-actions-menu" data-extension-menu>
+                          <summary class="button button--ghost"><?= h(sblog_t('更多')) ?></summary>
+                          <div class="extension-actions-menu__items">
+                            <a href="<?= h($previewUrl) ?>" target="_blank" rel="noopener noreferrer" aria-label="<?= h($previewLabel) ?>"><?= h(sblog_t('打开预览')) ?></a>
+                          <?php if ($slug !== 'default'): ?>
                           <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" data-theme-uninstall<?= $isActive ? ' hidden' : '' ?> onsubmit="return confirm(<?= h(json_encode(sblog_t('确定卸载主题 {name} 吗？服务器上的主题文件将被永久删除。', ['name' => $themeName]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                             <?= csrf_field() ?>
                             <input type="hidden" name="type" value="theme">
                             <input type="hidden" name="slug" value="<?= h($slug) ?>">
-                            <button class="button button--danger" type="submit"><?= h(sblog_t('卸载')) ?></button>
+                            <button class="extension-action--danger" type="submit"><?= h(sblog_t('卸载')) ?></button>
                           </form>
                         <?php endif; ?>
+                          </div>
+                        </details>
                       </div>
                     </td>
                   </tr>

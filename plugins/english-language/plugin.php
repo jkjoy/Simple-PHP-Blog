@@ -1343,6 +1343,11 @@ function sblog_english_language_map(): array
         '检查更新' => 'Check for updates',
         '正在升级…' => 'Updating…',
         '正在安装…' => 'Installing…',
+        '更多' => 'More',
+        '正在升级 {name}，请稍候。请勿关闭或刷新页面。' => 'Updating {name}. Please wait and keep this page open without refreshing.',
+        '正在安装 {name}，请稍候。请勿关闭或刷新页面。' => 'Installing {name}. Please wait and keep this page open without refreshing.',
+        '无法替换当前扩展，请检查目录权限或文件占用。' => 'Could not replace the current extension. Check directory permissions and whether files are in use.',
+        '无法恢复旧扩展，请从 cache/{path} 恢复备份。' => 'Could not restore the previous extension. Restore the backup from cache/{path}.',
         '正在显示缓存列表' => 'Showing cached list',
         '此内容始终动态生成，不写入静态页面缓存。' => 'This content is always generated dynamically and is not written to the static page cache.',
         '版本不兼容' => 'Incompatible version',
@@ -1434,6 +1439,7 @@ function sblog_english_client_translations(): array
         'terminal_help_display' => '  crt|date                    display controls',
         'terminal_command_not_found' => '{command}: command not found. Type "help".',
         'theme_activate_failed' => 'Could not switch themes. Try again.',
+        'extension_install_pending' => 'Processing the extension. Please wait and keep this page open without refreshing.',
     ];
 }
 

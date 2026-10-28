@@ -131,7 +131,7 @@ store/         Extension-store catalog protocol documentation (not deployed to t
 - Set `SBLOG_EXTENSION_STORE_URL` to use a self-hosted repository or CDN catalog. Cache entries are tied to the catalog URL, so changing sources never reuses data from the previous source.
 - GitHub Actions in the official repository validates manifests and versions, creates an independent ZIP and Release for every theme and plugin, and publishes `catalog.json` only after all assets pass verification.
 - The installer limits download size, file count, and extracted size; rejects absolute paths, traversal paths, and symlinks; and verifies the ZIP SHA-256.
-- Before updating an installed extension, its current directory is moved to `cache/extension-backup-*`. Failed installs are rolled back.
+- Before updating an installed extension, its current directory is copied to `cache/extension-backup-*`, then replaced within the extension directory. Cache and extensions can reside on different disks. Failed installs are rolled back.
 - See `store/README.md` for the catalog protocol and standalone deployment notes.
 
 ## S3 Uploads

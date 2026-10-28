@@ -125,22 +125,40 @@ function initThemeManager() {
 }
 
 function initExtensionInstalls() {
-  document.querySelectorAll("[data-extension-install]").forEach((form) => {
+  const forms = Array.from(document.querySelectorAll("[data-extension-install]"));
+  let pending = false;
+  let notice;
+  const buttons = new Map();
+  forms.forEach((form) => {
     if (!(form instanceof HTMLFormElement)) return;
     form.addEventListener("submit", (event) => {
-      if (form.getAttribute("aria-busy") === "true") {
+      if (event.defaultPrevented) return;
+      if (pending) {
         event.preventDefault();
         return;
       }
-      const button = form.querySelector('button[type="submit"]');
+      pending = true;
       form.setAttribute("aria-busy", "true");
-      if (button instanceof HTMLButtonElement) {
-        button.style.minWidth = window.getComputedStyle(button).width;
+      forms.forEach((item) => {
+        const button = item.querySelector('button[type="submit"]');
+        if (!(button instanceof HTMLButtonElement)) return;
+        buttons.set(button, button.disabled);
         button.disabled = true;
-        const label = button.querySelector("[data-install-text]") || button;
-        label.textContent = button.dataset.installLabel || "Installing...";
-      }
+      });
+      notice = document.createElement("div");
+      notice.className = "extension-install-notice";
+      notice.setAttribute("role", "status");
+      notice.setAttribute("aria-live", "polite");
+      document.body.append(notice);
+      notice.textContent = form.dataset.installNotice || sblogText("extension_install_pending", "正在处理扩展，请稍候。请勿关闭或刷新页面。");
     });
+  });
+  window.addEventListener("pageshow", () => {
+    pending = false;
+    notice?.remove();
+    forms.forEach((form) => form.removeAttribute("aria-busy"));
+    buttons.forEach((disabled, button) => { button.disabled = disabled; });
+    buttons.clear();
   });
 }
 
@@ -165,7 +183,7 @@ function initPasswordToggles() {
 }
 
 function initAccountMenus() {
-  const accountMenus = Array.from(document.querySelectorAll("[data-admin-account]"));
+  const accountMenus = Array.from(document.querySelectorAll("[data-admin-account], [data-extension-menu]"));
   if (!accountMenus.length) return;
 
   accountMenus.forEach((menu) => {
