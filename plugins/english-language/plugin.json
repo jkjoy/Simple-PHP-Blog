@@ -1,11 +1,11 @@
 {
   "name": "英文语言包",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "author": "Simple PHP Blog",
   "url": "https://github.com/jkjoy/Simple-PHP-Blog",
   "locale": "en",
   "language_name": "English",
   "description": "将博客前台、登录页面和后台管理界面翻译为英文。",
   "requires": "1.14.13",
-  "tested": "1.14.16"
+  "tested": "1.14.18"
 }

@@ -21,9 +21,56 @@
 - `style.css`：通过标准 `head` action 自动在内置前台样式之后加载。
 - `functions.php`：注册 action 和 filter 钩子。
 - `layout.php`：可选，输出完整 HTML 文档并接管前台布局。
+- `settings.json`：可选，声明后台主题设置表单；由核心负责验证和保存。
 - 其他 CSS、JavaScript 和图片：使用 `theme_asset_url('assets/app.js')` 获取当前主题资源地址。
 
 安装后进入“后台 -> 主题管理”预览或启用。主题 PHP 是服务器端可信代码，只安装来源可信的主题。
+
+## 主题设置
+
+SBlog 1.14.18 起，主题专属的外观、封面、社交链接等选项可随主题声明在 `settings.json`，无需配套设置插件。有效的设置声明会在“主题管理 → 更多”中显示“主题设置”入口，未启用的主题也可先配置再预览。使用此 API 的主题应在 `theme.json` 的 `requires` 中声明 `1.14.18` 或更高版本。
+
+```json
+{
+  "sections": [
+    {
+      "title": "外观设置",
+      "description": "配置首页封面与主题色。",
+      "fields": [
+        {"key": "hero_image", "label": "首页封面", "type": "url", "default": "", "description": "支持完整 HTTP(S) 地址或以 / 开头的站内路径。"},
+        {"key": "accent_color", "label": "主题色", "type": "color", "default": "#fe9600"},
+        {"key": "show_hero", "label": "显示首页封面", "type": "checkbox", "default": "1"},
+        {"key": "layout", "label": "文章布局", "type": "select", "default": "left", "options": {"left": "左侧图片", "right": "右侧图片"}}
+      ]
+    }
+  ]
+}
+```
+
+`sections` 用于分组，分组的 `title` 和 `description` 可省略。每个字段必须具有唯一的 `key`，格式为小写字母开头、仅含小写字母、数字与下划线，最多 64 字符。`label`、`description`、`placeholder` 均为纯文本。支持的 `type`：
+
+- `text`（默认）、`textarea`：单行或多行文本。
+- `url`：完整 HTTP(S) 地址或以 `/` 开头的站内路径；不接受 `//`、反斜杠和空白字符。
+- `color`：六位十六进制颜色，如 `#fe9600`。
+- `checkbox`：保存为字符串 `"1"` 或 `"0"`。
+- `select`：通过 `options` 声明“保存值：显示文字”映射。
+- `date`：有效的 `YYYY-MM-DD` 日期。
+
+字段可以使用 `default` 提供默认值、`required: true` 标记必填，以及 `maxlength` 限制长度（默认文本 2000、多行文本 10000，最大 20000）。可选字段允许留空；`select` 必须选中声明的选项。配置文件最多 64 KiB、20 个分组、100 个字段；无效配置不会生成设置入口。
+
+在主题 PHP 中读取：
+
+```php
+$cover = theme_setting('hero_image');
+$showHero = theme_setting('show_hero', '1') === '1';
+$allOptions = theme_settings();
+// 如需显式读取其他已安装主题，可传入其目录名。
+$otherCover = theme_setting('hero_image', '', 'other-theme');
+```
+
+读取结果均为字符串。未保存时使用字段默认值，未知字段使用调用时的兜底值；主题自行输出设置内容时仍需调用 `h()` 转义。后台保存要求登录和 CSRF 验证，任一字段无效时保留表单输入且不会部分保存。
+
+各主题的值独立存入现有数据库 `settings` 表的 `theme_settings_<目录名>` JSON 项，不写回主题文件。切换、升级和卸载主题保留已保存的值，重新安装同名主题后可恢复；已有主题不提供 `settings.json` 时继续按原方式工作。
 
 ## 钩子 API
 

@@ -1,11 +1,11 @@
 {
   "name": "俄语语言包",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "author": "zalexstudios",
   "url": "https://github.com/zalexstudios",
   "locale": "ru",
   "language_name": "Русский",
   "description": "将博客前台、登录页面和后台管理界面翻译为俄语。",
   "requires": "1.14.13",
-  "tested": "1.14.16"
+  "tested": "1.14.18"
 }

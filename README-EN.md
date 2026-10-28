@@ -110,6 +110,7 @@ store/         Extension-store catalog protocol documentation (not deployed to t
 - A theme can override frontend styles with `style.css`, register action/filter hooks in `functions.php`, or take over the complete frontend layout with `layout.php`.
 - Install themes remotely under **Extension Store**, then preview and enable them under **Themes**. If the selected theme is invalid or has been removed, the application falls back to the default theme.
 - **Themes** compares installed versions with the store and provides an in-place update action when a newer version is available.
+- Themes can declare their own controls in `settings.json`. Open **Themes → More → Theme Settings** to configure covers, colors, and other options, including before enabling a theme. Values are stored separately for each theme in the database, survive theme changes and upgrades, and can be restored when the same theme is reinstalled.
 - See `themes/README.md` for the theme development API and the complete hook reference.
 - Themes ship independently from the core. One-click core updates do not replace or delete installed themes.
 

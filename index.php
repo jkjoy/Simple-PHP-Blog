@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.17';
+const APP_VERSION = 'v1.14.18';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -623,6 +623,7 @@ function settings_cache(bool $refresh = false): array
 
         ensure_runtime_dirs();
         file_put_contents(SETTINGS_CACHE_FILE, "<?php\nreturn " . var_export($settings, true) . ";\n", LOCK_EX);
+        if (function_exists('opcache_invalidate')) { opcache_invalidate(SETTINGS_CACHE_FILE, true); }
     } catch (Throwable) {
     }
 
@@ -2957,6 +2958,140 @@ function theme_asset_url(string $path): string
     return asset_url('themes/' . rawurlencode($slug) . '/' . implode('/', array_map('rawurlencode', $segments)));
 }
 
+function theme_settings_schema(string $slug): array
+{
+    if ($slug === 'default' || theme_manifest($slug) === null) {
+        return [];
+    }
+    $cache = &theme_inventory_cache();
+    if (array_key_exists($slug, $cache['settings'] ?? [])) {
+        return $cache['settings'][$slug];
+    }
+    $cache['settings'][$slug] = [];
+    $directory = realpath(THEMES_DIR . '/' . $slug);
+    $file = realpath(THEMES_DIR . '/' . $slug . '/settings.json');
+    if ($directory === false || $file === false || dirname($file) !== $directory || !is_file($file) || filesize($file) > 65536) {
+        return [];
+    }
+    $schema = json_decode((string)file_get_contents($file), true, 16);
+    if (!is_array($schema) || !is_array($schema['sections'] ?? null) || count($schema['sections']) > 20) {
+        return [];
+    }
+    $sections = [];
+    $keys = [];
+    foreach ($schema['sections'] as $section) {
+        if (!is_array($section) || !is_array($section['fields'] ?? null)) { return []; }
+        $fields = [];
+        foreach ($section['fields'] as $field) {
+            if (!is_array($field)) { return []; }
+            $key = is_string($field['key'] ?? null) ? $field['key'] : '';
+            $type = is_string($field['type'] ?? null) ? $field['type'] : 'text';
+            if (!preg_match('/^[a-z][a-z0-9_]{0,63}$/', $key) || isset($keys[$key]) || count($keys) >= 100
+                || !in_array($type, ['text', 'textarea', 'url', 'color', 'checkbox', 'select', 'date'], true)) { return []; }
+            $keys[$key] = true;
+            $text = static fn(string $name, string $fallback = ''): string => is_scalar($field[$name] ?? null)
+                ? (string)$field[$name] : $fallback;
+            $options = [];
+            if ($type === 'select') {
+                if (!is_array($field['options'] ?? null) || !$field['options'] || count($field['options']) > 100) { return []; }
+                foreach ($field['options'] as $value => $label) {
+                    if (!is_scalar($label) || strlen((string)$value) > 300) { return []; }
+                    $options[(string)$value] = str_sub_u((string)$label, 0, 200);
+                }
+            }
+            $default = $text('default', $type === 'checkbox' ? '0' : '');
+            if ($type === 'checkbox') { $default = in_array($default, ['1', 'true'], true) ? '1' : '0'; }
+            $normalized = [
+                'key' => $key, 'type' => $type, 'label' => str_sub_u($text('label', $key), 0, 200),
+                'description' => str_sub_u($text('description'), 0, 1000),
+                'placeholder' => str_sub_u($text('placeholder'), 0, 300),
+                'maxlength' => max(1, min(20000, (int)($field['maxlength'] ?? ($type === 'textarea' ? 10000 : 2000)))),
+                'required' => !empty($field['required']), 'options' => $options, 'default' => $default,
+            ];
+            // A broken default must never become a public URL or an invalid select value.
+            if (theme_setting_value_error(array_replace($normalized, ['required' => false]), $default) !== '') {
+                $normalized['default'] = $type === 'select' ? (string)array_key_first($options) : '';
+            }
+            $fields[] = $normalized;
+        }
+        if ($fields) {
+            $sections[] = [
+                'title' => str_sub_u(is_string($section['title'] ?? null) ? $section['title'] : '', 0, 200),
+                'description' => str_sub_u(is_string($section['description'] ?? null) ? $section['description'] : '', 0, 1000),
+                'fields' => $fields,
+            ];
+        }
+    }
+    return $cache['settings'][$slug] = $sections;
+}
+
+function theme_setting_value_error(array $field, string $value): string
+{
+    if (!preg_match('//u', $value)) { return sblog_t('请填写有效的内容。'); }
+    if (!empty($field['required']) && ($value === '' || ($field['type'] === 'checkbox' && $value !== '1'))) {
+        return sblog_t('此项不能为空。');
+    }
+    if (str_len_u($value) > $field['maxlength']) { return sblog_t('内容超过允许的长度。'); }
+    if ($field['type'] === 'checkbox') { return in_array($value, ['0', '1'], true) ? '' : sblog_t('请选择有效的选项。'); }
+    if ($field['type'] === 'select') { return array_key_exists($value, $field['options']) ? '' : sblog_t('请选择有效的选项。'); }
+    if ($value === '') { return ''; }
+    if ($field['type'] === 'url') {
+        $local = str_starts_with($value, '/') && !str_starts_with($value, '//')
+            && !preg_match('/[\\x00-\\x20\\x7f\\\\]/', $value);
+        if (!$local && !valid_http_url($value)) { return sblog_t('请填写 HTTP(S) 地址或站内绝对路径。'); }
+    }
+    if ($field['type'] === 'color' && !preg_match('/^#[0-9a-f]{6}$/i', $value)) { return sblog_t('请填写六位十六进制颜色，例如 #fe9600。'); }
+    if ($field['type'] === 'date') {
+        if (!preg_match('/^(\\d{4})-(\\d{2})-(\\d{2})$/', $value, $parts)
+            || !checkdate((int)$parts[2], (int)$parts[3], (int)$parts[1])) { return sblog_t('请填写有效日期（YYYY-MM-DD）。'); }
+    }
+    return '';
+}
+
+function theme_settings(?string $slug = null): array
+{
+    $slug ??= active_theme_slug();
+    $sections = theme_settings_schema($slug);
+    if (!$sections) { return []; }
+    $raw = setting('theme_settings_' . $slug, '{}');
+    $cache = &theme_inventory_cache();
+    if (isset($cache['settings_values'][$slug]) && $cache['settings_values'][$slug]['raw'] === $raw) {
+        return $cache['settings_values'][$slug]['values'];
+    }
+    $stored = json_decode($raw, true);
+    $stored = is_array($stored) ? $stored : [];
+    $values = [];
+    foreach ($sections as $section) {
+        foreach ($section['fields'] as $field) {
+            $value = is_scalar($stored[$field['key']] ?? null) ? (string)$stored[$field['key']] : $field['default'];
+            $values[$field['key']] = theme_setting_value_error($field, $value) === '' ? $value : $field['default'];
+        }
+    }
+    $cache['settings_values'][$slug] = ['raw' => $raw, 'values' => $values];
+    return $values;
+}
+
+function theme_setting(string $key, string $default = '', ?string $slug = null): string
+{
+    return theme_settings($slug)[$key] ?? $default;
+}
+
+function theme_settings_values(string $slug, array $input): array
+{
+    $values = [];
+    $errors = [];
+    foreach (theme_settings_schema($slug) as $section) {
+        foreach ($section['fields'] as $field) {
+            $key = $field['key'];
+            $raw = $input[$key] ?? ($field['type'] === 'checkbox' ? '0' : '');
+            $values[$key] = is_scalar($raw) ? trim((string)$raw) : '';
+            $error = is_scalar($raw) ? theme_setting_value_error($field, $values[$key]) : sblog_t('请填写有效的内容。');
+            if ($error !== '') { $errors[$key] = $error; }
+        }
+    }
+    return ['values' => $values, 'errors' => $errors];
+}
+
 function add_theme_action(string $hook, callable $callback, int $priority = 10): void
 {
     if (!preg_match('/^[a-z][a-z0-9_.-]*$/', $hook)) {
@@ -3068,6 +3203,7 @@ function url_for(string $route, array $params = []): string
         'admin_mail' => $pretty ? app_path('/admin/mail') : script_url() . '?a=admin_mail',
         'admin_s3' => $pretty ? app_path('/admin/s3') : script_url() . '?a=admin_s3',
         'admin_themes' => $pretty ? app_path('/admin/themes') : script_url() . '?a=admin_themes',
+        'admin_theme_settings' => script_url() . '?a=admin_theme_settings',
         'admin_settings' => $pretty ? app_path('/admin/settings') : script_url() . '?a=admin_settings',
         'admin_plugins' => $pretty ? app_path('/admin/plugins') : script_url() . '?a=admin_plugins',
         'admin_store' => $pretty ? app_path('/admin/store') : script_url() . '?a=admin_store',
@@ -8377,6 +8513,7 @@ function render_admin_themes_page(): void
                           <summary class="button button--ghost"><?= h(sblog_t('更多')) ?></summary>
                           <div class="extension-actions-menu__items">
                             <a href="<?= h($previewUrl) ?>" target="_blank" rel="noopener noreferrer" aria-label="<?= h($previewLabel) ?>"><?= h(sblog_t('打开预览')) ?></a>
+                            <?php if (theme_settings_schema((string)$slug)): ?><a href="<?= h(url_with_query(url_for('admin_theme_settings'), ['theme' => (string)$slug])) ?>"><?= h(sblog_t('主题设置')) ?></a><?php endif; ?>
                           <?php if ($slug !== 'default'): ?>
                           <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" data-theme-uninstall<?= $isActive ? ' hidden' : '' ?> onsubmit="return confirm(<?= h(json_encode(sblog_t('确定卸载主题 {name} 吗？服务器上的主题文件将被永久删除。', ['name' => $themeName]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                             <?= csrf_field() ?>
@@ -8398,6 +8535,87 @@ function render_admin_themes_page(): void
         </section>
     <?php
     render_admin_content_end(sblog_t('主题管理'), 'themes', sblog_t('博客前台主题管理'));
+}
+
+function render_admin_theme_settings_page(): void
+{
+    require_admin();
+    $isPost = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST';
+    if ($isPost) { verify_csrf(); }
+    $slug = is_string($_GET['theme'] ?? null) ? trim($_GET['theme']) : '';
+    $theme = theme_manifest($slug);
+    $sections = theme_settings_schema($slug);
+    if ($theme === null || !$sections) {
+        simple_error_page(sblog_t('主题设置'), sblog_t('该主题不存在或未提供设置项。'), 404);
+        return;
+    }
+    $returnUrl = url_with_query(url_for('admin_theme_settings'), ['theme' => $slug]);
+    $values = theme_settings($slug);
+    $errors = [];
+    if ($isPost) {
+        $result = theme_settings_values($slug, is_array($_POST['settings'] ?? null) ? $_POST['settings'] : []);
+        $values = $result['values'];
+        $errors = $result['errors'];
+        if (!$errors) {
+            save_settings(['theme_settings_' . $slug => json_encode($values, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)]);
+            set_flash('success', sblog_t('主题设置已保存。'));
+            redirect_to($returnUrl, 303);
+            return;
+        }
+    }
+    $title = sblog_t('主题设置') . ' · ' . (string)$theme['name'];
+    ob_start();
+    ?>
+    <?= render_admin_content_start($title, render_admin_sidebar('themes')) ?>
+      <div class="action-row">
+        <a class="button button--secondary" href="<?= h(url_for('admin_themes')) ?>"><?= h(sblog_t('返回主题管理')) ?></a>
+        <a class="button button--secondary" href="<?= h(url_with_query(url_for('home'), ['theme_preview' => $slug])) ?>" target="_blank" rel="noopener noreferrer"><?= h(sblog_t('打开预览')) ?></a>
+      </div>
+      <?php if ($errors): ?><div class="flash flash--error" role="alert"><?= h(sblog_t('请修正以下设置后再保存。')) ?></div><?php endif; ?>
+      <form class="form-stack" method="post" action="<?= h($returnUrl) ?>">
+        <?= csrf_field() ?>
+        <?php foreach ($sections as $sectionIndex => $section): ?>
+          <section class="panel">
+            <div class="panel__header"><h2><?= h($section['title'] !== '' ? $section['title'] : $theme['name']) ?></h2><?php if ($section['description'] !== ''): ?><p class="panel__meta"><?= h($section['description']) ?></p><?php endif; ?></div>
+            <div class="panel__body form-stack">
+              <?php foreach ($section['fields'] as $field):
+                  $key = $field['key'];
+                  $id = 'theme-setting-' . $key;
+                  $name = 'settings[' . $key . ']';
+                  $value = $values[$key] ?? '';
+                  $hasHint = $field['description'] !== '';
+                  $hasError = isset($errors[$key]);
+                  $describedBy = trim(($hasHint ? $id . '-hint' : '') . ' ' . ($hasError ? $id . '-error' : ''));
+                  $attributes = ' id="' . h($id) . '" name="' . h($name) . '"'
+                      . ($field['required'] ? ' required' : '')
+                      . ($describedBy !== '' ? ' aria-describedby="' . h($describedBy) . '"' : '')
+                      . ($hasError ? ' aria-invalid="true"' : '');
+              ?>
+                <div class="field">
+                  <?php if ($field['type'] === 'checkbox'): ?>
+                    <label class="setting-option" for="<?= h($id) ?>"><input type="checkbox"<?= $attributes ?> value="1"<?= $value === '1' ? ' checked' : '' ?>><span><?= h($field['label']) ?></span></label>
+                  <?php else: ?>
+                    <label for="<?= h($id) ?>"><?= h($field['label']) ?></label>
+                    <?php if ($field['type'] === 'textarea'): ?>
+                      <textarea<?= $attributes ?> rows="5" maxlength="<?= $field['maxlength'] ?>" placeholder="<?= h($field['placeholder']) ?>"><?= h($value) ?></textarea>
+                    <?php elseif ($field['type'] === 'select'): ?>
+                      <select<?= $attributes ?>><?php if (!array_key_exists($value, $field['options'])): ?><option value="<?= h($value) ?>" selected disabled><?= h($value) ?></option><?php endif; ?><?php foreach ($field['options'] as $optionValue => $optionLabel): ?><option value="<?= h((string)$optionValue) ?>"<?= (string)$optionValue === $value ? ' selected' : '' ?>><?= h($optionLabel) ?></option><?php endforeach; ?></select>
+                    <?php else: ?>
+                      <input<?= $attributes ?> type="<?= $field['type'] === 'date' ? 'date' : 'text' ?>" value="<?= h($value) ?>" maxlength="<?= $field['maxlength'] ?>" placeholder="<?= h($field['placeholder']) ?>"<?= $field['type'] === 'url' ? ' inputmode="url"' : '' ?>>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                  <?php if ($hasHint): ?><p class="field-hint" id="<?= h($id) ?>-hint"><?= h($field['description']) ?></p><?php endif; ?>
+                  <?php if ($hasError): ?><p class="field-hint" role="alert" id="<?= h($id) ?>-error"><?= h($errors[$key]) ?></p><?php endif; ?>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </section>
+        <?php endforeach; ?>
+        <div class="action-row"><button class="button" type="submit"><?= h(sblog_t('保存设置')) ?></button></div>
+      </form>
+    <?php
+    $content = (string)ob_get_clean() . '</div></div>';
+    render_layout($title, $content, ['active' => 'themes', 'wide' => true, 'description' => $title, 'status' => $errors ? 422 : 200]);
 }
 
 function admin_settings_sections(): array
@@ -8893,6 +9111,7 @@ $pageRenderers = [
     'admin_users' => 'render_admin_users_page',
     'admin_media' => 'render_admin_media_page',
     'admin_themes' => 'render_admin_themes_page',
+    'admin_theme_settings' => 'render_admin_theme_settings_page',
     'admin_settings' => 'render_admin_settings_page',
     'admin_plugins' => 'render_admin_plugins_page',
     'admin_store' => 'render_admin_store_page',
