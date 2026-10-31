@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.18';
+const APP_VERSION = 'v1.14.19';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -5165,10 +5165,10 @@ function visitor_email_has_approved_comment(string $email): bool
     ) !== false;
 }
 
-function comment_admin_counts(): array
+function comment_admin_counts(bool $refresh = false): array
 {
     static $counts = null;
-    if (is_array($counts)) {
+    if (!$refresh && is_array($counts)) {
         return $counts;
     }
 
@@ -7635,8 +7635,15 @@ function render_admin_comments_page(): void
     $filter = trim((string)($_GET['filter'] ?? 'all'));
     $search = str_sub_u(trim((string)($_GET['q'] ?? '')), 0, 100);
     $requestedPage = max(1, (int)($_GET['p'] ?? 1));
+    $lastCommentId = (int)val('SELECT COALESCE(MAX(id), 0) FROM comments');
     [$comments, $total, $page, $totalPages, $filter] = fetch_admin_comments($filter, $search, $requestedPage);
-    $counts = comment_admin_counts();
+    // Fetch before marking read so the notification link still shows the unread comments.
+    q('UPDATE comments SET is_read = 1, updated_at = ? WHERE is_read = 0 AND id <= ?', [time(), $lastCommentId]);
+    foreach ($comments as &$comment) {
+        if ((int)$comment['id'] <= $lastCommentId) { $comment['is_read'] = 1; }
+    }
+    unset($comment);
+    $counts = comment_admin_counts(true);
     $sidebar = render_admin_sidebar('comments');
     $filters = [
         'all' => ['label' => sblog_t('全部'), 'count' => $counts['all']],
@@ -9240,7 +9247,7 @@ switch ($action) {
             && !$hasApprovedVisitorEmail
             && (setting('comments_require_approval', '1') === '1' || $linkCount > 2);
         $status = $needsApproval ? 'pending' : 'approved';
-        $isRead = setting('comments_notify', '1') === '1' ? 0 : 1;
+        $isRead = !$isAuthenticatedAdmin && setting('comments_notify', '1') === '1' ? 0 : 1;
         $submissionAllowed = plugin_filter('comment_submission_allowed', true, [
             'post' => public_content_context($post),
             'comment' => $comment,

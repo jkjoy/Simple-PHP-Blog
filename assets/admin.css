@@ -1384,9 +1384,15 @@ textarea {
 }
 
 .theme-admin:not(.theme-admin--guest) .admin-side__link:hover,
-.theme-admin:not(.theme-admin--guest) .admin-side__link.is-active {
+.theme-admin:not(.theme-admin--guest) .admin-side__link.is-active,
+.theme-admin:not(.theme-admin--guest) .admin-side__group[open] > summary {
   color: var(--admin-accent);
   background: var(--admin-accent-soft);
+}
+
+.theme-admin:not(.theme-admin--guest) .admin-side__nav:has(> .admin-side__group[open]) > .admin-side__link.is-active:not(:hover) {
+  color: var(--admin-muted);
+  background: transparent;
 }
 
 .theme-admin:not(.theme-admin--guest) .admin-side__link:hover::before,
