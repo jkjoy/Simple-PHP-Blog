@@ -6,6 +6,205 @@ function sblogText(key, fallback, variables = {}) {
   ));
 }
 
+let adminEditorLeaveWarning = null;
+let adminConfirmOpen = false;
+
+function showAdminNotice(message, kind = "info", { dismissible = true } = {}) {
+  let region = document.querySelector(".admin-notices");
+  if (!region) {
+    region = document.createElement("div");
+    region.className = "admin-notices";
+    document.body.append(region);
+  }
+  const notice = document.createElement("div");
+  notice.className = `admin-notice admin-notice--${kind === "error" ? "error" : "info"}`;
+  notice.setAttribute("role", kind === "error" ? "alert" : "status");
+  notice.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
+  notice.setAttribute("aria-atomic", "true");
+  const content = document.createElement("div");
+  content.className = "admin-notice__content";
+  const title = document.createElement("strong");
+  title.textContent = kind === "error"
+    ? sblogText("admin_notice_error", "操作未完成")
+    : sblogText("admin_notice_info", "提示");
+  const text = document.createElement("p");
+  text.textContent = message;
+  content.append(title, text);
+  notice.append(content);
+  if (dismissible) {
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "admin-notice__close";
+    close.setAttribute("aria-label", sblogText("admin_notice_close", "关闭提示"));
+    close.textContent = "×";
+    close.addEventListener("click", () => notice.remove());
+    notice.append(close);
+  }
+  region.append(notice);
+  return notice;
+}
+
+function showAdminConfirm(message, {
+  title = sblogText("admin_confirm_title", "确认操作"),
+  confirmLabel = sblogText("admin_confirm_continue", "继续"),
+  danger = false,
+} = {}) {
+  if (adminConfirmOpen) return Promise.resolve(false);
+  adminConfirmOpen = true;
+  const previousFocus = document.activeElement;
+  const dialog = document.createElement("dialog");
+  dialog.className = "admin-confirm";
+  dialog.setAttribute("aria-labelledby", "adminConfirmTitle");
+  dialog.setAttribute("aria-describedby", "adminConfirmMessage");
+  const heading = document.createElement("h2");
+  heading.id = "adminConfirmTitle";
+  heading.textContent = title;
+  const text = document.createElement("p");
+  text.id = "adminConfirmMessage";
+  text.textContent = message;
+  const actions = document.createElement("div");
+  actions.className = "admin-confirm__actions";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "button button--ghost";
+  cancel.textContent = sblogText("admin_confirm_cancel", "取消");
+  const confirm = document.createElement("button");
+  confirm.type = "button";
+  confirm.className = danger ? "button button--danger" : "button";
+  confirm.textContent = confirmLabel;
+  actions.append(cancel, confirm);
+  dialog.append(heading, text, actions);
+  document.body.append(dialog);
+  return new Promise((resolve) => {
+    cancel.addEventListener("click", () => dialog.close("cancel"));
+    confirm.addEventListener("click", () => dialog.close("confirm"));
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab") return;
+      if (event.shiftKey && document.activeElement === cancel) {
+        event.preventDefault();
+        confirm.focus();
+      } else if (!event.shiftKey && document.activeElement === confirm) {
+        event.preventDefault();
+        cancel.focus();
+      }
+    });
+    dialog.addEventListener("click", (event) => {
+      if (event.target !== dialog) return;
+      const rect = dialog.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
+        dialog.close("cancel");
+      }
+    });
+    dialog.addEventListener("close", () => {
+      const confirmed = dialog.returnValue === "confirm";
+      dialog.remove();
+      adminConfirmOpen = false;
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus({ preventScroll: true });
+      resolve(confirmed);
+    }, { once: true });
+    dialog.showModal();
+    cancel.focus({ preventScroll: true });
+  });
+}
+
+function initAdminConfirmations() {
+  const approved = new WeakSet();
+  const pending = new WeakSet();
+  document.addEventListener("submit", async (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+    if (form.getAttribute("aria-busy") === "true") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+    if (approved.delete(form)) return;
+    const submitter = event.submitter;
+    let message = submitter?.dataset.confirm || form.dataset.confirm || "";
+    if (!submitter?.dataset.confirm && form.dataset.confirmAction
+      && form.elements.namedItem("action")?.value !== form.dataset.confirmAction) message = "";
+    const editor = adminEditorLeaveWarning;
+    const leavingEditor = editor && form !== editor.form && !form.closest("[data-media-picker]")
+      && (!form.target || form.target.toLowerCase() === "_self") && editor.hasUnsavedChanges();
+    if (leavingEditor) message = [message, editor.message].filter(Boolean).join("\n\n");
+    if (!message) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (pending.has(form)) return;
+    pending.add(form);
+    const danger = submitter?.classList.contains("button--danger") || form.dataset.confirmAction === "delete";
+    const confirmed = await showAdminConfirm(message, {
+      danger,
+      confirmLabel: danger && !form.dataset.confirmAction ? submitter?.textContent.trim() || undefined : undefined,
+    });
+    pending.delete(form);
+    if (!confirmed || !form.isConnected) return;
+    approved.add(form);
+    try {
+      if (submitter && submitter.form === form) form.requestSubmit(submitter);
+      else form.requestSubmit();
+    } finally {
+      approved.delete(form);
+    }
+  }, true);
+}
+
+function initCoreUpdate() {
+  document.querySelectorAll("[data-core-update]").forEach((form) => {
+    if (!(form instanceof HTMLFormElement) || typeof window.fetch !== "function") return;
+    const buttons = new Map();
+    let notice;
+    const restore = () => {
+      form.removeAttribute("aria-busy");
+      buttons.forEach((disabled, button) => { button.disabled = disabled; });
+      buttons.clear();
+    };
+    form.addEventListener("submit", async (event) => {
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      if (form.getAttribute("aria-busy") === "true") return;
+      const data = new FormData(form);
+      const submitter = event.submitter;
+      if (submitter?.name && !submitter.disabled) data.append(submitter.name, submitter.value);
+      form.setAttribute("aria-busy", "true");
+      form.querySelectorAll('button, input[type="submit"]').forEach((button) => {
+        buttons.set(button, button.disabled);
+        button.disabled = true;
+      });
+      notice?.remove();
+      notice = showAdminNotice(sblogText("core_update_pending", "正在更新主程序，请勿关闭或刷新页面。完成后将自动刷新。"), "info", { dismissible: false });
+      let navigating = false;
+      let errorMessage = sblogText("core_update_failed", "主程序更新失败，请重试。");
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body: data,
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        });
+        const result = await response.json();
+        if (typeof result?.error === "string" && result.error.trim() !== "") errorMessage = result.error;
+        if (!response.ok || result?.ok !== true || typeof result.redirect_url !== "string") throw new Error("Update failed");
+        const destination = new URL(result.redirect_url, window.location.href);
+        if (destination.origin !== window.location.origin) throw new Error("Invalid update redirect");
+        notice.remove();
+        notice = showAdminNotice(sblogText("core_update_refreshing", "更新完成，正在刷新页面…"), "info", { dismissible: false });
+        window.location.assign(destination.href);
+        navigating = true;
+      } catch (error) {
+        notice?.remove();
+        notice = showAdminNotice(errorMessage, "error");
+      } finally {
+        if (!navigating) restore();
+      }
+    });
+    window.addEventListener("pageshow", () => {
+      notice?.remove();
+      restore();
+    });
+  });
+}
+
 function initAdminTheme() {
   const controls = Array.from(document.querySelectorAll("[data-admin-theme-toggle]"));
   if (!controls.length) return;
@@ -112,7 +311,7 @@ function initThemeManager() {
         }
       } catch (error) {
         setActiveTheme(previousSlug);
-        window.alert(sblogText("theme_activate_failed", "主题切换失败，请重试。"));
+        showAdminNotice(sblogText("theme_activate_failed", "主题切换失败，请重试。"), "error");
       } finally {
         manager.removeAttribute("aria-busy");
         forms.forEach((item) => {
@@ -613,23 +812,16 @@ function initEditorLeaveWarning() {
       if (event.defaultPrevented) allowUnload = false;
     }, 0);
   };
-  const confirmLeave = () => {
-    if (!hasUnsavedChanges()) return true;
-    return window.confirm(message);
-  };
+  adminEditorLeaveWarning = { form, hasUnsavedChanges, message };
 
   form.addEventListener("submit", allowNavigation);
   document.addEventListener("submit", (event) => {
     const submittedForm = event.target;
     if (!(submittedForm instanceof HTMLFormElement) || submittedForm === form || submittedForm.closest("[data-media-picker]")) return;
     if (submittedForm.target && submittedForm.target.toLowerCase() !== "_self") return;
-    if (!confirmLeave()) {
-      event.preventDefault();
-      return;
-    }
-    allowNavigation(event);
-  }, true);
-  document.addEventListener("click", (event) => {
+    if (!event.defaultPrevented) allowNavigation(event);
+  });
+  document.addEventListener("click", async (event) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const target = event.target;
     const link = target instanceof Element ? target.closest("a[href]") : null;
@@ -642,11 +834,18 @@ function initEditorLeaveWarning() {
       && destination.search === window.location.search
       && (destination.hash !== "" || link.getAttribute("href") === "#");
     if (sameDocumentAnchor) return;
-    if (!confirmLeave()) {
-      event.preventDefault();
+    if (!hasUnsavedChanges()) {
+      allowNavigation(event);
       return;
     }
-    allowNavigation(event);
+    event.preventDefault();
+    const confirmed = await showAdminConfirm(message, {
+      title: sblogText("editor_leave_title", "离开编辑页面？"),
+      confirmLabel: sblogText("editor_leave_confirm", "离开"),
+    });
+    if (!confirmed) return;
+    allowUnload = true;
+    window.location.assign(destination.href);
   });
   window.addEventListener("beforeunload", (event) => {
     if (allowUnload || !hasUnsavedChanges()) return;
@@ -1397,6 +1596,8 @@ function initAiEditor() {
   });
 }
 document.addEventListener("DOMContentLoaded", () => {
+  initAdminConfirmations();
+  initCoreUpdate();
   initAdminTheme();
   initThemeManager();
   initExtensionInstalls();

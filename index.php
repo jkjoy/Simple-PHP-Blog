@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.26';
+const APP_VERSION = 'v1.14.27';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -1398,12 +1398,16 @@ function install_release_files(string $source, string $targetRoot, string $backu
                 $created[] = $file;
             }
             if (!copy($from, $target)) { throw new RuntimeException(sblog_t('无法覆盖 {file}', ['file' => $file])); }
+            if (str_ends_with($file, '.php') && function_exists('opcache_invalidate')) { @opcache_invalidate($target, true); }
         }
     } catch (Throwable $exception) {
         foreach (array_reverse($created) as $file) { @unlink($targetRoot . '/' . $file); }
         foreach (array_reverse($replaced) as $file) {
             $saved = $backup . '/' . $file;
-            if (is_file($saved)) { copy($saved, $targetRoot . '/' . $file); }
+            if (is_file($saved)) {
+                copy($saved, $targetRoot . '/' . $file);
+                if (str_ends_with($file, '.php') && function_exists('opcache_invalidate')) { @opcache_invalidate($targetRoot . '/' . $file, true); }
+            }
         }
         foreach (array_reverse(array_unique($createdDirectories)) as $directory) {
             $current = $directory;
@@ -7370,7 +7374,7 @@ function render_admin_page(): void
                   <?php if (!$updateDatabaseKnown): ?><p class="update-notice__warning"><?= h(sblog_t('此版本未声明数据库升级信息，请在更新后检查发布说明和后台提示。')) ?></p><?php endif; ?>
                   <?php if ($updateDatabaseIncompatible): ?><p class="update-notice__warning"><?= h(sblog_t('此更新声明的数据库版本低于当前环境，已禁止安装。')) ?></p><?php endif; ?>
                 </div>
-                <form method="post" action="<?= h(url_for('install_update')) ?>" onsubmit="return confirm(<?= h(json_encode($updateConfirmation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                <form method="post" action="<?= h(url_for('install_update')) ?>" data-core-update data-confirm="<?= h($updateConfirmation) ?>">
                   <?= csrf_field() ?>
                   <input type="hidden" name="expected_version" value="<?= h($update['latest']) ?>">
                   <input type="hidden" name="expected_database_schema_known" value="<?= $updateDatabaseKnown ? '1' : '0' ?>">
@@ -7615,7 +7619,7 @@ function render_admin_posts_page(): void
                             <input type="hidden" name="return_page" value="<?= $page ?>">
                             <button class="button button--ghost" type="submit"><?= h((string)$post['status'] === 'published' ? sblog_t('转草稿') : sblog_t('发布')) ?></button>
                           </form>
-                          <form method="post" action="<?= h(url_for('delete_post')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除这篇文章吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                          <form method="post" action="<?= h(url_for('delete_post')) ?>" data-confirm="<?= h(sblog_t('确定删除这篇文章吗？')) ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="id" value="<?= h($post['id']) ?>">
                             <input type="hidden" name="return_page" value="<?= $page ?>">
@@ -7752,14 +7756,18 @@ function render_admin_comments_page(): void
                           <div class="comment-summary">
                             <?php if (trim((string)$comment['reply_to_name']) !== ''): ?><span class="comment-summary__reply"><?= h(sblog_t('回复 @{name}', ['name' => (string)$comment['reply_to_name']])) ?></span><?php endif; ?>
                             <p><?= h(comment_excerpt((string)$comment['content'])) ?></p>
-                            <a href="<?= h(content_permalink(['kind' => (string)$comment['post_kind'], 'slug' => (string)$comment['post_slug']])) ?><?= (string)$comment['status'] === 'approved' && (string)$comment['post_kind'] === 'post' ? '#comment-' . h($comment['id']) : '' ?>"><?= h($comment['post_title']) ?></a>
                           </div>
                         </td>
                         <td class="comment-table__status" title="<?= h($state['label']) ?>">
                           <span class="status-badge status-badge--<?= h($state['class']) ?>"><?= h($state['label']) ?></span>
                           <?php if ((int)$comment['is_read'] === 0): ?><span class="comment-unread-dot"><?= h(sblog_t('未读')) ?></span><?php endif; ?>
                         </td>
-                        <td class="comment-table__time" title="<?= h(pretty_date((int)$comment['created_at'], true)) ?>"><time datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time></td>
+                        <td class="comment-table__time">
+                          <div class="comment-meta">
+                            <time datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>" title="<?= h(pretty_date((int)$comment['created_at'], true)) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
+                            <a class="comment-context" href="<?= h(content_permalink(['kind' => (string)$comment['post_kind'], 'slug' => (string)$comment['post_slug']])) ?><?= (string)$comment['status'] === 'approved' && (string)$comment['post_kind'] === 'post' ? '#comment-' . h($comment['id']) : '' ?>" title="<?= h(sblog_t('在 {title} 中', ['title' => (string)$comment['post_title']])) ?>"><?= h(sblog_t('在 {title} 中', ['title' => (string)$comment['post_title']])) ?></a>
+                          </div>
+                        </td>
                         <td class="comment-table__actions">
                           <form class="table-actions comment-actions" method="post" action="<?= h(url_for('moderate_comments')) ?>">
                             <?= csrf_field() ?>
@@ -7771,7 +7779,7 @@ function render_admin_comments_page(): void
                             <?php if ((string)$comment['status'] === 'approved'): ?><button class="button button--ghost" name="action" value="pending" type="submit"><?= h(sblog_t('撤下')) ?></button><?php endif; ?>
                             <?php if ((string)$comment['status'] !== 'spam'): ?><button class="button button--ghost" name="action" value="spam" type="submit"><?= h(sblog_t('垃圾')) ?></button><?php endif; ?>
                             <?php if ((int)$comment['is_read'] === 0): ?><button class="button button--ghost" name="action" value="read" type="submit"><?= h(sblog_t('已读')) ?></button><?php endif; ?>
-                            <button class="button button--danger" name="action" value="delete" type="submit" onclick="return confirm(<?= h(json_encode(sblog_t('确定永久删除这条评论吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);"><?= h(sblog_t('删除')) ?></button>
+                            <button class="button button--danger" name="action" value="delete" type="submit" data-confirm="<?= h(sblog_t('确定永久删除这条评论吗？')) ?>"><?= h(sblog_t('删除')) ?></button>
                           </form>
                         </td>
                       </tr>
@@ -7781,7 +7789,7 @@ function render_admin_comments_page(): void
               </div>
 
               <div class="admin-table-footer">
-                <form id="comments-bulk-form" class="comment-bulk-form" method="post" action="<?= h(url_for('moderate_comments')) ?>" onsubmit="return this.elements.action.value !== 'delete' || confirm(<?= h(json_encode(sblog_t('确定永久删除选中的评论吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                <form id="comments-bulk-form" class="comment-bulk-form" method="post" action="<?= h(url_for('moderate_comments')) ?>" data-confirm-action="delete" data-confirm="<?= h(sblog_t('确定永久删除选中的评论吗？')) ?>">
                   <?= csrf_field() ?>
                   <input type="hidden" name="filter" value="<?= h($filter) ?>">
                   <input type="hidden" name="q" value="<?= h($search) ?>">
@@ -7873,7 +7881,7 @@ function render_admin_categories_page(array $form = [], array $errors = []): voi
                         <td>
                           <div class="table-actions">
                             <a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_categories'), ['id' => (int)$category['id']])) ?>"><?= h(sblog_t('编辑')) ?></a>
-                            <form method="post" action="<?= h(url_for('delete_category')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除这个空分类吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                            <form method="post" action="<?= h(url_for('delete_category')) ?>" data-confirm="<?= h(sblog_t('确定删除这个空分类吗？')) ?>">
                               <?= csrf_field() ?>
                               <input type="hidden" name="id" value="<?= h($category['id']) ?>">
                               <button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button>
@@ -7956,7 +7964,7 @@ function render_admin_links_page(array $form = [], array $errors = []): void
       <div class="admin-grid admin-grid--split">
         <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h(sblog_t('链接列表')) ?></h2><p class="panel__meta"><?= h(sblog_t('排序数字越小越靠前。')) ?></p></div><div class="panel__body panel__body--flush">
           <?php if ($links): ?><div class="table-wrap"><table class="admin-table"><thead><tr><th><?= h(sblog_t('名称')) ?></th><th><?= h(sblog_t('网址')) ?></th><th><?= h(sblog_t('排序')) ?></th><th><?= h(sblog_t('操作')) ?></th></tr></thead><tbody>
-          <?php foreach ($links as $link): ?><tr><td><div class="table-title"><strong><?= h($link['name']) ?></strong><span><?= h($link['description']) ?></span></div></td><td><a href="<?= h($link['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h($link['url']) ?></a></td><td><?= h($link['sort_order']) ?></td><td><div class="table-actions"><a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_links'), ['id' => (int)$link['id']])) ?>"><?= h(sblog_t('编辑')) ?></a><form method="post" action="<?= h(url_for('delete_link')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除这个链接吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h($link['id']) ?>"><button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button></form></div></td></tr><?php endforeach; ?>
+          <?php foreach ($links as $link): ?><tr><td><div class="table-title"><strong><?= h($link['name']) ?></strong><span><?= h($link['description']) ?></span></div></td><td><a href="<?= h($link['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h($link['url']) ?></a></td><td><?= h($link['sort_order']) ?></td><td><div class="table-actions"><a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_links'), ['id' => (int)$link['id']])) ?>"><?= h(sblog_t('编辑')) ?></a><form method="post" action="<?= h(url_for('delete_link')) ?>" data-confirm="<?= h(sblog_t('确定删除这个链接吗？')) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h($link['id']) ?>"><button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button></form></div></td></tr><?php endforeach; ?>
           </tbody></table></div><?php else: ?><div class="empty-state empty-state--inside"><p><?= h(sblog_t('还没有友情链接。')) ?></p></div><?php endif; ?>
         </div></section>
         <section class="panel admin-list-panel"><div class="panel__header"><h2><?= h($editing ? sblog_t('编辑链接') : sblog_t('添加链接')) ?></h2></div><div class="panel__body">
@@ -8020,7 +8028,7 @@ function render_admin_tags_page(array $form = [], array $errors = []): void
             </div>
             <div class="panel__body">
               <?php if ($tags): ?>
-                <form class="tag-cloud-form" method="post" action="<?= h(url_for('delete_tag')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除选中的标签吗？文章本身不会被删除。'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                <form class="tag-cloud-form" method="post" action="<?= h(url_for('delete_tag')) ?>" data-confirm="<?= h(sblog_t('确定删除选中的标签吗？文章本身不会被删除。')) ?>">
                   <?= csrf_field() ?>
                   <div class="tag-cloud__toolbar">
                     <button class="button button--secondary tag-cloud__select-all" type="button" data-tag-check-all aria-pressed="false"><?= h(sblog_t('全选')) ?></button>
@@ -8220,7 +8228,7 @@ function render_admin_media_page(): void
                   <div class="media-library-actions">
                     <a class="button button--ghost" href="<?= h($media['url']) ?>" target="_blank" rel="noopener noreferrer"><?= h(sblog_t('打开')) ?></a>
                     <a class="button button--ghost" href="<?= h(url_with_query(url_for('admin_media'), ['id' => (int)$media['id']])) ?>#media-editor"><?= h(sblog_t('编辑')) ?></a>
-                    <form method="post" action="<?= h(url_for('delete_media')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('删除此媒体资料？文件将被永久删除。'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h($media['id']) ?>"><button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button></form>
+                    <form method="post" action="<?= h(url_for('delete_media')) ?>" data-confirm="<?= h(sblog_t('删除此媒体资料？文件将被永久删除。')) ?>"><?= csrf_field() ?><input type="hidden" name="id" value="<?= h($media['id']) ?>"><button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button></form>
                   </div>
                 </article>
               <?php endforeach; ?>
@@ -8478,7 +8486,7 @@ function render_admin_plugins_page(): void
                               <?php if ($isActive && (string)$plugin['settings_action'] !== ''): ?><a href="<?= h(script_url() . '?a=' . rawurlencode((string)$plugin['settings_action'])) ?>"><?= h(sblog_t('设置')) ?></a><?php endif; ?>
                               <?php if ($isLanguage): ?><a href="<?= h(url_with_query(url_for('admin_settings'), ['section' => 'general'])) ?>"><?= h(sblog_t('选择语言')) ?></a><?php endif; ?>
                               <?php if (!$isActive || $isLanguage): ?>
-                            <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定卸载插件 {name} 吗？服务器上的插件文件将被永久删除。', ['name' => (string)$displayMetadata['name']]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                            <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" data-confirm="<?= h(sblog_t('确定卸载插件 {name} 吗？服务器上的插件文件将被永久删除。', ['name' => (string)$displayMetadata['name']])) ?>">
                               <?= csrf_field() ?>
                               <input type="hidden" name="type" value="plugin">
                               <input type="hidden" name="slug" value="<?= h($slug) ?>">
@@ -8611,7 +8619,7 @@ function render_admin_themes_page(): void
                             <a href="<?= h($previewUrl) ?>" target="_blank" rel="noopener noreferrer" aria-label="<?= h($previewLabel) ?>"><?= h(sblog_t('打开预览')) ?></a>
                             <?php if (theme_settings_schema((string)$slug)): ?><a href="<?= h(url_with_query(url_for('admin_theme_settings'), ['theme' => (string)$slug])) ?>"><?= h(sblog_t('主题设置')) ?></a><?php endif; ?>
                           <?php if ($slug !== 'default'): ?>
-                          <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" data-theme-uninstall<?= $isActive ? ' hidden' : '' ?> onsubmit="return confirm(<?= h(json_encode(sblog_t('确定卸载主题 {name} 吗？服务器上的主题文件将被永久删除。', ['name' => $themeName]), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+                          <form method="post" action="<?= h(url_for('uninstall_extension')) ?>" data-theme-uninstall<?= $isActive ? ' hidden' : '' ?> data-confirm="<?= h(sblog_t('确定卸载主题 {name} 吗？服务器上的主题文件将被永久删除。', ['name' => $themeName])) ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="type" value="theme">
                             <input type="hidden" name="slug" value="<?= h($slug) ?>">
@@ -8893,13 +8901,13 @@ location / {
           </div>
           <div class="panel__body">
             <div class="action-row action-row--start">
-              <form method="post" action="<?= h(url_for('clear_cache')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定永久删除所有更新和扩展备份吗？删除后无法从这些备份恢复。'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+              <form method="post" action="<?= h(url_for('clear_cache')) ?>" data-confirm="<?= h(sblog_t('确定永久删除所有更新和扩展备份吗？删除后无法从这些备份恢复。')) ?>">
                 <?= csrf_field() ?>
                 <input type="hidden" name="settings_section" value="maintenance">
                 <input type="hidden" name="kind" value="backups">
                 <button class="button button--danger" type="submit"<?= $backupCount === 0 ? ' disabled' : '' ?>><?= h(sblog_t('清理备份（{count} 项）', ['count' => $backupCount])) ?></button>
               </form>
-              <form method="post" action="<?= h(url_for('clear_cache')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除可重建的缓存文件吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
+              <form method="post" action="<?= h(url_for('clear_cache')) ?>" data-confirm="<?= h(sblog_t('确定删除可重建的缓存文件吗？')) ?>">
                 <?= csrf_field() ?>
                 <input type="hidden" name="settings_section" value="maintenance">
                 <input type="hidden" name="kind" value="cache">
@@ -9603,6 +9611,7 @@ switch ($action) {
 
     case 'install_update':
         require_admin_post(url_for('admin'));
+        $acceptsJson = str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
         try {
             $expectedVersion = trim((string)($_POST['expected_version'] ?? ''));
             $expectedSchemaKnown = (string)($_POST['expected_database_schema_known'] ?? '') === '1';
@@ -9625,15 +9634,21 @@ switch ($action) {
             }
             $version = install_github_update($update);
             if (!empty($update['requires_database_upgrade'])) {
-                set_flash('warning', sblog_t('已更新到 {version}，数据库升级尚未完成，请继续执行数据库升级。', ['version' => $version]), 'database_upgrade');
+                $message = sblog_t('已更新到 {version}，数据库升级尚未完成，请继续执行数据库升级。', ['version' => $version]);
+                set_flash('warning', $message, 'database_upgrade');
             } elseif (!$freshSchemaKnown) {
-                set_flash('warning', sblog_t('已更新到 {version}，但发布信息未声明数据库版本，请检查是否需要执行数据库升级。', ['version' => $version]), 'database_upgrade');
+                $message = sblog_t('已更新到 {version}，但发布信息未声明数据库版本，请检查是否需要执行数据库升级。', ['version' => $version]);
+                set_flash('warning', $message, 'database_upgrade');
             } else {
-                set_flash('success', sblog_t('已更新到 {version}。', ['version' => $version]));
+                $message = sblog_t('已更新到 {version}。', ['version' => $version]);
+                set_flash('success', $message);
             }
         } catch (Throwable $exception) {
-            set_flash('error', sblog_t('更新失败：{error}', ['error' => $exception->getMessage()]));
+            $message = sblog_t('更新失败：{error}', ['error' => $exception->getMessage()]);
+            if ($acceptsJson) { json_response(['ok' => false, 'error' => $message], 422); }
+            set_flash('error', $message);
         }
+        if ($acceptsJson) { json_response(['ok' => true, 'redirect_url' => url_for('admin'), 'message' => $message]); }
         redirect_to(url_for('admin'));
         break;
 
