@@ -31,6 +31,7 @@ function sblog_english_language_map(): array
         '主题分页' => 'Theme pagination',
         '插件分页' => 'Plugin pagination',
         '扩展商店分页' => 'Extension store pagination',
+        '文章分页' => 'Post pagination',
         '搜索扩展' => 'Search extensions',
         '名称、标识、描述或作者' => 'Name, slug, description, or author',
         '清除搜索' => 'Clear search',

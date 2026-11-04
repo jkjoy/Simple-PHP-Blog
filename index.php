@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.24';
+const APP_VERSION = 'v1.14.25';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -5044,16 +5044,22 @@ function render_public_post_list(array $posts): string
     return (string)ob_get_clean();
 }
 
-function fetch_admin_posts(): array
+function fetch_admin_posts(int $requestedPage = 1): array
 {
-    return all_rows(
+    $total = (int)val('SELECT COUNT(*) FROM posts');
+    $totalPages = max(1, (int)ceil($total / 12));
+    $page = max(1, min($totalPages, $requestedPage));
+    $offset = ($page - 1) * 12;
+    $posts = all_rows(
         "SELECT p.*, c.name AS category_name
          FROM posts p
          LEFT JOIN categories c ON c.id = p.category_id
          ORDER BY
             CASE WHEN p.status = 'published' THEN p.published_at ELSE p.updated_at END DESC,
-            p.id DESC"
+            p.id DESC
+         LIMIT 12 OFFSET {$offset}"
     );
+    return [$posts, $total, $page, $totalPages];
 }
 
 function admin_metrics(): array
@@ -7550,7 +7556,9 @@ function render_admin_posts_page(): void
 {
     require_admin();
 
-    $posts = fetch_admin_posts();
+    $requestedPage = is_scalar($_GET['p'] ?? null) && preg_match('/^[0-9]+$/D', (string)$_GET['p']) === 1 ? (int)$_GET['p'] : 1;
+    [$posts, $total, $page, $totalPages] = fetch_admin_posts($requestedPage);
+    $pageNumbers = array_values(array_unique(array_merge([1], range(max(1, $page - 1), min($totalPages, $page + 1)), [$totalPages])));
     $sidebar = render_admin_sidebar('posts');
 
     ob_start();
@@ -7604,11 +7612,13 @@ function render_admin_posts_page(): void
                             <?= csrf_field() ?>
                             <input type="hidden" name="id" value="<?= h($post['id']) ?>">
                             <input type="hidden" name="status" value="<?= h((string)$post['status'] === 'published' ? 'draft' : 'published') ?>">
+                            <input type="hidden" name="return_page" value="<?= $page ?>">
                             <button class="button button--ghost" type="submit"><?= h((string)$post['status'] === 'published' ? sblog_t('转草稿') : sblog_t('发布')) ?></button>
                           </form>
                           <form method="post" action="<?= h(url_for('delete_post')) ?>" onsubmit="return confirm(<?= h(json_encode(sblog_t('确定删除这篇文章吗？'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) ?>);">
                             <?= csrf_field() ?>
                             <input type="hidden" name="id" value="<?= h($post['id']) ?>">
+                            <input type="hidden" name="return_page" value="<?= $page ?>">
                             <button class="button button--danger" type="submit"><?= h(sblog_t('删除')) ?></button>
                           </form>
                         </div>
@@ -7617,6 +7627,21 @@ function render_admin_posts_page(): void
                   <?php endforeach; ?>
                   </tbody>
                 </table>
+              </div>
+              <div class="admin-table-footer">
+                <span><?= h(sblog_t('第 {page} / {pages} 页', ['page' => $page, 'pages' => $totalPages])) ?></span>
+                <nav class="admin-pagination" aria-label="<?= h(sblog_t('文章分页')) ?>">
+                  <?php if ($page > 1): ?><a class="button button--secondary" rel="prev" href="<?= h(url_with_query(url_for('admin_posts'), ['p' => $page - 1])) ?>"><?= h(sblog_t('上一页')) ?></a><?php endif; ?>
+                  <?php $previousPage = 0; foreach ($pageNumbers as $number): ?>
+                    <?php if ($previousPage > 0 && $number > $previousPage + 1): ?><span aria-hidden="true">…</span><?php endif; ?>
+                    <?php if ($number === $page): ?>
+                      <span aria-current="page" aria-label="<?= h(sblog_t('第 {page} 页', ['page' => $number])) ?>"><?= $number ?></span>
+                    <?php else: ?>
+                      <a href="<?= h(url_with_query(url_for('admin_posts'), ['p' => $number])) ?>" aria-label="<?= h(sblog_t('第 {page} 页', ['page' => $number])) ?>"><?= $number ?></a>
+                    <?php endif; ?>
+                  <?php $previousPage = $number; endforeach; ?>
+                  <?php if ($page < $totalPages): ?><a class="button button--secondary" rel="next" href="<?= h(url_with_query(url_for('admin_posts'), ['p' => $page + 1])) ?>"><?= h(sblog_t('下一页')) ?></a><?php endif; ?>
+                </nav>
               </div>
             <?php else: ?>
               <div class="empty-state empty-state--inside">
@@ -7659,7 +7684,7 @@ function render_admin_comments_page(): void
     ?>
     <?= render_admin_content_start(sblog_t('评论管理'), $sidebar) ?>
 
-        <section class="panel admin-list-panel admin-animate admin-animate--2">
+        <section class="panel admin-list-panel comment-manager admin-animate admin-animate--2">
           <div class="panel__header">
             <div class="admin-head">
               <div class="admin-head-left">
@@ -7697,16 +7722,16 @@ function render_admin_comments_page(): void
 
           <div class="panel__body panel__body--flush">
             <?php if ($comments): ?>
-              <div class="table-wrap">
-                <table class="admin-table comment-table">
+              <div class="table-wrap comment-table-wrap">
+                <table class="admin-table comment-table" role="table">
                   <thead>
                     <tr>
-                      <th><label class="table-check"><input type="checkbox" data-check-all="comment_ids[]" aria-label="<?= h(sblog_t('全选评论')) ?>"><span class="sr-only"><?= h(sblog_t('全选')) ?></span></label></th>
-                      <th><?= h(sblog_t('评论者')) ?></th>
-                      <th><?= h(sblog_t('内容与文章')) ?></th>
-                      <th><?= h(sblog_t('状态')) ?></th>
-                      <th><?= h(sblog_t('提交时间')) ?></th>
-                      <th><?= h(sblog_t('操作')) ?></th>
+                      <th scope="col"><label class="table-check"><input type="checkbox" data-check-all="comment_ids[]" aria-label="<?= h(sblog_t('全选评论')) ?>"><span class="comment-select-all-text"><?= h(sblog_t('全选评论')) ?></span></label></th>
+                      <th scope="col"><?= h(sblog_t('评论者')) ?></th>
+                      <th scope="col"><?= h(sblog_t('内容与文章')) ?></th>
+                      <th scope="col"><?= h(sblog_t('状态')) ?></th>
+                      <th scope="col"><?= h(sblog_t('提交时间')) ?></th>
+                      <th scope="col"><?= h(sblog_t('操作')) ?></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -7714,8 +7739,8 @@ function render_admin_comments_page(): void
                       <?php $state = comment_status_meta((string)$comment['status']); ?>
                       <?php $authorUrl = safe_link_url((string)$comment['author_url']); ?>
                       <tr class="comment-row<?= (int)$comment['is_read'] === 0 ? ' is-unread' : '' ?>">
-                        <td><label class="table-check"><input type="checkbox" name="comment_ids[]" value="<?= h($comment['id']) ?>" form="comments-bulk-form" aria-label="<?= h(sblog_t('选择 {author} 的评论', ['author' => (string)$comment['author_name']])) ?>"><span class="sr-only"><?= h(sblog_t('选择评论')) ?></span></label></td>
-                        <td>
+                        <td class="comment-table__select"><label class="table-check"><input type="checkbox" name="comment_ids[]" value="<?= h($comment['id']) ?>" form="comments-bulk-form" aria-label="<?= h(sblog_t('选择 {author} 的评论', ['author' => (string)$comment['author_name']])) ?>"><span class="sr-only"><?= h(sblog_t('选择评论')) ?></span></label></td>
+                        <td class="comment-table__author">
                           <div class="table-title">
                             <strong><?= h($comment['author_name']) ?></strong>
                             <span><?= h($comment['author_email']) ?></span>
@@ -7723,19 +7748,19 @@ function render_admin_comments_page(): void
                             <?php if ($authorUrl !== '#'): ?><a href="<?= h($authorUrl) ?>" target="_blank" rel="noopener noreferrer nofollow"><?= h((string)parse_url($authorUrl, PHP_URL_HOST)) ?></a><?php endif; ?>
                           </div>
                         </td>
-                        <td>
+                        <td class="comment-table__content">
                           <div class="comment-summary">
                             <?php if (trim((string)$comment['reply_to_name']) !== ''): ?><span class="comment-summary__reply"><?= h(sblog_t('回复 @{name}', ['name' => (string)$comment['reply_to_name']])) ?></span><?php endif; ?>
                             <p><?= h(comment_excerpt((string)$comment['content'])) ?></p>
                             <a href="<?= h(content_permalink(['kind' => (string)$comment['post_kind'], 'slug' => (string)$comment['post_slug']])) ?><?= (string)$comment['status'] === 'approved' && (string)$comment['post_kind'] === 'post' ? '#comment-' . h($comment['id']) : '' ?>"><?= h($comment['post_title']) ?></a>
                           </div>
                         </td>
-                        <td>
+                        <td class="comment-table__status">
                           <span class="status-badge status-badge--<?= h($state['class']) ?>"><?= h($state['label']) ?></span>
                           <?php if ((int)$comment['is_read'] === 0): ?><span class="comment-unread-dot"><?= h(sblog_t('未读')) ?></span><?php endif; ?>
                         </td>
-                        <td><time datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time></td>
-                        <td>
+                        <td class="comment-table__time" data-label="<?= h(sblog_t('提交时间')) ?>"><time datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time></td>
+                        <td class="comment-table__actions">
                           <form class="table-actions comment-actions" method="post" action="<?= h(url_for('moderate_comments')) ?>">
                             <?= csrf_field() ?>
                             <input type="hidden" name="comment_id" value="<?= h($comment['id']) ?>">
@@ -10111,6 +10136,7 @@ switch ($action) {
 
     case 'change_status':
         require_admin_post(url_for('admin_posts'));
+        $returnPage = is_scalar($_POST['return_page'] ?? null) && preg_match('/^[0-9]+$/D', (string)$_POST['return_page']) === 1 ? max(1, (int)$_POST['return_page']) : 1;
         $id = (int)($_POST['id'] ?? 0);
         $status = (string)($_POST['status'] ?? 'draft');
         $post = fetch_post_by_id($id);
@@ -10124,15 +10150,16 @@ switch ($action) {
         }
         q('UPDATE posts SET status = ?, published_at = ?, updated_at = ? WHERE id = ?', [$target, $publishedAt, time(), $id]);
         set_flash('success', $target === 'published' ? sblog_t('文章已发布。') : sblog_t('文章已转为草稿。'));
-        redirect_to(url_for('admin_posts'));
+        redirect_to(url_with_query(url_for('admin_posts'), ['p' => $returnPage]));
         break;
 
     case 'delete_post':
         require_admin_post(url_for('admin_posts'));
+        $returnPage = is_scalar($_POST['return_page'] ?? null) && preg_match('/^[0-9]+$/D', (string)$_POST['return_page']) === 1 ? max(1, (int)$_POST['return_page']) : 1;
         $id = (int)($_POST['id'] ?? 0);
         q('DELETE FROM posts WHERE id = ?', [$id]);
         set_flash('success', sblog_t('文章已删除。'));
-        redirect_to(url_for('admin_posts'));
+        redirect_to(url_with_query(url_for('admin_posts'), ['p' => $returnPage]));
         break;
 
     default:
