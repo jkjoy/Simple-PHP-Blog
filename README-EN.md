@@ -192,6 +192,8 @@ When pretty URLs are enabled in the admin panel, public pages and the main admin
 
 Apache can use the repository's `.htaccess` file directly.
 
+The upload directory's `.htaccess` uses only rewrite and response-header directives in the `FileInfo` override class, so restrictions on `Options` or `AuthConfig` do not cause image requests to return HTTP 500. After upgrading, visit the administration area once to replace the application's old generated rules automatically. Custom `.htaccess` files are preserved.
+
 For Nginx, use the following configuration as a starting point:
 
 ```nginx

@@ -195,6 +195,8 @@ http://127.0.0.1:8000/install.php
 
 Apache 已可直接使用仓库里的 `.htaccess`。
 
+上传目录的 `.htaccess` 只使用 `FileInfo` 范围的重写和响应头指令，避免主机限制 `Options`、`AuthConfig` 时图片返回 500。升级后访问一次后台即可自动替换程序生成的旧规则；自行修改的 `.htaccess` 会保留。
+
 如果你用 Nginx，可以参考：
 
 ```nginx

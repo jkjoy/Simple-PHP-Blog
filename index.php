@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.20';
+const APP_VERSION = 'v1.14.21';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -76,6 +76,16 @@ function ensure_runtime_dirs(): void
 
     if (!is_dir(UPLOAD_DIR)) {
         mkdir(UPLOAD_DIR, 0755, true);
+    }
+
+    $htaccess = UPLOAD_DIR . '/.htaccess';
+    $legacyRules = "Options -ExecCGI\nRemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar .cgi .pl .py .rb .asp .aspx .jsp\n<IfModule mod_headers.c>\n  Header set X-Content-Type-Options nosniff\n</IfModule>\n<FilesMatch \"\\.(php|phtml|php3|php4|php5|php7|php8|phar|cgi|pl|py|rb|asp|aspx|jsp)$\">\n  Require all denied\n</FilesMatch>\n";
+    $currentRules = is_file($htaccess) ? file_get_contents($htaccess) : null;
+    if ($currentRules === null || (is_string($currentRules) && trim(str_replace(["\r\n", "\r"], "\n", $currentRules)) === trim($legacyRules))) {
+        $rules = "# SBlog upload protection\nRewriteEngine On\nRewriteRule (^|/)\\. - [F,L]\nRewriteRule \\.(?:php[0-9]*|phtml|phar|cgi|pl|py|rb|asp|aspx|jsp)(?:[./]|$) - [F,L,NC]\n<IfModule mod_headers.c>\n  Header set X-Content-Type-Options nosniff\n</IfModule>\n";
+        if (@file_put_contents($htaccess, $rules, LOCK_EX) === false) {
+            error_log('Unable to write SBlog upload protection: ' . $htaccess);
+        }
     }
 
     if (!is_dir(THEMES_DIR)) {
@@ -2160,12 +2170,6 @@ function ensure_upload_year_dir(): array
     $dir = UPLOAD_DIR . '/' . $year;
     if (!is_dir($dir)) {
         mkdir($dir, 0755, true);
-    }
-
-    $htaccess = UPLOAD_DIR . '/.htaccess';
-    $htaccessRules = "Options -ExecCGI\nRemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar .cgi .pl .py .rb .asp .aspx .jsp\n<IfModule mod_headers.c>\n  Header set X-Content-Type-Options nosniff\n</IfModule>\n<FilesMatch \"\\.(php|phtml|php3|php4|php5|php7|php8|phar|cgi|pl|py|rb|asp|aspx|jsp)$\">\n  Require all denied\n</FilesMatch>\n";
-    if (!is_file($htaccess) || file_get_contents($htaccess) !== $htaccessRules) {
-        file_put_contents($htaccess, $htaccessRules, LOCK_EX);
     }
 
     return [$year, $dir];
