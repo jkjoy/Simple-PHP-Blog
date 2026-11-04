@@ -574,6 +574,8 @@ function sblog_english_language_map(): array
         '站点描述' => 'Site description',
         '站点关键字' => 'Site keywords',
         '站点地址' => 'Site URL',
+        'RSS 会优先使用此地址；找回密码和邮件通知需要有效的站点地址。子目录部署请包含完整路径。' => 'RSS prefers this URL. Password recovery and email notifications require a valid site URL. Include the full path for subdirectory installations.',
+        '站点尚未配置有效的站点地址，暂时无法找回密码。请联系管理员。' => 'Password recovery is unavailable until a valid site URL is configured. Please contact the administrator.',
         '前台主题' => 'Frontend theme',
         '当前主题' => 'Current theme',
         '打开预览' => 'Open preview',

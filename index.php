@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.19';
+const APP_VERSION = 'v1.14.20';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -2096,7 +2096,7 @@ function login_rate_file(): string
 
 function login_rate_state(bool $recordFailure = false, bool $clear = false): array
 {
-    return authentication_rate_state(login_rate_file(), $recordFailure, $clear);
+    return authentication_rate_state(login_rate_file(), $recordFailure, $clear, 5);
 }
 
 function password_reset_rate_file(): string
@@ -2107,31 +2107,33 @@ function password_reset_rate_file(): string
 
 function password_reset_rate_state(bool $recordAttempt = false): array
 {
-    return authentication_rate_state(password_reset_rate_file(), $recordAttempt);
+    return authentication_rate_state(password_reset_rate_file(), $recordAttempt, false, 3);
 }
 
-function authentication_rate_state(string $file, bool $recordAttempt = false, bool $clear = false): array
+function authentication_rate_state(string $file, bool $recordAttempt = false, bool $clear = false, int $limit = 0): array
 {
     ensure_runtime_dirs();
-    $handle = fopen($file, 'c+');
-    if ($handle === false) { return ['count' => 0, 'since' => time()]; }
+    $unavailable = ['count' => $limit > 0 ? $limit : PHP_INT_MAX, 'since' => time(), 'allowed' => false];
+    $handle = @fopen($file, 'c+');
+    if ($handle === false) { return $unavailable; }
 
-    flock($handle, LOCK_EX);
+    if (!flock($handle, LOCK_EX)) { fclose($handle); return $unavailable; }
     $raw = stream_get_contents($handle);
+    if ($raw === false) { flock($handle, LOCK_UN); fclose($handle); return $unavailable; }
     $state = json_decode($raw ?: '', true);
     $now = time();
     if (!is_array($state) || $now - (int)($state['since'] ?? 0) >= 900) {
         $state = ['count' => 0, 'since' => $now];
     }
-    if ($recordAttempt) { $state['count'] = (int)$state['count'] + 1; }
+    $allowed = $limit < 1 || (int)($state['count'] ?? 0) < $limit;
+    if ($recordAttempt && $allowed) { $state['count'] = (int)($state['count'] ?? 0) + 1; }
     if ($clear) { $state = ['count' => 0, 'since' => $now]; }
-    ftruncate($handle, 0);
-    rewind($handle);
-    fwrite($handle, json_encode($state));
-    fflush($handle);
+    $encoded = json_encode($state);
+    $saved = @ftruncate($handle, 0) && rewind($handle)
+        && @fwrite($handle, $encoded) === strlen($encoded) && @fflush($handle);
     flock($handle, LOCK_UN);
     fclose($handle);
-    return $state;
+    return $saved ? $state + ['allowed' => $clear || $allowed] : $unavailable;
 }
 
 function public_ip_address(string $ip): bool
@@ -3337,27 +3339,12 @@ function configured_site_root_url(): string
 function site_root_url(bool $trusted = false): string
 {
     $configured = configured_site_root_url();
-    if ($configured !== '') {
+    if ($configured !== '' || $trusted) {
         return $configured;
     }
 
     $scheme = request_is_https() ? 'https' : 'http';
-    if ($trusted) {
-        // Links that leave the request (emails) prefer the server-side name over the Host header.
-        // Note that Apache with `UseCanonicalName Off` copies SERVER_NAME from Host, so only a
-        // configured `site_url` makes these links fully reliable; the installer seeds it.
-        $host = strtolower(trim((string)($_SERVER['SERVER_NAME'] ?? '')));
-        if (preg_match('/^[a-z0-9.-]+$/', $host)) {
-            $port = (int)($_SERVER['SERVER_PORT'] ?? 0);
-            if ($port > 0 && $port !== ($scheme === 'https' ? 443 : 80)) {
-                $host .= ':' . $port;
-            }
-        } else {
-            $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
-        }
-    } else {
-        $host = (string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost');
-    }
+    $host = (string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost');
 
     return rtrim($scheme . '://' . $host . app_base_path(), '/');
 }
@@ -3369,6 +3356,9 @@ function absolute_url(string $path, bool $trusted = false): string
     }
 
     $base = site_root_url($trusted);
+    if ($base === '') {
+        return '';
+    }
     $appBase = app_base_path();
 
     if ($appBase !== '') {
@@ -5380,7 +5370,11 @@ function send_comment_reply_notice(int $commentId): void
     }
 
     $siteName = setting('site_name', default_settings()['site_name']);
-    $url = absolute_url(content_permalink(['kind' => (string)$reply['post_kind'], 'slug' => (string)$reply['post_slug']]), true) . '#comment-' . $commentId;
+    $url = absolute_url(content_permalink(['kind' => (string)$reply['post_kind'], 'slug' => (string)$reply['post_slug']]), true);
+    if ($url === '') {
+        return;
+    }
+    $url .= '#comment-' . $commentId;
     $subject = sblog_t('[{site}] {author} 回复了你的评论', [
         'site' => $siteName,
         'author' => (string)$reply['author_name'],
@@ -7140,6 +7134,9 @@ function create_password_reset(array $user): array
 function send_password_reset_notice(array $user, string $token, int $expiresAt): bool
 {
     $link = absolute_url(url_with_query(url_for('reset_password'), ['token' => $token]), true);
+    if ($link === '') {
+        return false;
+    }
     $siteName = setting('site_name', default_settings()['site_name']);
     $subject = sblog_t('重置 {site} 管理员密码', ['site' => $siteName]);
     $body = sblog_t(
@@ -7164,7 +7161,8 @@ function comment_notify_email(): string
 function send_comment_notification(array $post, array $comment, string $status): bool
 {
     $email = comment_notify_email();
-    if ($email === '') {
+    $link = absolute_url(content_permalink($post), true);
+    if ($email === '' || $link === '') {
         return false;
     }
 
@@ -7179,7 +7177,7 @@ function send_comment_notification(array $post, array $comment, string $status):
             'author' => (string)$comment['author_name'],
             'email' => (string)$comment['author_email'],
             'ip' => client_ip_address() ?: sblog_t('未知'),
-            'link' => absolute_url(content_permalink($post), true) . '#comments',
+            'link' => $link . '#comments',
             'content' => (string)$comment['content'],
         ]
     );
@@ -8723,7 +8721,7 @@ function render_admin_settings_page(): void
               <div class="field">
                 <label for="site_url"><?= h(sblog_t('站点地址')) ?></label>
                 <input id="site_url" name="site_url" type="url" value="<?= h(setting('site_url')) ?>" placeholder="https://example.com/blog">
-                <p class="field-hint"><?= h(sblog_t('RSS 和找回密码链接会优先使用这里的绝对地址，子目录部署时请带上完整路径。')) ?></p>
+                <p class="field-hint"><?= h(sblog_t('RSS 会优先使用此地址；找回密码和邮件通知需要有效的站点地址。子目录部署请包含完整路径。')) ?></p>
               </div>
               <div class="field"><label for="favicon_url"><?= h(sblog_t('Favicon 地址')) ?></label><input id="favicon_url" name="favicon_url" value="<?= h(setting('favicon_url', 'favicon.png')) ?>" placeholder="favicon.png"><p class="field-hint"><?= h(sblog_t('默认使用项目根目录的 {file}，也可以填写完整图片 URL 或站内绝对路径。', ['file' => 'favicon.png'])) ?></p></div>
               <?php elseif ($section === 'reading'): ?>
@@ -9398,11 +9396,13 @@ switch ($action) {
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             verify_csrf();
-            $rate = password_reset_rate_state();
-            if ((int)$rate['count'] >= 3) {
+            if (configured_site_root_url() === '') {
+                render_forgot_password_page('', sblog_t('站点尚未配置有效的站点地址，暂时无法找回密码。请联系管理员。'));
+            }
+            $rate = password_reset_rate_state(true);
+            if (!$rate['allowed']) {
                 render_forgot_password_page('', sblog_t('重置请求过于频繁，请 15 分钟后再试。'));
             }
-            password_reset_rate_state(true);
 
             $account = trim((string)($_POST['account'] ?? ''));
             if ($account === '') {
@@ -9466,8 +9466,8 @@ switch ($action) {
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             verify_csrf();
-            $rate = login_rate_state();
-            if ((int)$rate['count'] >= 5) {
+            $rate = login_rate_state(true);
+            if (!$rate['allowed']) {
                 render_login_page(sblog_t('登录尝试过多，请 15 分钟后再试。'));
             }
             $username = trim((string)($_POST['username'] ?? ''));
@@ -9475,7 +9475,6 @@ switch ($action) {
             $user = one('SELECT * FROM users WHERE username = ?', [$username]);
 
             if (!$user || !password_verify($password, (string)$user['password_hash'])) {
-                login_rate_state(true);
                 render_login_page(sblog_t('用户名或密码不正确。'), ['username' => $username]);
             }
 

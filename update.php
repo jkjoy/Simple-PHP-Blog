@@ -2,11 +2,21 @@
 
 declare(strict_types=1);
 
-$sessionSecure = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
+const UPDATE_ADMIN_SESSION_IDLE_TIMEOUT = 43200;
+const UPDATE_ADMIN_SESSION_ABSOLUTE_TIMEOUT = 86400;
+
+$sessionSecure = ((string)($_SERVER['HTTPS'] ?? '') !== '' && strtolower((string)$_SERVER['HTTPS']) !== 'off')
     || (string)($_SERVER['SERVER_PORT'] ?? '') === '443';
+$sessionScript = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '/update.php'));
+$sessionCookiePath = rtrim(str_replace('\\', '/', dirname($sessionScript)), '/');
+$sessionCookiePath = $sessionCookiePath === '' || $sessionCookiePath === '.' ? '/' : $sessionCookiePath . '/';
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+ini_set('session.use_trans_sid', '0');
+ini_set('session.gc_maxlifetime', (string)UPDATE_ADMIN_SESSION_ABSOLUTE_TIMEOUT);
 session_set_cookie_params([
     'lifetime' => 0,
-    'path' => '/',
+    'path' => $sessionCookiePath,
     'secure' => $sessionSecure,
     'httponly' => true,
     'samesite' => 'Lax',
@@ -109,13 +119,38 @@ if ($databaseFile === '') {
 
 $db = update_database($databaseFile);
 $adminId = (int)($_SESSION['admin_id'] ?? 0);
-$admin = $adminId > 0
-    ? $db->query('SELECT id FROM users WHERE id = ' . $adminId . ' LIMIT 1')->fetch()
-    : false;
+$admin = false;
+if ($adminId > 0) {
+    $statement = $db->prepare('SELECT id, password_hash FROM users WHERE id = ? LIMIT 1');
+    $statement->execute([$adminId]);
+    $admin = $statement->fetch();
+}
+$now = time();
+$authenticatedAt = (int)($_SESSION['admin_authenticated_at'] ?? $now);
+$lastSeenAt = (int)($_SESSION['admin_last_seen_at'] ?? $now);
+$currentFingerprint = $admin ? hash('sha256', (string)$admin['password_hash']) : '';
+$storedFingerprint = (string)($_SESSION['admin_password_fingerprint'] ?? $currentFingerprint);
+if ($now - $lastSeenAt > UPDATE_ADMIN_SESSION_IDLE_TIMEOUT
+    || $now - $authenticatedAt > UPDATE_ADMIN_SESSION_ABSOLUTE_TIMEOUT
+    || !hash_equals($storedFingerprint, $currentFingerprint)) {
+    $admin = false;
+}
 if (!$admin) {
+    unset(
+        $_SESSION['admin_id'],
+        $_SESSION['admin_authenticated_at'],
+        $_SESSION['admin_last_seen_at'],
+        $_SESSION['admin_password_fingerprint']
+    );
+    if (session_status() === PHP_SESSION_ACTIVE && session_id() !== '') {
+        session_regenerate_id(true);
+    }
     header('Location: index.php?a=login');
     exit;
 }
+$_SESSION['admin_authenticated_at'] = $authenticatedAt;
+$_SESSION['admin_last_seen_at'] = $now;
+$_SESSION['admin_password_fingerprint'] = $currentFingerprint;
 
 $installedSchemaVersion = (int)($db->query("SELECT value FROM settings WHERE name = 'database_schema_version'")->fetchColumn() ?: 0);
 $databaseIsNewer = $installedSchemaVersion > UPDATE_DATABASE_SCHEMA_VERSION;
