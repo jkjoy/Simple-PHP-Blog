@@ -2686,19 +2686,20 @@ textarea {
   white-space: nowrap;
 }
 
-.theme-admin:not(.theme-admin--guest) .comment-meta {
-  display: grid;
-  min-width: 0;
-  max-width: 260px;
-  gap: 4px;
-}
-
 .theme-admin:not(.theme-admin--guest) .comment-context {
   display: block;
   min-width: 0;
+  max-width: 260px;
   overflow: hidden;
+  color: var(--admin-accent);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.theme-admin:not(.theme-admin--guest) .comment-context:hover,
+.theme-admin:not(.theme-admin--guest) .comment-context:focus-visible {
+  color: var(--admin-accent-hover);
+  text-decoration: underline;
 }
 
 .theme-admin:not(.theme-admin--guest) .comment-row.is-unread td {
@@ -4889,7 +4890,7 @@ textarea {
   }
 
   .theme-admin:not(.theme-admin--guest) .comment-manager .comment-table__select {
-    grid-area: 4 / 1;
+    grid-area: 5 / 1;
     align-self: start;
     margin-top: 12px;
   }
@@ -4925,6 +4926,10 @@ textarea {
 
   .theme-admin:not(.theme-admin--guest) .comment-manager .comment-table__content {
     grid-area: 3 / 1 / 4 / -1;
+  }
+
+  .theme-admin:not(.theme-admin--guest) .comment-manager .comment-table__post {
+    grid-area: 4 / 1 / 5 / -1;
   }
 
   .theme-admin:not(.theme-admin--guest) .comment-manager .comment-summary {
@@ -4968,22 +4973,15 @@ textarea {
     font-size: 12px;
   }
 
-  .theme-admin:not(.theme-admin--guest) .comment-manager .comment-meta {
-    display: flex;
-    align-items: center;
-    max-width: none;
-    gap: 8px;
-  }
-
   .theme-admin:not(.theme-admin--guest) .comment-manager .comment-context {
-    flex: 1 0 40px;
+    max-width: none;
     min-height: 40px;
     padding: 10px 0;
     line-height: 20px;
   }
 
   .theme-admin:not(.theme-admin--guest) .comment-manager .comment-table time {
-    flex: 0 1 auto;
+    display: block;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -4991,7 +4989,7 @@ textarea {
   }
 
   .theme-admin:not(.theme-admin--guest) .comment-manager .comment-table .comment-table__actions {
-    grid-area: 4 / 2 / 5 / -1;
+    grid-area: 5 / 2 / 6 / -1;
     margin-top: 2px;
     padding-top: 10px;
     border-top: 1px solid var(--admin-border);

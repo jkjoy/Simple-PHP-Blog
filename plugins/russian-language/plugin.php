@@ -216,6 +216,7 @@ function sblog_russian_language_map(): array
 '微信' => 'WeChat',
 '微博' => 'Weibo',
 '内容与文章' => 'Текст и запись',
+'内容' => 'Текст',
 '提交时间' => 'Отправлено',
 '在 {title} 中' => 'в {title}',
 '搜索' => 'Поиск',

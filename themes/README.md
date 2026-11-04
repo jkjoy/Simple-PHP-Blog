@@ -118,7 +118,7 @@ add_theme_filter('content', $callback, 20);
 
 `layout.php` 在 `render_layout()` 的局部作用域中加载，可以直接使用 `$title`、`$content`、`$options`、`$siteName`、`$fullTitle`、`$description`、`$bodyClass`、`$theme`、`$themeContext`、`$flash` 和 `$navPages`，也可以调用博客现有的 URL 与转义辅助函数。
 
-自定义布局必须输出完整 HTML 文档。必须在 `<head>` 中调用 `head` action 才会自动加载 `style.css`；建议保留：
+自定义布局必须输出完整 HTML 文档。必须在 `<head>` 中调用 `head` action 才会自动加载 `style.css` 和核心滚动条占位样式，避免长短页面切换时布局左右移动。核心在 `html` 上设置 `scrollbar-gutter: stable`；不支持此属性的浏览器通过 `body { overflow-y: scroll; }` 始终保留纵向滚动条，同时允许主题弹层通过 `body` 的 `overflow` 锁定滚动。建议保留：
 
 ```php
 <?php theme_action('head', $themeContext); ?>

@@ -212,6 +212,7 @@ function sblog_english_language_map(): array
         '微信' => 'WeChat',
         '微博' => 'Weibo',
         '内容与文章' => 'Content and post',
+        '内容' => 'Content',
         '提交时间' => 'Submitted',
         '在 {title} 中' => 'in {title}',
         '搜索' => 'Search',

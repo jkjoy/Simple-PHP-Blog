@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.27';
+const APP_VERSION = 'v1.14.28';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -3175,6 +3175,12 @@ function load_active_theme(): void
             return $styleUrl !== '' ? '<link rel="stylesheet" href="' . h($styleUrl) . '">' . "\n" : '';
         }, -1000);
     }
+
+    // Standalone layouts skip index.css; reserve scrollbar space for every public theme.
+    // Keep the legacy fallback on body so theme overlays can still lock scrolling there.
+    add_theme_action('head', static function (array $context): string {
+        return '<style id="sblog-scrollbar-gutter">html{scrollbar-gutter:stable}@supports not (scrollbar-gutter:stable){body{overflow-y:scroll}}</style>' . "\n";
+    }, -900);
 }
 
 function use_pretty_url(): bool
@@ -6206,7 +6212,7 @@ function admin_icon(string $name): string
         'overview' => '<rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect>',
         'home' => '<path d="M3 10.5 12 3l9 7.5"></path><path d="M5 10v10h14V10"></path><path d="M9 20v-6h6v6"></path>',
         'write' => '<path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>',
-        'media' => '<rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9" r="1.5"></circle><path d="m21 15-5-5L5 20"></path><path d="m14 14-2-2-6 6"></path>',
+        'media' => '<path d="M3 7v12a2 2 0 0 0 2 2h12"></path><rect x="7" y="3" width="14" height="14" rx="2"></rect><path d="m12 7 5 3-5 3z"></path>',
         'posts' => '<path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path>',
         'comments' => '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8z"></path><path d="M8 9h8"></path><path d="M8 13h5"></path>',
         'bell' => '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path>',
@@ -7732,7 +7738,8 @@ function render_admin_comments_page(): void
                     <tr>
                       <th scope="col"><label class="table-check"><input type="checkbox" data-check-all="comment_ids[]" aria-label="<?= h(sblog_t('全选评论')) ?>"><span class="comment-select-all-text"><?= h(sblog_t('全选评论')) ?></span></label></th>
                       <th scope="col"><?= h(sblog_t('评论者')) ?></th>
-                      <th scope="col"><?= h(sblog_t('内容与文章')) ?></th>
+                      <th scope="col"><?= h(sblog_t('内容')) ?></th>
+                      <th scope="col"><?= h(sblog_t('文章')) ?></th>
                       <th scope="col"><?= h(sblog_t('状态')) ?></th>
                       <th scope="col"><?= h(sblog_t('提交时间')) ?></th>
                       <th scope="col"><?= h(sblog_t('操作')) ?></th>
@@ -7758,15 +7765,15 @@ function render_admin_comments_page(): void
                             <p><?= h(comment_excerpt((string)$comment['content'])) ?></p>
                           </div>
                         </td>
+                        <td class="comment-table__post">
+                          <a class="comment-context" href="<?= h(content_permalink(['kind' => (string)$comment['post_kind'], 'slug' => (string)$comment['post_slug']])) ?><?= (string)$comment['status'] === 'approved' && (string)$comment['post_kind'] === 'post' ? '#comment-' . h($comment['id']) : '' ?>" title="<?= h($comment['post_title']) ?>"><?= h($comment['post_title']) ?></a>
+                        </td>
                         <td class="comment-table__status" title="<?= h($state['label']) ?>">
                           <span class="status-badge status-badge--<?= h($state['class']) ?>"><?= h($state['label']) ?></span>
                           <?php if ((int)$comment['is_read'] === 0): ?><span class="comment-unread-dot"><?= h(sblog_t('未读')) ?></span><?php endif; ?>
                         </td>
                         <td class="comment-table__time">
-                          <div class="comment-meta">
-                            <time datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>" title="<?= h(pretty_date((int)$comment['created_at'], true)) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
-                            <a class="comment-context" href="<?= h(content_permalink(['kind' => (string)$comment['post_kind'], 'slug' => (string)$comment['post_slug']])) ?><?= (string)$comment['status'] === 'approved' && (string)$comment['post_kind'] === 'post' ? '#comment-' . h($comment['id']) : '' ?>" title="<?= h(sblog_t('在 {title} 中', ['title' => (string)$comment['post_title']])) ?>"><?= h(sblog_t('在 {title} 中', ['title' => (string)$comment['post_title']])) ?></a>
-                          </div>
+                          <time datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>" title="<?= h(pretty_date((int)$comment['created_at'], true)) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
                         </td>
                         <td class="comment-table__actions">
                           <form class="table-actions comment-actions" method="post" action="<?= h(url_for('moderate_comments')) ?>">
