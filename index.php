@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.22';
+const APP_VERSION = 'v1.14.23';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -7557,7 +7557,7 @@ function render_admin_posts_page(): void
     ?>
     <?= render_admin_content_start(sblog_t('文章管理'), $sidebar) ?>
 
-        <section class="panel admin-list-panel admin-animate admin-animate--2">
+        <section class="panel admin-list-panel post-manager admin-animate admin-animate--2">
           <div class="panel__header">
             <div class="admin-head">
               <div class="admin-head-left">
@@ -7569,15 +7569,15 @@ function render_admin_posts_page(): void
           </div>
           <div class="panel__body panel__body--flush">
             <?php if ($posts): ?>
-              <div class="table-wrap">
-                <table class="admin-table">
+              <div class="table-wrap post-table-wrap">
+                <table class="admin-table post-table" role="table">
                   <thead>
                   <tr>
-                    <th><?= h(sblog_t('类型')) ?></th>
-                    <th><?= h(sblog_t('标题')) ?></th>
-                    <th><?= h(sblog_t('状态')) ?></th>
-                    <th><?= h(sblog_t('更新时间')) ?></th>
-                    <th><?= h(sblog_t('操作')) ?></th>
+                    <th scope="col"><?= h(sblog_t('类型')) ?></th>
+                    <th scope="col"><?= h(sblog_t('标题')) ?></th>
+                    <th scope="col"><?= h(sblog_t('状态')) ?></th>
+                    <th scope="col"><?= h(sblog_t('更新时间')) ?></th>
+                    <th scope="col"><?= h(sblog_t('操作')) ?></th>
                   </tr>
                   </thead>
                   <tbody>
@@ -7587,16 +7587,16 @@ function render_admin_posts_page(): void
                     $isPinned = !empty($post['is_pinned']) && content_kind($post) === 'post';
                     ?>
                     <tr class="admin-post-row<?= $isPinned ? ' admin-post-row--pinned' : '' ?>">
-                      <td><span class="content-kind content-kind--<?= h(content_kind($post)) ?>"><?= h(content_type_label($post)) ?></span></td>
-                      <td>
+                      <td class="post-table__kind"><span class="content-kind content-kind--<?= h(content_kind($post)) ?>"><?= h(content_type_label($post)) ?></span></td>
+                      <td class="post-table__title">
                         <div class="table-title admin-post-title">
                           <strong><a href="<?= h(url_for('edit', ['id' => $post['id']])) ?>"><?= h($post['title']) ?></a></strong>
                           <?php if ($isPinned): ?><span class="admin-pinned-badge"><?= admin_icon('pin') ?><?= h(sblog_t('置顶')) ?></span><?php endif; ?>
                         </div>
                       </td>
-                      <td><span class="status-badge status-badge--<?= h($state['class']) ?>"><?= h($state['label']) ?></span></td>
-                      <td><time datetime="<?= h(date(DATE_ATOM, (int)$post['updated_at'])) ?>"><?= h(pretty_date((int)$post['updated_at'], true)) ?></time></td>
-                      <td>
+                      <td class="post-table__status"><span class="status-badge status-badge--<?= h($state['class']) ?>"><?= h($state['label']) ?></span></td>
+                      <td class="post-table__updated" data-label="<?= h(sblog_t('更新时间')) ?>"><time datetime="<?= h(date(DATE_ATOM, (int)$post['updated_at'])) ?>"><?= h(pretty_date((int)$post['updated_at'], true)) ?></time></td>
+                      <td class="post-table__actions">
                         <div class="table-actions">
                           <a class="button button--ghost" href="<?= h(content_permalink($post)) ?>"><?= h(sblog_t('查看')) ?></a>
                           <a class="button button--ghost" href="<?= h(url_for('edit', ['id' => $post['id']])) ?>"><?= h(sblog_t('编辑')) ?></a>
