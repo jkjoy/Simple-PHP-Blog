@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.23';
+const APP_VERSION = 'v1.14.24';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -8236,6 +8236,11 @@ function render_admin_store_page(): void
             $extension['name'], $extension['slug'], $extension['description'], $extension['author'],
         ])) === 1;
     });
+    $total = count($visible);
+    $totalPages = max(1, (int)ceil($total / 12));
+    $requestedPage = is_scalar($_GET['p'] ?? null) && preg_match('/^[0-9]+$/D', (string)$_GET['p']) === 1 ? (int)$_GET['p'] : 1;
+    $page = max(1, min($totalPages, $requestedPage));
+    $visible = array_slice($visible, ($page - 1) * 12, 12, true);
     $activeTheme = active_theme_slug();
     $activePlugins = active_plugin_slugs(true);
     $sidebar = render_admin_sidebar('store');
@@ -8251,7 +8256,7 @@ function render_admin_store_page(): void
               <h1 id="extension-store-title"><?= h(sblog_t('扩展商店')) ?></h1>
               <p><?= h(sblog_t('从远程商店安装和更新 SBlog 主题与插件。')) ?></p>
             </div>
-            <a class="button button--secondary" href="<?= h(url_with_query($storeUrl, ['type' => $filter, 'q' => $search, 'refresh' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('刷新列表')) ?></a>
+            <a class="button button--secondary" href="<?= h(url_with_query($storeUrl, ['type' => $filter, 'q' => $search, 'p' => $page, 'refresh' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('刷新列表')) ?></a>
           </header>
 
           <?php if ((string)($catalog['error'] ?? '') !== ''): ?>
@@ -8275,7 +8280,7 @@ function render_admin_store_page(): void
               <button class="button button--secondary" type="submit"><?= h(sblog_t('搜索')) ?></button>
               <?php if ($search !== ''): ?><a class="button button--ghost" href="<?= h(url_with_query($storeUrl, ['type' => $filter])) ?>"><?= h(sblog_t('清除搜索')) ?></a><?php endif; ?>
             </form>
-            <span class="extension-store__count"><?= h(sblog_tn('{count} 个扩展', count($visible))) ?></span>
+            <span class="extension-store__count"><?= h(sblog_tn('{count} 个扩展', $total)) ?></span>
           </div>
 
           <?php if ($visible): ?>
@@ -8325,6 +8330,7 @@ function render_admin_store_page(): void
                           <input type="hidden" name="slug" value="<?= h($slug) ?>">
                           <input type="hidden" name="return_type" value="<?= h($filter) ?>">
                           <input type="hidden" name="return_q" value="<?= h($search) ?>">
+                          <input type="hidden" name="return_page" value="<?= $page ?>">
                           <input type="hidden" name="return_to" value="store">
                           <button class="button" type="submit"><?= h($actionLabel) ?></button>
                         </form>
@@ -8334,6 +8340,13 @@ function render_admin_store_page(): void
                 </article>
               <?php endforeach; ?>
             </div>
+            <?php if ($totalPages > 1): ?>
+              <nav class="admin-pagination" aria-label="<?= h(sblog_t('扩展商店分页')) ?>">
+                <?php if ($page > 1): ?><a class="button button--secondary" rel="prev" href="<?= h(url_with_query($storeUrl, ['type' => $filter, 'q' => $search, 'p' => $page - 1])) ?>"><?= h(sblog_t('上一页')) ?></a><?php endif; ?>
+                <span><?= h(sblog_t('第 {page} / {pages} 页', ['page' => $page, 'pages' => $totalPages])) ?></span>
+                <?php if ($page < $totalPages): ?><a class="button button--secondary" rel="next" href="<?= h(url_with_query($storeUrl, ['type' => $filter, 'q' => $search, 'p' => $page + 1])) ?>"><?= h(sblog_t('下一页')) ?></a><?php endif; ?>
+              </nav>
+            <?php endif; ?>
           <?php else: ?>
             <div class="empty-state extension-store__empty"><p><?= h(!$extensions && (string)($catalog['error'] ?? '') !== '' ? sblog_t('无法获取扩展列表，请稍后刷新。') : ($search !== '' ? sblog_t('没有匹配的扩展，请尝试其他关键字。') : sblog_t('当前分类暂无可用扩展。'))) ?></p></div>
           <?php endif; ?>
@@ -9662,7 +9675,7 @@ switch ($action) {
         $returnUrl = match ($returnTo) {
             'themes' => url_with_query(url_for('admin_themes'), ['p' => $returnPage]),
             'plugins' => url_with_query(url_for('admin_plugins'), ['p' => $returnPage]),
-            default => url_with_query(url_for('admin_store'), ['type' => $returnType, 'q' => $returnSearch]),
+            default => url_with_query(url_for('admin_store'), ['type' => $returnType, 'q' => $returnSearch, 'p' => $returnPage]),
         };
         redirect_to($returnUrl, 303);
         break;

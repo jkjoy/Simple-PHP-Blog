@@ -132,7 +132,7 @@ store/         扩展商店索引协议说明（不部署到站点）
 
 ## 扩展商店
 
-- 支持按名称、标识、描述或作者搜索关键字，并可结合主题/插件分类筛选；切换分类、刷新和安装后保留搜索条件。
+- 支持按名称、标识、描述或作者搜索关键字，并可结合主题/插件分类筛选；结果每页显示 12 项，翻页、刷新和安装后保留分类、关键字和当前页。重新搜索、切换分类或清除搜索时从第 1 页开始。
 - 默认索引来自独立仓库 [`jkjoy/SBlog-Extensions`](https://github.com/jkjoy/SBlog-Extensions) 的 `catalog` 分支，GitHub Raw 不可用时自动回退到 jsDelivr，列表缓存 6 小时。
 - 可通过服务器环境变量 `SBLOG_EXTENSION_STORE_URL` 切换到自建仓库或 CDN 索引；缓存与索引 URL 绑定，切换源后不会复用旧源数据。
 - 官方仓库的 GitHub Actions 会校验扩展清单和版本，为每个主题、插件生成独立 ZIP 与 Release，并在资产校验通过后发布 `catalog.json`。

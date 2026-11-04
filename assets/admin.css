@@ -549,10 +549,6 @@ textarea {
   background: var(--admin-accent-hover);
 }
 
-.theme-admin .button:active {
-  transform: translateY(1px);
-}
-
 /* Reserve both labels so installing or upgrading cannot resize table columns. */
 .theme-admin .button[data-install-label] {
   display: inline-grid;
@@ -686,10 +682,6 @@ textarea {
   color: var(--admin-accent);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
   outline: none;
-}
-
-.theme-admin .markdown-toolbar__button:active {
-  transform: scale(0.96);
 }
 
 .theme-admin .markdown-toolbar__button svg {
@@ -1035,10 +1027,6 @@ textarea {
   box-shadow: 0 0 0 3px var(--admin-focus-ring);
 }
 
-.theme-admin .auth-password-toggle:active {
-  transform: scale(0.96);
-}
-
 .theme-admin .auth-password-toggle__icon {
   grid-area: 1 / 1;
   display: grid;
@@ -1073,10 +1061,6 @@ textarea {
   transition-property: background-color, box-shadow, transform;
   transition-duration: 160ms;
   transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
-}
-
-.theme-admin .auth-actions .button:active {
-  transform: scale(0.96);
 }
 
 .theme-admin .auth-link-row {
@@ -1322,10 +1306,6 @@ textarea {
   box-shadow: 0 0 0 3px var(--admin-focus-ring);
 }
 
-.theme-admin:not(.theme-admin--guest) .admin-side__expand:active {
-  transform: scale(0.96);
-}
-
 .theme-admin:not(.theme-admin--guest) .admin-side__expand .admin-side__icon {
   transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
 }
@@ -1540,10 +1520,6 @@ textarea {
 
 .theme-admin:not(.theme-admin--guest) .admin-side__account-toggle:focus-visible {
   box-shadow: 0 0 0 3px var(--admin-focus-ring);
-}
-
-.theme-admin:not(.theme-admin--guest) .admin-side__account-toggle:active {
-  transform: scale(0.96);
 }
 
 .theme-admin:not(.theme-admin--guest) .admin-side__footer-text {
@@ -1765,10 +1741,6 @@ textarea {
 .theme-admin .admin-theme-toggle:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--admin-focus-ring);
-}
-
-.theme-admin .admin-theme-toggle:active {
-  transform: scale(0.96);
 }
 
 .theme-admin .admin-theme-toggle__icons {
@@ -2330,10 +2302,6 @@ textarea {
   box-shadow: 0 0 0 3px var(--admin-focus-ring), 0 0 0 1px var(--admin-accent);
 }
 
-.theme-admin .tag-cloud__item:active {
-  transform: scale(0.96);
-}
-
 .theme-admin .tag-cloud__item.is-marked {
   background: var(--admin-accent-soft);
   color: var(--admin-accent);
@@ -2467,10 +2435,6 @@ textarea {
   position: relative;
 }
 
-.theme-admin:not(.theme-admin--guest) .admin-icon-btn--notifications:active {
-  transform: scale(0.96);
-}
-
 .theme-admin:not(.theme-admin--guest) .admin-icon-btn--notifications:has(.admin-count-badge) {
   border-color: var(--admin-accent-border);
   background: var(--admin-accent-soft);
@@ -2542,10 +2506,6 @@ textarea {
   color: var(--admin-accent);
 }
 
-.theme-admin:not(.theme-admin--guest) .admin-filter-tab:active {
-  transform: scale(0.96);
-}
-
 .theme-admin:not(.theme-admin--guest) .comment-search {
   display: flex;
   align-items: center;
@@ -2564,13 +2524,6 @@ textarea {
 .theme-admin:not(.theme-admin--guest) .comment-search .button {
   min-height: 40px;
   flex: 0 0 auto;
-}
-
-.theme-admin:not(.theme-admin--guest) .comment-search .button:active,
-.theme-admin:not(.theme-admin--guest) .comment-actions .button:active,
-.theme-admin:not(.theme-admin--guest) .admin-table-footer .button:active,
-.theme-admin:not(.theme-admin--guest) .comment-mark-read:active {
-  transform: scale(0.96);
 }
 
 .theme-admin:not(.theme-admin--guest) .comment-table {
@@ -2842,10 +2795,6 @@ textarea {
   outline: none;
 }
 
-.theme-admin:not(.theme-admin--guest) .admin-pagination a:active {
-  transform: scale(0.96);
-}
-
 .theme-admin .settings-option-list {
   display: grid;
   width: 100%;
@@ -3048,7 +2997,6 @@ textarea {
 
 .theme-admin .extension-card:hover {
   box-shadow: 0 0 0 1px var(--admin-border-strong), 0 12px 28px rgba(31, 35, 41, 0.09);
-  transform: translateY(-2px);
 }
 
 .theme-admin .extension-card.is-active {
@@ -3150,11 +3098,6 @@ textarea {
 
 .theme-admin .extension-card__footer form {
   margin: 0;
-}
-
-.theme-admin .extension-card button:active,
-.theme-admin .extension-store__header .button:active {
-  transform: scale(0.96);
 }
 
 .theme-admin .extension-store__trust {
@@ -3482,10 +3425,6 @@ textarea {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.theme-admin .media-library-preview:hover img {
-  transform: scale(1.015);
 }
 
 .theme-admin .media-library-preview img {
@@ -4601,14 +4540,17 @@ textarea {
   }
 
   .theme-admin:not(.theme-admin--guest) .post-table td,
-  .theme-admin:not(.theme-admin--guest) .post-table .admin-post-row--pinned td:first-child,
-  .theme-admin:not(.theme-admin--guest) .post-table tbody .admin-post-row:hover td {
+  .theme-admin:not(.theme-admin--guest) .post-table .admin-post-row--pinned td:first-child {
     display: block;
     min-width: 0;
     padding: 0;
     border: 0;
     background: transparent;
     box-shadow: none;
+  }
+
+  .theme-admin:not(.theme-admin--guest) .post-table tbody .admin-post-row:hover td {
+    background: transparent;
   }
 
   .theme-admin:not(.theme-admin--guest) .post-table__title {
@@ -4917,4 +4859,15 @@ textarea {
   .theme-admin .post-format-control {
     grid-template-columns: 1fr;
   }
+}
+
+/* Keep admin interactions immediate without changing functional layout transforms. */
+.theme-admin,
+.theme-admin::before,
+.theme-admin::after,
+.theme-admin *,
+.theme-admin *::before,
+.theme-admin *::after {
+  animation: none !important;
+  transition: none !important;
 }

@@ -717,8 +717,7 @@ function initTagManager() {
     if (updateUrl && button instanceof HTMLButtonElement && button.dataset.tagUrl) replaceUrl(button.dataset.tagUrl);
     if (!revealEditor) return;
     if (window.matchMedia("(max-width: 760px)").matches && editor instanceof HTMLElement) {
-      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      editor.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+      editor.scrollIntoView({ behavior: "auto", block: "start" });
     } else {
       nameInput.focus({ preventScroll: true });
       nameInput.select();

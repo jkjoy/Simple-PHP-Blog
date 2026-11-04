@@ -266,6 +266,73 @@ $tests['search controls preserve routing category and keyword with safe output']
     }
 };
 
+$tests['store paginates filtered results and retains page state across navigation and actions'] = static function (): void {
+    $renderer = __NAMESPACE__ . '\\render_admin_store_page';
+    foreach ([false, true] as $pretty) {
+        $GLOBALS['extension_pretty'] = $pretty;
+        foreach ([0, 12, 13, 24, 25] as $count) {
+            $GLOBALS['extension_catalog'] = [];
+            for ($i = 0; $i < $count; $i++) {
+                $slug = 'store-' . $i;
+                $GLOBALS['extension_catalog']['plugin:' . $slug] = ['type' => 'plugin', 'slug' => $slug, 'name' => 'Store ' . $i, 'description' => '', 'author' => '', 'version' => '1.0.0', 'requires' => ''];
+            }
+            $xpath = capture($renderer);
+            same(array_slice(array_column($GLOBALS['extension_catalog'], 'slug'), 0, 12), store_slugs($xpath), 'The store first page must show at most twelve catalog entries.');
+            same($count . ' 个扩展', trim($xpath->query('//*[contains(@class,"extension-store__count")]')[0]->textContent), 'The store count must show all matching entries, including later pages.');
+            same($count > 12 ? 1 : 0, $xpath->query('//nav[contains(@class,"admin-pagination")]')->length, 'Single-page and empty stores must not show pagination.');
+        }
+
+        $GLOBALS['extension_catalog'] = [];
+        $expected = [];
+        for ($i = 0; $i < 25; $i++) {
+            foreach (['theme', 'plugin'] as $type) {
+                $slug = $type . '-match-' . $i;
+                $GLOBALS['extension_catalog'][$type . ':' . $slug] = ['type' => $type, 'slug' => $slug, 'name' => 'Extension ' . $i, 'description' => 'keyword 中文', 'author' => 'Author', 'version' => '1.0.0', 'requires' => ''];
+                if ($type === 'plugin') { $expected[] = $slug; }
+            }
+            $slug = 'unmatched-' . $i;
+            $GLOBALS['extension_catalog']['plugin:' . $slug] = ['type' => 'plugin', 'slug' => $slug, 'name' => 'Unrelated', 'description' => '', 'author' => '', 'version' => '1.0.0', 'requires' => ''];
+        }
+        foreach ([['1', 1], ['2', 2], ['3', 3], ['999999999999999999999999999999', 3], ['0', 1], ['-1', 1], ['2.5', 1], ['2x', 1], [['2'], 1]] as [$requested, $page]) {
+            $xpath = capture($renderer, ['type' => 'plugin', 'q' => 'keyword 中文', 'p' => $requested, 'refresh' => '1']);
+            same(array_slice($expected, ($page - 1) * 12, 12), store_slugs($xpath), 'Category and keyword filtering must happen before store pagination.');
+            same('25 个扩展', trim($xpath->query('//*[contains(@class,"extension-store__count")]')[0]->textContent), 'Filtered total must remain independent of the selected page.');
+            same(true, $GLOBALS['extension_catalog_refresh'], 'Refreshing a paginated store must reach the catalog service.');
+            same('第 ' . $page . ' / 3 页', trim($xpath->query('//nav[contains(@class,"admin-pagination")]/span')[0]->textContent), 'The store must display the clamped current page.');
+            $links = $xpath->query('//nav[contains(@class,"admin-pagination")]/a');
+            same($page === 2 ? 2 : 1, $links->length, 'Only available adjacent store pages should be linked.');
+            foreach ($links as $link) {
+                $query = query_of($link);
+                same('keyword 中文', $query['q'] ?? null, 'Store pagination must retain the keyword.');
+                same('plugin', $query['type'] ?? null, 'Store pagination must retain the category.');
+                same(true, abs((int)($query['p'] ?? 0) - $page) === 1, 'Store pagination links must point to an adjacent page.');
+                same($pretty ? '/blog/admin/store' : '/blog/index.php', parse_url($link->getAttribute('href'), PHP_URL_PATH), 'Store pagination must retain pretty and plain routes.');
+                same($pretty ? null : 'admin_store', $query['a'] ?? null, 'Plain store pagination links must retain the action parameter.');
+            }
+            foreach ($xpath->query('//form[@data-extension-install]') as $form) {
+                same((string)$page, $xpath->query('.//input[@name="return_page"]', $form)[0]?->getAttribute('value'), 'Installation must return to the clamped store page.');
+                same('keyword 中文', $xpath->query('.//input[@name="return_q"]', $form)[0]?->getAttribute('value'), 'Installation must retain the store keyword.');
+                same('plugin', $xpath->query('.//input[@name="return_type"]', $form)[0]?->getAttribute('value'), 'Installation must retain the category.');
+                same(1, $xpath->query('.//input[@name="csrf"]', $form)->length, 'Paginated store installations must retain CSRF protection.');
+            }
+            foreach ($xpath->query('//a[contains(@href,"refresh=")]') as $link) {
+                same((string)$page, query_of($link)['p'] ?? null, 'Manual catalog refresh must retain the current page.');
+            }
+            foreach ($xpath->query('//nav[contains(@class,"extension-store__tabs")]/a|//form[contains(@class,"extension-store__search")]/a') as $link) {
+                same(false, isset(query_of($link)['p']), 'Changing category or clearing search must restart at the first page.');
+            }
+            same(0, $xpath->query('//form[contains(@class,"extension-store__search")]//input[@name="p"]')->length, 'Submitting a new keyword must restart at the first page.');
+        }
+        unset($GLOBALS['extension_catalog']['plugin:plugin-match-24']);
+        $xpath = capture($renderer, ['type' => 'plugin', 'q' => 'keyword 中文', 'p' => '3']);
+        same(array_slice($expected, 12, 12), store_slugs($xpath), 'A refreshed catalog that loses its last page must show the new last page.');
+        same('第 2 / 2 页', trim($xpath->query('//nav[contains(@class,"admin-pagination")]/span')[0]->textContent), 'Shrinking search results must clamp their page count.');
+        $xpath = capture($renderer, ['type' => 'plugin', 'q' => 'no matching keyword', 'p' => '3']);
+        same([], store_slugs($xpath), 'Empty search results must remain empty on an old page URL.');
+        same(0, $xpath->query('//nav[contains(@class,"admin-pagination")]')->length, 'Empty search results must not offer stale pages.');
+    }
+};
+
 try {
     foreach ($tests as $name => $test) { $test(); fwrite(STDOUT, 'PASS ' . $name . "\n"); }
     fwrite(STDOUT, 'PASS ' . count($tests) . ' extension scenarios, ' . $GLOBALS['extension_assertions'] . " assertions.\n");
