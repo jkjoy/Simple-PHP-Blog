@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.21';
+const APP_VERSION = 'v1.14.22';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -8208,17 +8208,34 @@ function render_admin_media_page(): void
     render_admin_content_end(sblog_t('媒体库'), 'media', sblog_t('媒体资料管理'));
 }
 
+function extension_store_search_query(mixed $value): string
+{
+    if (!is_string($value)) {
+        return '';
+    }
+    return preg_match('/\A.{0,255}/us', trim($value), $match) === 1 ? $match[0] : '';
+}
+
 function render_admin_store_page(): void
 {
     require_admin();
 
-    $filter = strtolower(trim((string)($_GET['type'] ?? 'all')));
+    $filter = is_string($_GET['type'] ?? null) ? strtolower(trim($_GET['type'])) : 'all';
     if (!in_array($filter, ['all', 'theme', 'plugin'], true)) {
         $filter = 'all';
     }
-    $catalog = extension_store_catalog((string)($_GET['refresh'] ?? '') === '1');
+    $search = extension_store_search_query($_GET['q'] ?? null);
+    $pattern = $search !== '' ? '/' . preg_quote($search, '/') . '/iu' : '';
+    $catalog = extension_store_catalog(($_GET['refresh'] ?? '') === '1');
     $extensions = is_array($catalog['extensions'] ?? null) ? $catalog['extensions'] : [];
-    $visible = array_filter($extensions, static fn(array $extension): bool => $filter === 'all' || $extension['type'] === $filter);
+    $visible = array_filter($extensions, static function (array $extension) use ($filter, $pattern): bool {
+        if ($filter !== 'all' && $extension['type'] !== $filter) {
+            return false;
+        }
+        return $pattern === '' || preg_match($pattern, implode("\n", [
+            $extension['name'], $extension['slug'], $extension['description'], $extension['author'],
+        ])) === 1;
+    });
     $activeTheme = active_theme_slug();
     $activePlugins = active_plugin_slugs(true);
     $sidebar = render_admin_sidebar('store');
@@ -8234,7 +8251,7 @@ function render_admin_store_page(): void
               <h1 id="extension-store-title"><?= h(sblog_t('扩展商店')) ?></h1>
               <p><?= h(sblog_t('从远程商店安装和更新 SBlog 主题与插件。')) ?></p>
             </div>
-            <a class="button button--secondary" href="<?= h(url_with_query($storeUrl, ['type' => $filter, 'refresh' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('刷新列表')) ?></a>
+            <a class="button button--secondary" href="<?= h(url_with_query($storeUrl, ['type' => $filter, 'q' => $search, 'refresh' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('刷新列表')) ?></a>
           </header>
 
           <?php if ((string)($catalog['error'] ?? '') !== ''): ?>
@@ -8247,9 +8264,17 @@ function render_admin_store_page(): void
           <div class="extension-store__toolbar">
             <nav class="extension-store__tabs" aria-label="<?= h(sblog_t('扩展类型')) ?>">
               <?php foreach (['all' => sblog_t('全部'), 'theme' => sblog_t('主题'), 'plugin' => sblog_t('插件')] as $type => $label): ?>
-                <a href="<?= h(url_with_query($storeUrl, ['type' => $type])) ?>"<?= $filter === $type ? ' aria-current="page"' : '' ?>><?= h($label) ?></a>
+                <a href="<?= h(url_with_query($storeUrl, ['type' => $type, 'q' => $search])) ?>"<?= $filter === $type ? ' aria-current="page"' : '' ?>><?= h($label) ?></a>
               <?php endforeach; ?>
             </nav>
+            <form class="extension-store__search" method="get" action="<?= h($storeUrl) ?>" role="search">
+              <?php if (!use_pretty_url()): ?><input type="hidden" name="a" value="admin_store"><?php endif; ?>
+              <input type="hidden" name="type" value="<?= h($filter) ?>">
+              <label class="sr-only" for="extension-search"><?= h(sblog_t('搜索扩展')) ?></label>
+              <input id="extension-search" name="q" type="search" value="<?= h($search) ?>" maxlength="255" placeholder="<?= h(sblog_t('名称、标识、描述或作者')) ?>">
+              <button class="button button--secondary" type="submit"><?= h(sblog_t('搜索')) ?></button>
+              <?php if ($search !== ''): ?><a class="button button--ghost" href="<?= h(url_with_query($storeUrl, ['type' => $filter])) ?>"><?= h(sblog_t('清除搜索')) ?></a><?php endif; ?>
+            </form>
             <span class="extension-store__count"><?= h(sblog_tn('{count} 个扩展', count($visible))) ?></span>
           </div>
 
@@ -8299,6 +8324,7 @@ function render_admin_store_page(): void
                           <input type="hidden" name="type" value="<?= h($type) ?>">
                           <input type="hidden" name="slug" value="<?= h($slug) ?>">
                           <input type="hidden" name="return_type" value="<?= h($filter) ?>">
+                          <input type="hidden" name="return_q" value="<?= h($search) ?>">
                           <input type="hidden" name="return_to" value="store">
                           <button class="button" type="submit"><?= h($actionLabel) ?></button>
                         </form>
@@ -8309,7 +8335,7 @@ function render_admin_store_page(): void
               <?php endforeach; ?>
             </div>
           <?php else: ?>
-            <div class="empty-state extension-store__empty"><p><?= h((string)($catalog['error'] ?? '') !== '' ? sblog_t('无法获取扩展列表，请稍后刷新。') : sblog_t('当前分类暂无可用扩展。')) ?></p></div>
+            <div class="empty-state extension-store__empty"><p><?= h(!$extensions && (string)($catalog['error'] ?? '') !== '' ? sblog_t('无法获取扩展列表，请稍后刷新。') : ($search !== '' ? sblog_t('没有匹配的扩展，请尝试其他关键字。') : sblog_t('当前分类暂无可用扩展。'))) ?></p></div>
           <?php endif; ?>
 
           <p class="extension-store__trust"><?= h(sblog_t('主题和插件会在服务器上执行代码。仅安装来自可信商店的扩展。')) ?></p>
@@ -8325,6 +8351,10 @@ function render_admin_plugins_page(): void
     $plugins = available_plugins();
     $updateState = extension_updates_for('plugin', $plugins, (string)($_GET['check_updates'] ?? '') === '1');
     $updates = $updateState['items'];
+    $totalPages = max(1, (int)ceil(count($plugins) / 12));
+    $requestedPage = is_scalar($_GET['p'] ?? null) && preg_match('/^[0-9]+$/D', (string)$_GET['p']) === 1 ? (int)$_GET['p'] : 1;
+    $page = max(1, min($totalPages, $requestedPage));
+    $visiblePlugins = array_slice($plugins, ($page - 1) * 12, 12, true);
     $active = active_plugin_slugs(true);
     $errors = is_array($GLOBALS['sblog_plugin_errors'] ?? null) ? $GLOBALS['sblog_plugin_errors'] : [];
     $sidebar = render_admin_sidebar('plugins');
@@ -8341,7 +8371,7 @@ function render_admin_plugins_page(): void
                 <p class="panel__meta"><?= h(sblog_t('语言包安装后自动启用，插件设置可在扩展设置中打开。')) ?></p>
               </div>
               <div class="admin-head-actions">
-                <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_plugins'), ['check_updates' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('检查更新')) ?></a>
+                <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_plugins'), ['check_updates' => 1, 'p' => $page])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('检查更新')) ?></a>
                 <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_store'), ['type' => 'plugin'])) ?>"><?= admin_icon('store') ?><?= h(sblog_t('获取插件')) ?></a>
               </div>
             </div>
@@ -8353,7 +8383,7 @@ function render_admin_plugins_page(): void
                 <table class="admin-table extension-table">
                   <thead><tr><th scope="col"><?= h(sblog_t('插件')) ?></th><th scope="col"><?= h(sblog_t('状态')) ?></th><th scope="col"><?= h(sblog_t('操作')) ?></th></tr></thead>
                   <tbody>
-                  <?php foreach ($plugins as $slug => $plugin): ?>
+                  <?php foreach ($visiblePlugins as $slug => $plugin): ?>
                     <?php
                     $isActive = in_array($slug, $active, true);
                     $isLanguage = (string)$plugin['locale'] !== '';
@@ -8390,6 +8420,7 @@ function render_admin_plugins_page(): void
                                 <input type="hidden" name="type" value="plugin">
                                 <input type="hidden" name="slug" value="<?= h($slug) ?>">
                                 <input type="hidden" name="return_to" value="plugins">
+                                <input type="hidden" name="return_page" value="<?= $page ?>">
                                 <button class="button" type="submit"><?= h(sblog_t('升级')) ?></button>
                               </form>
                           <?php endif; ?>
@@ -8398,6 +8429,7 @@ function render_admin_plugins_page(): void
                             <?= csrf_field() ?>
                             <input type="hidden" name="plugin" value="<?= h($slug) ?>">
                             <input type="hidden" name="operation" value="<?= $isActive ? 'deactivate' : 'activate' ?>">
+                            <input type="hidden" name="return_page" value="<?= $page ?>">
                             <button class="button <?= $isActive || $updateCompatible ? 'button--secondary' : '' ?>" type="submit"><?= h($isActive ? sblog_t('停用') : sblog_t('启用')) ?></button>
                           </form>
                           <?php endif; ?>
@@ -8412,6 +8444,7 @@ function render_admin_plugins_page(): void
                               <?= csrf_field() ?>
                               <input type="hidden" name="type" value="plugin">
                               <input type="hidden" name="slug" value="<?= h($slug) ?>">
+                              <input type="hidden" name="return_page" value="<?= $page ?>">
                               <button class="extension-action--danger" type="submit"><?= h(sblog_t('卸载')) ?></button>
                             </form>
                               <?php endif; ?>
@@ -8425,6 +8458,15 @@ function render_admin_plugins_page(): void
                   </tbody>
                 </table>
               </div>
+              <?php if ($totalPages > 1): ?>
+                <div class="admin-table-footer">
+                  <nav class="admin-pagination" aria-label="<?= h(sblog_t('插件分页')) ?>">
+                    <?php if ($page > 1): ?><a class="button button--secondary" rel="prev" href="<?= h(url_with_query(url_for('admin_plugins'), ['p' => $page - 1])) ?>"><?= h(sblog_t('上一页')) ?></a><?php endif; ?>
+                    <span><?= h(sblog_t('第 {page} / {pages} 页', ['page' => $page, 'pages' => $totalPages])) ?></span>
+                    <?php if ($page < $totalPages): ?><a class="button button--secondary" rel="next" href="<?= h(url_with_query(url_for('admin_plugins'), ['p' => $page + 1])) ?>"><?= h(sblog_t('下一页')) ?></a><?php endif; ?>
+                  </nav>
+                </div>
+              <?php endif; ?>
             <?php else: ?>
               <div class="empty-state empty-state--inside"><p><?= h(sblog_t('尚未安装插件。')) ?> <a href="<?= h(url_with_query(url_for('admin_store'), ['type' => 'plugin'])) ?>"><?= h(sblog_t('前往扩展商店')) ?></a></p></div>
             <?php endif; ?>
@@ -8441,6 +8483,10 @@ function render_admin_themes_page(): void
     $themes = available_themes();
     $updateState = extension_updates_for('theme', $themes, (string)($_GET['check_updates'] ?? '') === '1');
     $updates = $updateState['items'];
+    $totalPages = max(1, (int)ceil(count($themes) / 12));
+    $requestedPage = is_scalar($_GET['p'] ?? null) && preg_match('/^[0-9]+$/D', (string)$_GET['p']) === 1 ? (int)$_GET['p'] : 1;
+    $page = max(1, min($totalPages, $requestedPage));
+    $visibleThemes = array_slice($themes, ($page - 1) * 12, 12, true);
     $configuredSlug = trim(setting('active_theme', 'default'));
     $activeSlug = isset($themes[$configuredSlug]) ? $configuredSlug : 'default';
     $sidebar = render_admin_sidebar('themes');
@@ -8457,7 +8503,7 @@ function render_admin_themes_page(): void
                 <p class="panel__meta"><?= h(sblog_tn('{count} 个主题', count($themes))) ?></p>
               </div>
               <div class="admin-head-actions">
-                <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_themes'), ['check_updates' => 1])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('检查更新')) ?></a>
+                <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_themes'), ['check_updates' => 1, 'p' => $page])) ?>"><?= admin_icon('refresh') ?><?= h(sblog_t('检查更新')) ?></a>
                 <a class="button button--secondary" href="<?= h(url_with_query(url_for('admin_store'), ['type' => 'theme'])) ?>"><?= admin_icon('store') ?><?= h(sblog_t('获取主题')) ?></a>
               </div>
             </div>
@@ -8468,7 +8514,7 @@ function render_admin_themes_page(): void
               <table class="admin-table extension-table theme-table">
                 <thead><tr><th scope="col"><?= h(sblog_t('主题')) ?></th><th scope="col"><?= h(sblog_t('状态')) ?></th><th scope="col"><?= h(sblog_t('操作')) ?></th></tr></thead>
                 <tbody>
-                <?php foreach ($themes as $slug => $theme): ?>
+                <?php foreach ($visibleThemes as $slug => $theme): ?>
                   <?php
                   $isActive = $slug === $activeSlug;
                   $previewUrl = url_with_query(url_for('home'), ['theme_preview' => (string)$slug]);
@@ -8503,18 +8549,21 @@ function render_admin_themes_page(): void
                               <input type="hidden" name="type" value="theme">
                               <input type="hidden" name="slug" value="<?= h($slug) ?>">
                               <input type="hidden" name="return_to" value="themes">
+                              <input type="hidden" name="return_page" value="<?= $page ?>">
                               <button class="button" type="submit"><?= h(sblog_t('升级')) ?></button>
                             </form>
                         <?php endif; ?>
                         <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-activate<?= $isActive ? ' hidden' : '' ?>>
                           <?= csrf_field() ?>
                           <input type="hidden" name="theme" value="<?= h($slug) ?>">
+                          <input type="hidden" name="return_page" value="<?= $page ?>">
                           <button class="button<?= $updateCompatible ? ' button--secondary' : '' ?>" type="submit"><?= h(sblog_t('启用')) ?></button>
                         </form>
                         <?php if ($slug !== 'default'): ?>
                           <form method="post" action="<?= h(url_for('activate_theme')) ?>" data-theme-deactivate<?= $isActive ? '' : ' hidden' ?>>
                             <?= csrf_field() ?>
                             <input type="hidden" name="theme" value="default">
+                            <input type="hidden" name="return_page" value="<?= $page ?>">
                             <button class="button button--secondary" type="submit"><?= h(sblog_t('停用')) ?></button>
                           </form>
                         <?php endif; ?>
@@ -8528,6 +8577,7 @@ function render_admin_themes_page(): void
                             <?= csrf_field() ?>
                             <input type="hidden" name="type" value="theme">
                             <input type="hidden" name="slug" value="<?= h($slug) ?>">
+                            <input type="hidden" name="return_page" value="<?= $page ?>">
                             <button class="extension-action--danger" type="submit"><?= h(sblog_t('卸载')) ?></button>
                           </form>
                         <?php endif; ?>
@@ -8540,6 +8590,15 @@ function render_admin_themes_page(): void
                 </tbody>
               </table>
             </div>
+            <?php if ($totalPages > 1): ?>
+              <div class="admin-table-footer">
+                <nav class="admin-pagination" aria-label="<?= h(sblog_t('主题分页')) ?>">
+                  <?php if ($page > 1): ?><a class="button button--secondary" rel="prev" href="<?= h(url_with_query(url_for('admin_themes'), ['p' => $page - 1])) ?>"><?= h(sblog_t('上一页')) ?></a><?php endif; ?>
+                  <span><?= h(sblog_t('第 {page} / {pages} 页', ['page' => $page, 'pages' => $totalPages])) ?></span>
+                  <?php if ($page < $totalPages): ?><a class="button button--secondary" rel="next" href="<?= h(url_with_query(url_for('admin_themes'), ['p' => $page + 1])) ?>"><?= h(sblog_t('下一页')) ?></a><?php endif; ?>
+                </nav>
+              </div>
+            <?php endif; ?>
           </div>
         </section>
     <?php
@@ -9569,16 +9628,19 @@ switch ($action) {
         break;
     case 'install_extension':
         require_admin_post(url_for('admin_store'));
-        $type = strtolower(trim((string)($_POST['type'] ?? '')));
-        $slug = strtolower(trim((string)($_POST['slug'] ?? '')));
-        $returnType = strtolower(trim((string)($_POST['return_type'] ?? 'all')));
-        $returnTo = strtolower(trim((string)($_POST['return_to'] ?? 'store')));
+        $type = is_string($_POST['type'] ?? null) ? strtolower(trim($_POST['type'])) : '';
+        $slug = is_string($_POST['slug'] ?? null) ? strtolower(trim($_POST['slug'])) : '';
+        $returnType = is_string($_POST['return_type'] ?? null) ? strtolower(trim($_POST['return_type'])) : 'all';
+        $returnTo = is_string($_POST['return_to'] ?? null) ? strtolower(trim($_POST['return_to'])) : 'store';
         if (!in_array($returnType, ['all', 'theme', 'plugin'], true)) {
             $returnType = 'all';
         }
         if (!in_array($returnTo, ['store', 'themes', 'plugins'], true)) {
             $returnTo = 'store';
         }
+        $returnSearch = extension_store_search_query($_POST['return_q'] ?? null);
+        $returnPage = is_string($_POST['return_page'] ?? null) && preg_match('/^[0-9]+$/D', $_POST['return_page']) === 1
+            ? max(1, (int)$_POST['return_page']) : 1;
         try {
             $catalog = extension_store_catalog();
             $extension = $catalog['extensions'][$type . ':' . $slug] ?? null;
@@ -9598,9 +9660,9 @@ switch ($action) {
             set_flash('error', sblog_t('扩展安装失败：{error}', ['error' => $exception->getMessage()]));
         }
         $returnUrl = match ($returnTo) {
-            'themes' => url_for('admin_themes'),
-            'plugins' => url_for('admin_plugins'),
-            default => url_with_query(url_for('admin_store'), ['type' => $returnType]),
+            'themes' => url_with_query(url_for('admin_themes'), ['p' => $returnPage]),
+            'plugins' => url_with_query(url_for('admin_plugins'), ['p' => $returnPage]),
+            default => url_with_query(url_for('admin_store'), ['type' => $returnType, 'q' => $returnSearch]),
         };
         redirect_to($returnUrl, 303);
         break;
@@ -9609,7 +9671,8 @@ switch ($action) {
         require_admin_post(url_for('admin_plugins'));
         $type = trim((string)($_POST['type'] ?? ''));
         $slug = trim((string)($_POST['slug'] ?? ''));
-        $returnUrl = $type === 'theme' ? url_for('admin_themes') : url_for('admin_plugins');
+        $returnPage = is_scalar($_POST['return_page'] ?? null) && preg_match('/^[0-9]+$/D', (string)$_POST['return_page']) === 1 ? max(1, (int)$_POST['return_page']) : 1;
+        $returnUrl = url_with_query($type === 'theme' ? url_for('admin_themes') : url_for('admin_plugins'), ['p' => $returnPage]);
         try {
             uninstall_extension($type, $slug);
             set_flash('success', $type === 'theme'
@@ -9635,16 +9698,18 @@ switch ($action) {
 
     case 'toggle_plugin':
         require_admin_post(url_for('admin_plugins'));
+        $returnPage = is_scalar($_POST['return_page'] ?? null) && preg_match('/^[0-9]+$/D', (string)$_POST['return_page']) === 1 ? max(1, (int)$_POST['return_page']) : 1;
+        $returnUrl = url_with_query(url_for('admin_plugins'), ['p' => $returnPage]);
         $slug = trim((string)($_POST['plugin'] ?? ''));
         $operation = (string)($_POST['operation'] ?? '');
         $plugins = available_plugins();
         if (!isset($plugins[$slug]) || !in_array($operation, ['activate', 'deactivate'], true)) {
             set_flash('error', sblog_t('插件不存在或操作无效。'));
-            redirect_to(url_for('admin_plugins'));
+            redirect_to($returnUrl);
         }
         if ((string)$plugins[$slug]['locale'] !== '') {
             set_flash('error', sblog_t('语言包安装后自动启用，请在常规设置中选择站点语言。'));
-            redirect_to(url_for('admin_plugins'), 303);
+            redirect_to($returnUrl, 303);
         }
         $activePlugins = active_plugin_slugs(true);
         if ($operation === 'activate' && !in_array($slug, $activePlugins, true)) {
@@ -9659,7 +9724,7 @@ switch ($action) {
         save_active_plugins($activePlugins);
         plugin_action('plugin_status_changed', ['plugin' => $slug, 'operation' => $operation]);
         set_flash('success', $operation === 'activate' ? sblog_t('插件已启用。') : sblog_t('插件已停用。'));
-        redirect_to(url_with_query(url_for('admin_plugins'), ['changed' => bin2hex(random_bytes(4))]), 303);
+        redirect_to(url_with_query($returnUrl, ['changed' => bin2hex(random_bytes(4))]), 303);
         break;
 
     case 'save_media':
@@ -9705,6 +9770,8 @@ switch ($action) {
 
     case 'activate_theme':
         require_admin_post(url_for('admin_themes'));
+        $returnPage = is_scalar($_POST['return_page'] ?? null) && preg_match('/^[0-9]+$/D', (string)$_POST['return_page']) === 1 ? max(1, (int)$_POST['return_page']) : 1;
+        $returnUrl = url_with_query(url_for('admin_themes'), ['p' => $returnPage]);
         $themeSlug = trim((string)($_POST['theme'] ?? ''));
         $acceptsJson = str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? '')), 'application/json');
         if (!array_key_exists($themeSlug, available_themes())) {
@@ -9712,14 +9779,14 @@ switch ($action) {
                 json_response(['ok' => false, 'error' => sblog_t('所选主题不存在或 theme.json 无效。')], 422);
             }
             set_flash('error', sblog_t('所选主题不存在或 theme.json 无效。'));
-            redirect_to(url_for('admin_themes'));
+            redirect_to($returnUrl);
         }
         save_settings(['active_theme' => $themeSlug]);
         if ($acceptsJson) {
             json_response(['ok' => true, 'active_theme' => $themeSlug]);
         }
         set_flash('success', $themeSlug === 'default' ? sblog_t('已停用当前主题并恢复默认主题。') : sblog_t('主题已启用。'));
-        redirect_to(url_with_query(url_for('admin_themes'), ['changed' => bin2hex(random_bytes(4))]), 303);
+        redirect_to(url_with_query($returnUrl, ['changed' => bin2hex(random_bytes(4))]), 303);
         break;
 
     case 'save_settings':

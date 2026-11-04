@@ -2951,8 +2951,32 @@ textarea {
 }
 
 .theme-admin .extension-store__toolbar {
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
+}
+
+.theme-admin .extension-store__search {
+  display: flex;
+  flex: 1 1 360px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  max-width: 620px;
+  margin: 0;
+}
+
+.theme-admin .extension-store__search input[type="search"] {
+  flex: 1 1 160px;
+  width: 0;
+  min-width: 0;
+  min-height: 40px;
+}
+
+.theme-admin .extension-store__search .button {
+  flex: 0 0 auto;
+  min-height: 40px;
 }
 
 .theme-admin .extension-store__tabs {
@@ -3157,6 +3181,11 @@ textarea {
   .theme-admin .extension-store__tabs {
     width: 100%;
     grid-auto-columns: 1fr;
+  }
+
+  .theme-admin .extension-store__search {
+    flex-basis: auto;
+    max-width: none;
   }
 
   .theme-admin .extension-store__count {
