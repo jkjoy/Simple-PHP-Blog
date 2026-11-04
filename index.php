@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.25';
+const APP_VERSION = 'v1.14.26';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -7742,10 +7742,10 @@ function render_admin_comments_page(): void
                         <td class="comment-table__select"><label class="table-check"><input type="checkbox" name="comment_ids[]" value="<?= h($comment['id']) ?>" form="comments-bulk-form" aria-label="<?= h(sblog_t('选择 {author} 的评论', ['author' => (string)$comment['author_name']])) ?>"><span class="sr-only"><?= h(sblog_t('选择评论')) ?></span></label></td>
                         <td class="comment-table__author">
                           <div class="table-title">
-                            <strong><?= h($comment['author_name']) ?></strong>
-                            <span><?= h($comment['author_email']) ?></span>
-                            <?php if ((string)$comment['ip_address'] !== ''): ?><span><?= h(sblog_t('IP：{address}', ['address' => (string)$comment['ip_address']])) ?></span><?php endif; ?>
-                            <?php if ($authorUrl !== '#'): ?><a href="<?= h($authorUrl) ?>" target="_blank" rel="noopener noreferrer nofollow"><?= h((string)parse_url($authorUrl, PHP_URL_HOST)) ?></a><?php endif; ?>
+                            <strong class="comment-author__name" title="<?= h($comment['author_name']) ?>"><?php if ($authorUrl !== '#'): ?><a href="<?= h($authorUrl) ?>" target="_blank" rel="noopener noreferrer nofollow"><?= h($comment['author_name']) ?></a><?php else: ?><?= h($comment['author_name']) ?><?php endif; ?></strong>
+                            <span class="comment-author__email" title="<?= h($comment['author_email']) ?>"><?= h($comment['author_email']) ?></span>
+                            <?php if ((string)$comment['ip_address'] !== ''): ?><span class="comment-author__ip" title="<?= h(sblog_t('IP：{address}', ['address' => (string)$comment['ip_address']])) ?>"><?= h(sblog_t('IP：{address}', ['address' => (string)$comment['ip_address']])) ?></span><?php endif; ?>
+                            <?php if ($authorUrl !== '#'): ?><a class="comment-author__website" href="<?= h($authorUrl) ?>" target="_blank" rel="noopener noreferrer nofollow"><?= h((string)parse_url($authorUrl, PHP_URL_HOST)) ?></a><?php endif; ?>
                           </div>
                         </td>
                         <td class="comment-table__content">
@@ -7755,11 +7755,11 @@ function render_admin_comments_page(): void
                             <a href="<?= h(content_permalink(['kind' => (string)$comment['post_kind'], 'slug' => (string)$comment['post_slug']])) ?><?= (string)$comment['status'] === 'approved' && (string)$comment['post_kind'] === 'post' ? '#comment-' . h($comment['id']) : '' ?>"><?= h($comment['post_title']) ?></a>
                           </div>
                         </td>
-                        <td class="comment-table__status">
+                        <td class="comment-table__status" title="<?= h($state['label']) ?>">
                           <span class="status-badge status-badge--<?= h($state['class']) ?>"><?= h($state['label']) ?></span>
                           <?php if ((int)$comment['is_read'] === 0): ?><span class="comment-unread-dot"><?= h(sblog_t('未读')) ?></span><?php endif; ?>
                         </td>
-                        <td class="comment-table__time" data-label="<?= h(sblog_t('提交时间')) ?>"><time datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time></td>
+                        <td class="comment-table__time" title="<?= h(pretty_date((int)$comment['created_at'], true)) ?>"><time datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time></td>
                         <td class="comment-table__actions">
                           <form class="table-actions comment-actions" method="post" action="<?= h(url_for('moderate_comments')) ?>">
                             <?= csrf_field() ?>
