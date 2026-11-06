@@ -218,6 +218,68 @@ $tests['theme manager exposes native settings inside More for active and inactiv
     }
     same(2, substr_count($content, 'a=admin_theme_settings'), 'The built-in theme must not gain a settings link.');
 };
+$tests['secret fields preserve, replace and explicitly clear only their own saved values'] = static function (): void {
+    fixture('secrets', ['sections' => [['fields' => [
+        ['key' => 'title', 'default' => 'Account'],
+        ['key' => 'cookie', 'type' => 'secret', 'default' => 'must-not-be-a-default', 'maxlength' => 100],
+        ['key' => 'required_token', 'type' => 'secret', 'required' => true, 'maxlength' => 30],
+    ]]]]);
+    $stored = ['title' => 'Saved title', 'cookie' => 'MUSIC_U=saved-only-on-server', 'required_token' => 'required-secret'];
+    $GLOBALS['theme_settings_store']['theme_settings_secrets'] = json_encode($stored);
+    same('', theme_settings_schema('secrets')[0]['fields'][1]['default'], 'A secret must never use a bundled credential as its default.');
+    same($stored['cookie'], theme_setting('cookie', '', 'secrets'), 'Server-side theme code must still read the saved secret.');
+    $result = theme_settings_values('secrets', ['title' => 'New title', 'cookie' => '', 'required_token' => '']);
+    same([], $result['errors'], 'Blank secret inputs must preserve existing optional and required values.');
+    same($stored['cookie'], $result['values']['cookie'], 'A blank input must not erase an existing credential.');
+    same('required-secret', $result['values']['required_token'], 'Required credentials may be retained without re-entry.');
+    same('replacement-secret', theme_settings_values('secrets', ['cookie' => 'replacement-secret'])['values']['cookie'], 'A new credential must replace the old one.');
+    $cleared = theme_settings_values('secrets', ['cookie' => 'new-but-cleared'], ['cookie' => '1', 'title' => '1']);
+    same('', $cleared['values']['cookie'], 'An explicit clear must take precedence over a replacement credential.');
+    same(false, isset($cleared['errors']['cookie']), 'Optional credentials can be cleared.');
+    same(true, isset(theme_settings_values('secrets', [], ['required_token' => '1'])['errors']['required_token']), 'Required credentials cannot be cleared.');
+    same($stored['cookie'], theme_settings_values('secrets', [], ['cookie' => ['1']])['values']['cookie'], 'Malformed clear instructions must not erase credentials.');
+    same(true, isset(theme_settings_values('secrets', ['cookie' => ['invalid']])['errors']['cookie']), 'Array-shaped credentials must fail validation.');
+    same(true, isset(theme_settings_values('secrets', ['cookie' => "bad\xff"])['errors']['cookie']), 'Credentials must have valid UTF-8 before storage.');
+};
+$tests['secret settings never appear in initial or failed form markup and persist via CSRF-protected PRG'] = static function (): void {
+    request();
+    $_GET['theme'] = 'secrets';
+    render_admin_theme_settings_page();
+    $html = $GLOBALS['theme_settings_render']['content'];
+    same(false, str_contains($html, 'MUSIC_U=saved-only-on-server'), 'The existing cookie must not be embedded in a password value or anywhere in the form.');
+    same(false, str_contains($html, 'required-secret'), 'Required secrets must not be rendered either.');
+    same(2, substr_count($html, 'type="password" value=""'), 'Every secret control must have an empty password value.');
+    same(2, substr_count($html, 'autocomplete="new-password"'), 'Credential controls must not ask browsers to fill login passwords.');
+    same(false, (bool)preg_match('/name="settings\[required_token\]"[^>]* required/', $html), 'A retained required credential must not force browser re-entry.');
+    same(true, str_contains($html, 'name="clear_settings[cookie]"'), 'Saved credentials need an explicit clear control.');
+    same(true, str_contains($html, '已配置，留空保留'), 'Saved credentials must show only their configured status.');
+    $badSecret = str_repeat('invalid-credential-', 10);
+    request('POST', ['csrf_token' => 'test-token', 'settings' => ['cookie' => $badSecret], 'clear_settings' => ['required_token' => '1']]);
+    $_GET['theme'] = 'secrets';
+    $before = $GLOBALS['theme_settings_store'];
+    render_admin_theme_settings_page();
+    same(422, $GLOBALS['theme_settings_render']['options']['status'], 'An invalid credential must return a validation response.');
+    same(false, str_contains($GLOBALS['theme_settings_render']['content'], $badSecret), 'Failed validation must not echo a submitted credential.');
+    same(false, str_contains($GLOBALS['theme_settings_render']['content'], 'MUSIC_U=saved-only-on-server'), 'Failed validation must not reveal the saved cookie.');
+    same($before, $GLOBALS['theme_settings_store'], 'Failed credential validation must save nothing.');
+    same([], $GLOBALS['theme_settings_writes'], 'Clearing a credential cannot partly commit an otherwise invalid form.');
+    request('POST', ['csrf_token' => 'test-token', 'settings' => ['title' => 'Updated', 'cookie' => 'MUSIC_U=replaced']]);
+    $_GET['theme'] = 'secrets';
+    try { render_admin_theme_settings_page(); throw new RuntimeException('Credential save must redirect.'); }
+    catch (Response $response) { same(303, $response->status, 'Credential saves must use the normal protected PRG flow.'); }
+    same('MUSIC_U=replaced', theme_setting('cookie', '', 'secrets'), 'A replacement credential must be available to server-side code.');
+    same('required-secret', theme_setting('required_token', '', 'secrets'), 'Saving other fields must retain an omitted credential.');
+    request('POST', ['csrf_token' => 'test-token', 'clear_settings' => ['cookie' => '1']]);
+    $_GET['theme'] = 'secrets';
+    try { render_admin_theme_settings_page(); throw new RuntimeException('Credential clear must redirect.'); }
+    catch (Response $response) { same(303, $response->status, 'Clearing a credential must use the protected PRG flow.'); }
+    same('', theme_setting('cookie', 'fallback', 'secrets'), 'An explicitly cleared credential must stay empty.');
+    request();
+    $_GET['theme'] = 'secrets';
+    render_admin_theme_settings_page();
+    same(true, str_contains($GLOBALS['theme_settings_render']['content'], 'placeholder="未设置"'), 'A cleared credential must show its unset status.');
+    same(false, str_contains($GLOBALS['theme_settings_render']['content'], 'name="clear_settings[cookie]"'), 'An unset credential must not claim that a value exists to clear.');
+};
 
 $failed = 0;
 try {

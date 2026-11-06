@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.28';
+const APP_VERSION = 'v1.14.29';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -2997,7 +2997,7 @@ function theme_settings_schema(string $slug): array
             $key = is_string($field['key'] ?? null) ? $field['key'] : '';
             $type = is_string($field['type'] ?? null) ? $field['type'] : 'text';
             if (!preg_match('/^[a-z][a-z0-9_]{0,63}$/', $key) || isset($keys[$key]) || count($keys) >= 100
-                || !in_array($type, ['text', 'textarea', 'url', 'color', 'checkbox', 'select', 'date'], true)) { return []; }
+                || !in_array($type, ['text', 'textarea', 'url', 'color', 'checkbox', 'select', 'date', 'secret'], true)) { return []; }
             $keys[$key] = true;
             $text = static fn(string $name, string $fallback = ''): string => is_scalar($field[$name] ?? null)
                 ? (string)$field[$name] : $fallback;
@@ -3010,6 +3010,7 @@ function theme_settings_schema(string $slug): array
                 }
             }
             $default = $text('default', $type === 'checkbox' ? '0' : '');
+            if ($type === 'secret') { $default = ''; }
             if ($type === 'checkbox') { $default = in_array($default, ['1', 'true'], true) ? '1' : '0'; }
             $normalized = [
                 'key' => $key, 'type' => $type, 'label' => str_sub_u($text('label', $key), 0, 200),
@@ -3086,15 +3087,23 @@ function theme_setting(string $key, string $default = '', ?string $slug = null):
     return theme_settings($slug)[$key] ?? $default;
 }
 
-function theme_settings_values(string $slug, array $input): array
+function theme_settings_values(string $slug, array $input, array $clear = []): array
 {
     $values = [];
     $errors = [];
+    $stored = theme_settings($slug);
     foreach (theme_settings_schema($slug) as $section) {
         foreach ($section['fields'] as $field) {
             $key = $field['key'];
             $raw = $input[$key] ?? ($field['type'] === 'checkbox' ? '0' : '');
             $values[$key] = is_scalar($raw) ? trim((string)$raw) : '';
+            if ($field['type'] === 'secret' && is_scalar($raw)) {
+                if (($clear[$key] ?? null) === '1') {
+                    $values[$key] = '';
+                } elseif ($values[$key] === '') {
+                    $values[$key] = (string)($stored[$key] ?? '');
+                }
+            }
             $error = is_scalar($raw) ? theme_setting_value_error($field, $values[$key]) : sblog_t('请填写有效的内容。');
             if ($error !== '') { $errors[$key] = $error; }
         }
@@ -8671,10 +8680,12 @@ function render_admin_theme_settings_page(): void
         return;
     }
     $returnUrl = url_with_query(url_for('admin_theme_settings'), ['theme' => $slug]);
-    $values = theme_settings($slug);
+    $storedValues = theme_settings($slug);
+    $values = $storedValues;
+    $clear = $isPost && is_array($_POST['clear_settings'] ?? null) ? $_POST['clear_settings'] : [];
     $errors = [];
     if ($isPost) {
-        $result = theme_settings_values($slug, is_array($_POST['settings'] ?? null) ? $_POST['settings'] : []);
+        $result = theme_settings_values($slug, is_array($_POST['settings'] ?? null) ? $_POST['settings'] : [], $clear);
         $values = $result['values'];
         $errors = $result['errors'];
         if (!$errors) {
@@ -8708,7 +8719,7 @@ function render_admin_theme_settings_page(): void
                   $hasError = isset($errors[$key]);
                   $describedBy = trim(($hasHint ? $id . '-hint' : '') . ' ' . ($hasError ? $id . '-error' : ''));
                   $attributes = ' id="' . h($id) . '" name="' . h($name) . '"'
-                      . ($field['required'] ? ' required' : '')
+                      . ($field['required'] && !($field['type'] === 'secret' && ($storedValues[$key] ?? '') !== '') ? ' required' : '')
                       . ($describedBy !== '' ? ' aria-describedby="' . h($describedBy) . '"' : '')
                       . ($hasError ? ' aria-invalid="true"' : '');
               ?>
@@ -8721,6 +8732,9 @@ function render_admin_theme_settings_page(): void
                       <textarea<?= $attributes ?> rows="5" maxlength="<?= $field['maxlength'] ?>" placeholder="<?= h($field['placeholder']) ?>"><?= h($value) ?></textarea>
                     <?php elseif ($field['type'] === 'select'): ?>
                       <select<?= $attributes ?>><?php if (!array_key_exists($value, $field['options'])): ?><option value="<?= h($value) ?>" selected disabled><?= h($value) ?></option><?php endif; ?><?php foreach ($field['options'] as $optionValue => $optionLabel): ?><option value="<?= h((string)$optionValue) ?>"<?= (string)$optionValue === $value ? ' selected' : '' ?>><?= h($optionLabel) ?></option><?php endforeach; ?></select>
+                    <?php elseif ($field['type'] === 'secret'): ?>
+                      <input<?= $attributes ?> type="password" value="" maxlength="<?= $field['maxlength'] ?>" autocomplete="new-password" placeholder="<?= h(($storedValues[$key] ?? '') !== '' ? sblog_t('已配置，留空保留') : sblog_t('未设置')) ?>">
+                      <?php if (($storedValues[$key] ?? '') !== ''): ?><label class="setting-option" for="<?= h($id) ?>-clear"><input id="<?= h($id) ?>-clear" type="checkbox" name="clear_settings[<?= h($key) ?>]" value="1"<?= ($clear[$key] ?? null) === '1' ? ' checked' : '' ?>><span><?= h(sblog_t('清除已保存的值')) ?></span></label><?php endif; ?>
                     <?php else: ?>
                       <input<?= $attributes ?> type="<?= $field['type'] === 'date' ? 'date' : 'text' ?>" value="<?= h($value) ?>" maxlength="<?= $field['maxlength'] ?>" placeholder="<?= h($field['placeholder']) ?>"<?= $field['type'] === 'url' ? ' inputmode="url"' : '' ?>>
                     <?php endif; ?>
