@@ -167,6 +167,7 @@ function i_default_settings(): array
         'active_theme' => 'default',
         'active_plugins' => '[]',
         'site_language' => 'zh-CN',
+        'site_timezone' => 'Asia/Shanghai',
         'favicon_url' => 'favicon.png',
         'footer_beian' => '',
         'comments_enabled' => '1',

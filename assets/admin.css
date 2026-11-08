@@ -1798,16 +1798,16 @@ textarea {
   align-items: start;
 }
 
-.theme-admin:not(.theme-admin--guest) .admin-grid > .panel:first-child {
+.theme-admin:not(.theme-admin--guest) .admin-grid > .panel:first-child:not(:where(.admin-release-notes)) {
   border: 0;
   background: transparent;
 }
 
-.theme-admin:not(.theme-admin--guest) .admin-grid > .panel:first-child .panel__header {
+.theme-admin:not(.theme-admin--guest) .admin-grid > .panel:first-child:not(:where(.admin-release-notes)) .panel__header {
   display: none;
 }
 
-.theme-admin:not(.theme-admin--guest) .admin-grid > .panel:first-child .panel__body {
+.theme-admin:not(.theme-admin--guest) .admin-grid > .panel:first-child:not(:where(.admin-release-notes)) .panel__body {
   padding: 0;
 }
 
@@ -5073,6 +5073,19 @@ textarea {
   background: var(--admin-hover);
   color: var(--admin-soft);
   opacity: 0.72;
+}
+
+.theme-admin .admin-release-notes {
+  scroll-margin-top: 72px;
+}
+
+.theme-admin .admin-release-notes__body {
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--admin-text);
+  font: 400 13px/1.8 var(--font-ui);
 }
 
 @media (max-width: 560px) {

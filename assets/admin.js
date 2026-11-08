@@ -149,6 +149,40 @@ function initAdminConfirmations() {
   }, true);
 }
 
+async function initAutomaticUpdateCheck() {
+  const marker = document.querySelector("[data-admin-update-check]");
+  if (!marker || typeof window.fetch !== "function") return;
+  try {
+    const response = await fetch(marker.dataset.url, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      body: new URLSearchParams({ csrf_token: marker.dataset.csrf, automatic: "1" }),
+    });
+    if (!response.ok) return;
+    const result = await response.json();
+    if (!result.ok || !result.available || document.querySelector("[data-program-update-notice]")) return;
+    const notice = document.createElement("div");
+    notice.className = "flash flash--warning admin-global-notice";
+    notice.setAttribute("role", "status");
+    notice.dataset.programUpdateNotice = "";
+    const content = document.createElement("span");
+    const title = document.createElement("strong");
+    title.textContent = result.message;
+    const link = document.createElement("a");
+    link.className = "admin-global-notice__action";
+    link.href = result.details_url;
+    link.textContent = marker.dataset.linkLabel;
+    content.append(title, " ", link);
+    notice.append(content);
+    const topbar = document.querySelector(".admin-topbar");
+    if (topbar) topbar.after(notice);
+    else document.querySelector(".main-wrap")?.prepend(notice);
+  } catch (error) {
+    // Automatic checks stay quiet when GitHub or the network is unavailable.
+  }
+}
+
 function initCoreUpdate() {
   document.querySelectorAll("[data-core-update]").forEach((form) => {
     if (!(form instanceof HTMLFormElement) || typeof window.fetch !== "function") return;
@@ -1597,6 +1631,7 @@ function initAiEditor() {
 }
 document.addEventListener("DOMContentLoaded", () => {
   initAdminConfirmations();
+  initAutomaticUpdateCheck();
   initCoreUpdate();
   initAdminTheme();
   initThemeManager();

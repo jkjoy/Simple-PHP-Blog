@@ -37,6 +37,7 @@ const INSTALL_LOCK_FILE = DATA_DIR . '/install.lock';
 const SETTINGS_CACHE_FILE = CACHE_DIR . '/settings.php';
 const UPDATE_REPOSITORY = 'jkjoy/Simple-PHP-Blog';
 const UPDATE_CACHE_FILE = CACHE_DIR . '/github-update.json';
+const UPDATE_CHECK_INTERVAL = 86400;
 const EXTENSION_STORE_URL = 'https://raw.githubusercontent.com/jkjoy/SBlog-Extensions/catalog/catalog.json';
 const EXTENSION_STORE_FALLBACK_URL = 'https://cdn.jsdelivr.net/gh/jkjoy/SBlog-Extensions@catalog/catalog.json';
 const EXTENSION_STORE_CACHE_FILE = CACHE_DIR . '/extension-store.json';
@@ -599,6 +600,7 @@ function default_settings(): array
         'active_theme' => 'default',
         'active_plugins' => '[]',
         'site_language' => 'zh-CN',
+        'site_timezone' => 'Asia/Shanghai',
         'favicon_url' => 'favicon.png',
         'footer_beian' => '',
         'posts_per_page' => '6',
@@ -644,6 +646,13 @@ function setting(string $key, string $default = ''): string
 {
     $settings = settings_cache();
     return (string)($settings[$key] ?? $default);
+}
+
+function site_timezone(): string
+{
+    $default = default_settings()['site_timezone'];
+    $timezone = setting('site_timezone', $default);
+    return in_array($timezone, timezone_identifiers_list(), true) ? $timezone : $default;
 }
 
 function save_settings(array $values): void
@@ -1319,53 +1328,80 @@ function update_info_with_database_requirement(array $info): array
     return $info;
 }
 
+function cached_github_update_info(): ?array
+{
+    clearstatcache(true, UPDATE_CACHE_FILE);
+    if (!is_file(UPDATE_CACHE_FILE)) { return null; }
+    $age = time() - (int)filemtime(UPDATE_CACHE_FILE);
+    if ($age < 0 || $age >= UPDATE_CHECK_INTERVAL) { return null; }
+    $cached = json_decode((string)file_get_contents(UPDATE_CACHE_FILE), true);
+    if (!is_array($cached) || !array_key_exists('database_schema', $cached) || !array_key_exists('database_schema_known', $cached)
+        || !is_string($cached['latest'] ?? null) || !is_string($cached['download_url'] ?? null)
+        || !is_string($cached['release_notes'] ?? null) || !is_string($cached['release_url'] ?? null)
+        || !is_string($cached['error'] ?? null)) {
+        return null;
+    }
+    $cached['current'] = APP_VERSION;
+    $cached['available'] = update_available_for($cached['latest']);
+    return update_info_with_database_requirement($cached);
+}
+
 function github_update_info(bool $refresh = false): array
 {
     ensure_runtime_dirs();
-    if (!$refresh && is_file(UPDATE_CACHE_FILE) && time() - (int)filemtime(UPDATE_CACHE_FILE) < 21600) {
-        $cached = json_decode((string)file_get_contents(UPDATE_CACHE_FILE), true);
-        if (is_array($cached) && array_key_exists('database_schema', $cached) && array_key_exists('database_schema_known', $cached)) {
-            $cached['current'] = APP_VERSION;
-            $cached['available'] = update_available_for((string)($cached['latest'] ?? ''));
-            return update_info_with_database_requirement($cached);
-        }
+    if (!$refresh && ($cached = cached_github_update_info()) !== null) { return $cached; }
+    $lock = fopen(CACHE_DIR . '/github-update.lock', 'c');
+    if ($lock === false || !flock($lock, LOCK_EX)) {
+        if (is_resource($lock)) { fclose($lock); }
+        throw new RuntimeException(sblog_t('无法锁定更新检查，请稍后重试。'));
     }
-    $result = ['available' => false, 'current' => APP_VERSION, 'latest' => '', 'download_url' => '', 'database_schema' => null, 'database_schema_known' => false, 'database_schema_incompatible' => false, 'requires_database_upgrade' => false, 'error' => ''];
-    if (!function_exists('curl_init')) {
-        $result['error'] = sblog_t('服务器未启用 cURL，无法检查更新。');
+    try {
+        if (!$refresh && ($cached = cached_github_update_info()) !== null) { return $cached; }
+        $result = ['available' => false, 'current' => APP_VERSION, 'latest' => '', 'download_url' => '', 'release_notes' => '', 'release_url' => '', 'database_schema' => null, 'database_schema_known' => false, 'database_schema_incompatible' => false, 'requires_database_upgrade' => false, 'error' => ''];
+        if (!function_exists('curl_init')) {
+            $result['error'] = sblog_t('服务器未启用 cURL，无法检查更新。');
+        } else {
+            $curl = curl_init('https://api.github.com/repos/' . UPDATE_REPOSITORY . '/releases/latest');
+            curl_setopt_array($curl, array_replace([
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT => 20,
+                CURLOPT_USERAGENT => 'Simple-PHP-Blog/' . APP_VERSION,
+                CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json'],
+            ], curl_trust_options()));
+            $body = curl_exec($curl);
+            $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+            $curlError = curl_error($curl);
+            curl_close($curl);
+            $release = is_string($body) ? json_decode($body, true) : null;
+            if ($status !== 200 || !is_array($release)) {
+                $result['error'] = $curlError !== '' ? $curlError : sblog_t('GitHub 暂时无法访问。');
+            } else {
+                $latest = is_string($release['tag_name'] ?? null) ? trim($release['tag_name']) : '';
+                $download = is_string($release['zipball_url'] ?? null) ? $release['zipball_url'] : '';
+                if ($latest === '' || !filter_var($download, FILTER_VALIDATE_URL)) {
+                    $result['error'] = sblog_t('GitHub 发布信息无效。');
+                } else {
+                    $releaseBody = is_string($release['body'] ?? null) ? $release['body'] : '';
+                    $result['latest'] = $latest;
+                    $result['download_url'] = $download;
+                    $result['release_notes'] = trim(preg_replace('/<!--\s*sblog-release-meta\b.*?-->/s', '', $releaseBody) ?? $releaseBody);
+                    $result['release_url'] = 'https://github.com/' . UPDATE_REPOSITORY . '/releases/tag/' . rawurlencode($latest);
+                    $releaseSchema = release_database_schema($releaseBody);
+                    $result['database_schema'] = $releaseSchema;
+                    $result['database_schema_known'] = $releaseSchema !== null;
+                    $result['available'] = update_available_for($latest);
+                }
+            }
+        }
+        $result = update_info_with_database_requirement($result);
+        file_put_contents(UPDATE_CACHE_FILE, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
         return $result;
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
-    $curl = curl_init('https://api.github.com/repos/' . UPDATE_REPOSITORY . '/releases/latest');
-    curl_setopt_array($curl, array_replace([
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_TIMEOUT => 20,
-        CURLOPT_USERAGENT => 'Simple-PHP-Blog/' . APP_VERSION,
-        CURLOPT_HTTPHEADER => ['Accept: application/vnd.github+json'],
-    ], curl_trust_options()));
-    $body = curl_exec($curl);
-    $status = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    $curlError = curl_error($curl);
-    curl_close($curl);
-    $release = is_string($body) ? json_decode($body, true) : null;
-    if ($status !== 200 || !is_array($release)) {
-        $result['error'] = $curlError !== '' ? $curlError : sblog_t('GitHub 暂时无法访问。');
-    } else {
-        $latest = trim((string)($release['tag_name'] ?? ''));
-        $download = (string)($release['zipball_url'] ?? '');
-        if ($latest !== '' && filter_var($download, FILTER_VALIDATE_URL)) {
-            $result['latest'] = $latest;
-            $result['download_url'] = $download;
-            $releaseSchema = release_database_schema((string)($release['body'] ?? ''));
-            $result['database_schema'] = $releaseSchema;
-            $result['database_schema_known'] = $releaseSchema !== null;
-            $result['available'] = update_available_for($latest);
-        }
-    }
-    $result = update_info_with_database_requirement($result);
-    file_put_contents(UPDATE_CACHE_FILE, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX);
-    return $result;
 }
 
 function install_release_files(string $source, string $targetRoot, string $backup): void
@@ -6078,6 +6114,9 @@ function render_layout(string $title, string $content, array $options = []): voi
   <?php if ($mode === 'public') { theme_action('head', $themeContext); } ?>
 </head>
 <body class="<?= h($bodyClass) ?>"<?= $pluginSettingsSlug !== '' ? ' data-admin-plugin-settings="' . h($pluginSettingsSlug) . '"' : '' ?>>
+  <?php if ($mode !== 'public' && $admin && cached_github_update_info() === null): ?>
+  <div hidden data-admin-update-check data-url="<?= h(url_for('check_update')) ?>" data-csrf="<?= h(csrf_token()) ?>" data-link-label="<?= h(sblog_t('查看更新说明')) ?>"></div>
+  <?php endif; ?>
   <?php if ($mode !== 'public' && $admin): ?>
   <script>
     try {
@@ -6468,6 +6507,7 @@ function render_admin_sidebar(string $active, array $summary = []): string
 function render_admin_topbar(string $title, string $actionLabel = '', string $actionUrl = ''): string
 {
     $unreadComments = unread_comment_count();
+    $programUpdate = cached_github_update_info();
     $notificationUrl = $unreadComments > 0 ? admin_comments_url('unread') : url_for('admin_comments');
     $flash = pull_flash();
     $flashContext = (string)($flash['context'] ?? '');
@@ -6514,6 +6554,15 @@ function render_admin_topbar(string $title, string $actionLabel = '', string $ac
           <strong><?= h(sblog_t('数据库升级尚未完成。')) ?></strong>
           <?= h(sblog_t('请执行升级脚本，完成后此提醒会自动消失。')) ?>
           <a class="admin-global-notice__action" href="<?= h(asset_url('update.php')) ?>"><?= h(sblog_t('执行数据库升级')) ?></a>
+        </span>
+      </div>
+    <?php endif; ?>
+    <?php if (!empty($programUpdate['available'])): ?>
+      <div class="flash flash--warning admin-global-notice" role="status" data-program-update-notice>
+        <span class="admin-global-notice__icon"><?= admin_icon('refresh') ?></span>
+        <span>
+          <strong><?= h(sblog_t('发现新版本 {version}', ['version' => (string)$programUpdate['latest']])) ?></strong>
+          <a class="admin-global-notice__action" href="<?= h(url_for('admin') . '#program-update') ?>"><?= h(sblog_t('查看更新说明')) ?></a>
         </span>
       </div>
     <?php endif; ?>
@@ -7361,7 +7410,7 @@ function render_admin_page(): void
     require_admin();
 
     $metrics = admin_metrics();
-    $update = github_update_info();
+    $update = cached_github_update_info() ?? ['latest' => ''];
     $updateRequiresDatabase = !empty($update['requires_database_upgrade']);
     $updateDatabaseKnown = !empty($update['database_schema_known']);
     $updateDatabaseIncompatible = !empty($update['database_schema_incompatible']);
@@ -7396,6 +7445,22 @@ function render_admin_page(): void
                   <input type="hidden" name="expected_database_schema" value="<?= $updateDatabaseKnown ? h($update['database_schema']) : '' ?>">
                   <button class="button button--primary" type="submit"<?= $updateDatabaseIncompatible ? ' disabled' : '' ?>><?= h(sblog_t('立即更新')) ?></button>
                 </form>
+              </div>
+            </section>
+          <?php endif; ?>
+          <?php if (!empty($update['latest']) && empty($update['error'])): ?>
+            <section id="program-update" class="panel admin-list-panel admin-release-notes admin-animate">
+              <div class="panel__header">
+                <div class="admin-head">
+                  <div class="admin-head-left">
+                    <h2><?= h(sblog_t('更新说明')) ?> · <?= h($update['latest']) ?></h2>
+                    <p class="panel__meta"><?= h(sblog_t('进入后台时每 24 小时自动检查一次，也可随时手动检测更新。')) ?></p>
+                  </div>
+                  <a class="button button--secondary button--compact" href="<?= h('https://github.com/' . UPDATE_REPOSITORY . '/releases/tag/' . rawurlencode((string)$update['latest'])) ?>" target="_blank" rel="noopener noreferrer"><?= h(sblog_t('在 GitHub 查看')) ?></a>
+                </div>
+              </div>
+              <div class="panel__body">
+                <div class="admin-release-notes__body"><?= h(trim((string)($update['release_notes'] ?? '')) ?: sblog_t('此版本暂无更新说明。')) ?></div>
               </div>
             </section>
           <?php endif; ?>
@@ -8756,7 +8821,7 @@ function render_admin_theme_settings_page(): void
 function admin_settings_sections(): array
 {
     return [
-        'general' => ['label' => '常规', 'title' => '常规设置', 'description' => '站点名称、语言、地址与图标。'],
+        'general' => ['label' => '常规', 'title' => '常规设置', 'description' => '站点名称、语言、时区、地址与图标。'],
         'reading' => ['label' => '阅读', 'title' => '阅读设置', 'description' => '首页文章数量与搜索引擎摘要。'],
         'discussion' => ['label' => '讨论', 'title' => '讨论设置', 'description' => '评论提交、审核与通知。'],
         'permalinks' => ['label' => '固定链接', 'title' => '固定链接设置', 'description' => '文章链接格式与服务器配置。'],
@@ -8781,6 +8846,7 @@ function admin_settings_values(string $section, array $input): array
             'site_tagline' => $value('site_tagline'),
             'site_url' => $value('site_url'),
             'favicon_url' => $value('favicon_url') ?: default_settings()['favicon_url'],
+            'site_timezone' => array_key_exists('site_timezone', $input) ? $value('site_timezone') : site_timezone(),
         ],
         'reading' => [
             'posts_per_page' => (string)max(1, min(24, (int)$value('posts_per_page', default_settings()['posts_per_page']))),
@@ -8846,6 +8912,16 @@ function render_admin_settings_page(): void
                   <?php endforeach; ?>
                 </select>
                 <p class="field-hint"><?= h(sblog_t('语言包安装后自动启用；在此选择并保存后，应用于前台、登录页和后台。')) ?></p>
+              </div>
+              <div class="field">
+                <label for="site_timezone"><?= h(sblog_t('时区')) ?></label>
+                <select id="site_timezone" name="site_timezone" aria-describedby="site_timezone_hint">
+                  <?php $timezoneNow = new DateTimeImmutable(); $currentTimezone = site_timezone(); ?>
+                  <?php foreach (timezone_identifiers_list() as $timezone): ?>
+                    <option value="<?= h($timezone) ?>"<?= $currentTimezone === $timezone ? ' selected' : '' ?>><?= h('UTC' . $timezoneNow->setTimezone(new DateTimeZone($timezone))->format('P') . ' · ' . $timezone) ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <p id="site_timezone_hint" class="field-hint"><?= h(sblog_t('默认 UTC+08:00（北京时间），文章、评论及发布时间均使用此时区。')) ?></p>
               </div>
               <div class="field"><label for="site_tagline"><?= h(sblog_t('首页副标题')) ?></label><input id="site_tagline" name="site_tagline" type="text" value="<?= h(setting('site_tagline')) ?>"></div>
               <div class="field">
@@ -9211,6 +9287,8 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
 if (!is_installed()) {
     redirect_to(install_url());
 }
+
+date_default_timezone_set(site_timezone());
 
 load_active_plugins();
 plugin_action('plugins_loaded', ['plugins' => $GLOBALS['sblog_loaded_plugins'] ?? []]);
@@ -9675,8 +9753,24 @@ switch ($action) {
 
     case 'check_update':
         require_admin_post(url_for('admin'));
-        $update = github_update_info(true);
+        $automatic = ($_POST['automatic'] ?? '') === '1';
+        if ($automatic && session_status() === PHP_SESSION_ACTIVE) { session_write_close(); }
+        try {
+            $update = github_update_info(!$automatic);
+        } catch (Throwable $exception) {
+            $update = ['available' => false, 'error' => $exception->getMessage()];
+        }
         $updateError = trim((string)($update['error'] ?? ''));
+        if ($automatic) {
+            json_response([
+                'ok' => $updateError === '',
+                'available' => !empty($update['available']),
+                'message' => $updateError !== ''
+                    ? sblog_t('检测更新失败：{error}', ['error' => $updateError])
+                    : (!empty($update['available']) ? sblog_t('发现新版本 {version}', ['version' => (string)$update['latest']]) : ''),
+                'details_url' => url_for('admin'),
+            ]);
+        }
         if ($updateError !== '') {
             set_flash('error', sblog_t('检测更新失败：{error}', ['error' => $updateError]));
         } elseif (!empty($update['available'])) {
@@ -9884,6 +9978,10 @@ switch ($action) {
         }
         if (isset($values['site_url']) && $values['site_url'] !== '' && !valid_site_url($values['site_url'])) {
             set_flash('error', sblog_t('站点地址必须是不带查询参数的完整 HTTP 或 HTTPS 地址。'));
+            redirect_to($returnUrl, 303);
+        }
+        if (isset($values['site_timezone']) && !in_array($values['site_timezone'], timezone_identifiers_list(), true)) {
+            set_flash('error', sblog_t('所选时区无效，请重新选择。'));
             redirect_to($returnUrl, 303);
         }
         if ($legacyForm || $section === 'general') {

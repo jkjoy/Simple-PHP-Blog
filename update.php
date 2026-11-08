@@ -87,6 +87,7 @@ function update_default_settings(): array
         'custom_head_code' => '',
         'active_theme' => 'default',
         'active_plugins' => '[]',
+        'site_timezone' => 'Asia/Shanghai',
         'favicon_url' => 'favicon.png',
         'footer_beian' => '',
         'posts_per_page' => '6',
