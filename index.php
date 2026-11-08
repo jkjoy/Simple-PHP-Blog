@@ -4301,6 +4301,11 @@ function media_embed_html(string $url): string
         return '';
     }
 
+    $customEmbed = plugin_filter('media_embed_html', null, ['url' => $url]);
+    if (is_string($customEmbed)) {
+        return $customEmbed;
+    }
+
     $query = [];
     parse_str((string)($parts['query'] ?? ''), $query);
 
