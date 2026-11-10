@@ -29,7 +29,7 @@ A lightweight blog built around a single-entry-point architecture:
 - An admin extension store for remotely listing, verifying, installing, and updating themes and plugins
 - Automatic GitHub Release checks and one-click application updates
 - Optional pretty URLs
-- Basic Markdown rendering
+- Basic Markdown rendering; optional bundled [Stack Markdown enhancement](plugins/stack-markdown/README.md) adds footnotes, nested lists and task lists
 - Attachment uploads from the editor toolbar, with multiple files, drag and drop, and pasted images
 - A media library picker in the editor toolbar, with search, filters, and multiple images or attachments inserted at the cursor
 - Collapsible More settings for the publication date, pinned posts, standalone-page comments, post access passwords, and plugin options
@@ -105,7 +105,7 @@ store/         Extension-store catalog protocol documentation (not deployed to t
 
 ## Custom Themes
 
-- Core source includes only the built-in default theme. Official custom themes are maintained in the standalone extensions repository.
+- Core source includes the built-in default theme and [Stack](themes/stack/README.md), ported by jkjoy from Jimmy Cai's Hugo Theme Stack. Other official custom themes are maintained in the standalone extensions repository.
 - Place each theme in `themes/<theme-directory>/` and include a `theme.json` file.
 - A theme can override frontend styles with `style.css`, register action/filter hooks in `functions.php`, or take over the complete frontend layout with `layout.php`.
 - Install themes remotely under **Extension Store**, then preview and enable them under **Themes**. If the selected theme is invalid or has been removed, the application falls back to the default theme.

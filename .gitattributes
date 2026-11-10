@@ -1,3 +1,6 @@
-/themes export-ignore
+/themes/* export-ignore
+/themes/README.md -export-ignore
+/themes/stack -export-ignore
+/themes/stack/** -export-ignore
 /store export-ignore
 /tests export-ignore

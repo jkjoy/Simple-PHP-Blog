@@ -1,0 +1,9 @@
+{
+  "name": "Stack Markdown 增强",
+  "version": "1.0.0",
+  "author": "jkjoy",
+  "url": "https://github.com/jkjoy/Simple-PHP-Blog",
+  "description": "为文章和独立页面提供 Markdown Extra：六级标题、嵌套与任务列表、脚注、语义 HTML、扩展代码围栏；配合 Stack 主题提供短代码与图片处理。解析器基于 Michel Fortin 的 PHP Markdown Extra，保留原许可。",
+  "requires": "1.14.30",
+  "tested": "1.14.32"
+}

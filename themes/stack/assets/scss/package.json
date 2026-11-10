@@ -1,0 +1,11 @@
+{
+  "name": "sblog-stack-styles",
+  "private": true,
+  "scripts": {
+    "build": "node build.cjs"
+  },
+  "devDependencies": {
+    "postcss": "8.5.32",
+    "sass": "1.108.1"
+  }
+}
