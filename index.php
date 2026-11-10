@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.32';
+const APP_VERSION = 'v1.14.33';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -7424,7 +7424,6 @@ function render_admin_comments_page(): void
                             <strong class="comment-author__name" title="<?= h($comment['author_name']) ?>"><?php if ($authorUrl !== '#'): ?><a href="<?= h($authorUrl) ?>" target="_blank" rel="noopener noreferrer nofollow"><?= h($comment['author_name']) ?></a><?php else: ?><?= h($comment['author_name']) ?><?php endif; ?></strong>
                             <span class="comment-author__email" title="<?= h($comment['author_email']) ?>"><?= h($comment['author_email']) ?></span>
                             <?php if ((string)$comment['ip_address'] !== ''): ?><span class="comment-author__ip" title="<?= h(sblog_t('IP：{address}', ['address' => (string)$comment['ip_address']])) ?>"><?= h(sblog_t('IP：{address}', ['address' => (string)$comment['ip_address']])) ?></span><?php endif; ?>
-                            <?php if ($authorUrl !== '#'): ?><a class="comment-author__website" href="<?= h($authorUrl) ?>" target="_blank" rel="noopener noreferrer nofollow"><?= h((string)parse_url($authorUrl, PHP_URL_HOST)) ?></a><?php endif; ?>
                           </div>
                         </td>
                         <td class="comment-table__content">

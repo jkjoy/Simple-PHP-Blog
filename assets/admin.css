@@ -4920,10 +4920,6 @@ textarea {
     padding: 10px 0;
   }
 
-  .theme-admin:not(.theme-admin--guest) .comment-manager .comment-table__author .comment-author__website {
-    display: none;
-  }
-
   .theme-admin:not(.theme-admin--guest) .comment-manager .comment-table__content {
     grid-area: 3 / 1 / 4 / -1;
   }
