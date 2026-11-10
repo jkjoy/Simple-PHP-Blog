@@ -72,8 +72,9 @@ add_plugin_filter('output_html', static function (string $html, array $context):
 - `editor_field_actions_html`：在 `slug`、`excerpt` 或 `content` 标签旁注入编辑器操作
 - `editor_settings_html`：在文章编辑表单的“更多设置”中追加插件选项；context 包含 `is_edit` 与 `post_id`，插件应输出经过转义的表单控件
 - `editor_after_form_html`：在文章编辑表单后注入弹窗等插件界面
+- `editor_content_hint`：修改正文输入框下的提示文字，默认值为“支持 Markdown。”；context 包含 `is_edit` 与 `post_id`，返回文字由核心转义后显示
 - `output_html`：过滤最终 HTML 文档
-- `media_embed_html`：接收默认值 `null` 与 `['url' => $url]`，为正文中独占一个段落的媒体链接提供 HTML；返回 `null` 使用核心解析，返回字符串替换嵌入（空字符串保留普通链接）。在核心媒体请求之前调用；插件应校验自己的链接范围并转义输出。
+- `media_embed_html`：接收默认值 `null` 与 `['url' => $url]`，为正文中独占一个段落的媒体链接提供 HTML；返回 `null` 交给后续插件处理，返回字符串替换嵌入，空字符串保留普通链接。核心不内置平台解析，未有插件处理时保留普通链接；插件应校验自己的链接范围并转义输出。
 
 filter 回调依次接收当前值和 `$context`，必须返回过滤后的值。`output_html` 的 context 包含 `action` 与 `content_type`。
 

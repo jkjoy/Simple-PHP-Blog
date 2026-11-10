@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.30';
+const APP_VERSION = 'v1.14.31';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -3928,11 +3928,6 @@ function render_inline(string $text): string
     return $html;
 }
 
-function media_host_matches(string $host, string $domain): bool
-{
-    return $host === $domain || str_ends_with($host, '.' . $domain);
-}
-
 function media_url_from_paragraph(string $text): string
 {
     $text = trim($text);
@@ -3946,18 +3941,6 @@ function media_url_from_paragraph(string $text): string
     return '';
 }
 
-function media_iframe_html(string $provider, string $src, string $kind = 'video', int $height = 0): string
-{
-    $class = $kind === 'audio' ? 'media-embed media-embed--audio' : 'media-embed media-embed--video';
-    $style = $height > 0 ? ' style="--media-height:' . $height . 'px"' : '';
-    $allow = $kind === 'video'
-        ? ' allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen'
-        : '';
-
-    return '<figure class="' . $class . '"' . $style . '><iframe src="' . h($src) . '" title="' . h($provider)
-        . '" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"' . $allow . '></iframe></figure>';
-}
-
 function media_embed_html(string $url): string
 {
     if (!filter_var($url, FILTER_VALIDATE_URL)) {
@@ -3967,74 +3950,12 @@ function media_embed_html(string $url): string
     $parts = parse_url($url);
     $scheme = str_lower_u((string)($parts['scheme'] ?? ''));
     $host = str_lower_u((string)($parts['host'] ?? ''));
-    $host = preg_replace('/^www\./', '', $host) ?? $host;
-    $path = (string)($parts['path'] ?? '');
     if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
         return '';
     }
 
     $customEmbed = plugin_filter('media_embed_html', null, ['url' => $url]);
-    if (is_string($customEmbed)) {
-        return $customEmbed;
-    }
-
-    $query = [];
-    parse_str((string)($parts['query'] ?? ''), $query);
-
-    if (media_host_matches($host, 'music.163.com')) {
-        $route = trim($path, '/');
-        $fragment = (string)($parts['fragment'] ?? '');
-        if (str_contains($fragment, '?')) {
-            [$fragmentRoute, $fragmentQuery] = explode('?', $fragment, 2);
-            $route = trim($fragmentRoute, '/');
-            parse_str($fragmentQuery, $query);
-        }
-
-        $types = [
-            'song' => ['type' => 2, 'height' => 86],
-            'playlist' => ['type' => 0, 'height' => 450],
-            'album' => ['type' => 1, 'height' => 450],
-        ];
-        $id = (string)($query['id'] ?? '');
-        if (isset($types[$route]) && is_ascii_digits($id)) {
-            $config = $types[$route];
-            $src = 'https://music.163.com/outchain/player?type=' . $config['type'] . '&id=' . rawurlencode($id)
-                . '&auto=0&height=' . ($config['height'] - 20);
-            return media_iframe_html(sblog_t('网易云音乐'), $src, 'audio', $config['height']);
-        }
-    }
-
-    if (media_host_matches($host, 'bilibili.com')
-        && preg_match('#/(?:video/)?(BV[0-9A-Za-z]+|av(\d+))#i', $path, $matches)) {
-        $parameter = stripos($matches[1], 'BV') === 0
-            ? 'bvid=' . rawurlencode($matches[1])
-            : 'aid=' . rawurlencode($matches[2]);
-        $page = isset($query['p']) && is_ascii_digits((string)$query['p']) ? '&page=' . (int)$query['p'] : '';
-        return media_iframe_html(
-            sblog_t('哔哩哔哩视频'),
-            'https://player.bilibili.com/player.html?' . $parameter . $page . '&high_quality=1&danmaku=0&as_wide=1'
-        );
-    }
-
-    if (media_host_matches($host, 'youtube.com') || $host === 'youtu.be') {
-        $videoId = '';
-        if ($host === 'youtu.be') {
-            $videoId = trim($path, '/');
-        } elseif (isset($query['v'])) {
-            $videoId = (string)$query['v'];
-        } elseif (preg_match('#/(?:embed|shorts|live)/([^/?]+)#', $path, $matches)) {
-            $videoId = $matches[1];
-        }
-
-        if (preg_match('/^[0-9A-Za-z_-]{6,15}$/', $videoId)) {
-            return media_iframe_html(
-                sblog_t('YouTube 视频'),
-                'https://www.youtube-nocookie.com/embed/' . rawurlencode($videoId)
-            );
-        }
-    }
-
-    return '';
+    return is_string($customEmbed) ? $customEmbed : '';
 }
 
 function markdown_table_cells(string $line): array
@@ -7121,7 +7042,7 @@ function render_admin_page(): void
               </div>
             </section>
           <?php endif; ?>
-          <?php if (!empty($update['latest']) && empty($update['error'])): ?>
+          <?php if (!empty($update['available']) && !empty($update['latest']) && empty($update['error'])): ?>
             <section id="program-update" class="panel admin-list-panel admin-release-notes admin-animate">
               <div class="panel__header">
                 <div class="admin-head">
@@ -8765,6 +8686,8 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
     $settingsHtml = is_string($settingsHtml) ? $settingsHtml : '';
     $afterFormHtml = plugin_filter('editor_after_form_html', '', $editorContext);
     $afterFormHtml = is_string($afterFormHtml) ? $afterFormHtml : '';
+    $contentHint = plugin_filter('editor_content_hint', sblog_t('支持 Markdown。'), $editorContext);
+    $contentHint = is_string($contentHint) ? $contentHint : sblog_t('支持 Markdown。');
     $sidebar = render_admin_sidebar($isEdit ? 'edit' : 'write');
 
     ob_start();
@@ -8895,7 +8818,7 @@ function render_editor_page(?array $existing = null, array $form = [], array $er
                     <div class="attachment-list" aria-live="polite"></div>
                   </div>
                 </div>
-                <p class="field-hint"><?= h(sblog_t('支持 Markdown；将网易云音乐、哔哩哔哩或 YouTube 链接单独放在一段可自动解析。')) ?></p>
+                <p class="field-hint"><?= h($contentHint) ?></p>
               </div>
 
               <details class="editor-settings" data-editor-settings<?= $errors ? ' open' : '' ?>>

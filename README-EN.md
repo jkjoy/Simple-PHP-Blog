@@ -33,16 +33,16 @@ A lightweight blog built around a single-entry-point architecture:
 - Attachment uploads from the editor toolbar, with multiple files, drag and drop, and pasted images
 - A media library picker in the editor toolbar, with search, filters, and multiple images or attachments inserted at the cursor
 - Collapsible More settings for the publication date, pinned posts, standalone-page comments, post access passwords, and plugin options
-- Automatic embeds for NetEase Cloud Music, Bilibili, and YouTube links
+- Automatic embeds for NetEase Cloud Music, Bilibili, and YouTube links through the Multimedia Parser plugin
 
 ## Media Embeds
 
-Place a supported media URL in its own paragraph inside a post or standalone page. It will be converted automatically when the content is published:
+Install and enable the [Multimedia Parser plugin](https://github.com/jkjoy/SBlog-Extensions/tree/main/plugins/multimedia-parser), then place a supported media URL in its own paragraph inside a post or standalone page. It will be converted automatically when the content is published:
 
 - NetEase Cloud Music track, playlist, and album links become embedded players
 - Bilibili and YouTube links become responsive video players
 
-URLs must include the full `http://` or `https://` scheme. A URL placed in the same paragraph as other text remains a regular link.
+URLs must include the full `http://` or `https://` scheme. A URL placed in the same paragraph as other text remains a regular link. Disabling the plugin restores regular links; the plugin provides all provider parsing and player styles.
 
 ## Requirements
 
