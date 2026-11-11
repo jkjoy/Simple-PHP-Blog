@@ -4,9 +4,7 @@ data
 /uploads
 /.claude
 /themes/*/
-!/themes/stack/
 /plugins/*/
-!/plugins/stack-markdown/
 !/plugins/english-language/
 !/plugins/russian-language/
 /store/catalog.json

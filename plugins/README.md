@@ -1,6 +1,6 @@
 # 插件开发
 
-主体仓库随附 English、Russian 语言插件及 Stack 主题的可选 [Markdown 增强插件](stack-markdown/README.md)。其他官方功能插件维护在 [`jkjoy/SBlog-Extensions`](https://github.com/jkjoy/SBlog-Extensions)，可从后台扩展商店安装和升级。
+核心源码只保留 English 与 Russian 语言插件。其他官方功能插件统一维护在 [`jkjoy/SBlog-Extensions`](https://github.com/jkjoy/SBlog-Extensions)，可从后台扩展商店安装和升级。
 
 每个插件放在 `plugins/<slug>/`。目录名只能包含小写字母、数字、连字符和下划线，并必须包含 `plugin.json` 与 `plugin.php`：
 

@@ -1,9 +1,0 @@
-{
-  "name": "stack",
-  "version": "1.0.0",
-  "requires": "1.14.30",
-  "author": "jkjoy",
-  "url": "https://github.com/jkjoy",
-  "description": "移植自 Jimmy Cai（CaiJimmy）的 Hugo Theme Stack，保留原版卡片布局、侧栏组件与深浅色样式，适配 SBlog 原生评论与主题设置。原作：https://github.com/CaiJimmy/hugo-theme-stack",
-  "license": "GPL-3.0-only"
-}
