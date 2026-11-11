@@ -207,14 +207,15 @@ $tests['inactive theme can save with PRG and without affecting active theme'] = 
     same('beta', setting('active_theme'), 'Configuring a theme must not activate it.');
     same(['theme_settings_alpha'], array_keys($GLOBALS['theme_settings_writes'][0]), 'Only one namespaced setting may be written.');
 };
-$tests['theme manager exposes native settings inside More for active and inactive themes'] = static function (): void {
+$tests['theme manager exposes direct native settings for active and inactive themes'] = static function (): void {
     request();
     render_admin_themes_page();
     $content = $GLOBALS['theme_settings_render']['content'];
     foreach (['alpha', 'beta'] as $slug) {
         preg_match('/<tr[^>]+data-theme-slug="' . $slug . '"[^>]*>(.*?)<\/tr>/s', $content, $row);
         same(true, isset($row[1]), 'Both configured and inactive themes must be listed.');
-        same(1, preg_match('/<details[^>]+data-extension-menu>.*href="[^"]*a=admin_theme_settings[^\"]*theme=' . $slug . '".*<\/details>/s', $row[1]), 'Theme settings must remain in the More menu.');
+        same(1, preg_match('/<a[^>]+href="[^"]*a=admin_theme_settings[^"]*theme=' . $slug . '"[^>]*>.*?<\/a>/s', $row[1]), 'Theme settings must be available as a direct link.');
+        same(false, str_contains($row[1], 'data-extension-menu'), 'Theme actions must not be hidden in a More menu.');
     }
     same(2, substr_count($content, 'a=admin_theme_settings'), 'The built-in theme must not gain a settings link.');
 };

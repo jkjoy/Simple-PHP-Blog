@@ -416,7 +416,7 @@ function initPasswordToggles() {
 }
 
 function initAccountMenus() {
-  const accountMenus = Array.from(document.querySelectorAll("[data-admin-account], [data-extension-menu]"));
+  const accountMenus = Array.from(document.querySelectorAll("[data-admin-account]"));
   if (!accountMenus.length) return;
 
   accountMenus.forEach((menu) => {

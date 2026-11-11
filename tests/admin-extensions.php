@@ -25,7 +25,7 @@ function same(mixed $expected, mixed $actual, string $message): void
 function load_core(): void
 {
     $needed = array_fill_keys([
-        'h', 'url_for', 'url_with_query', 'extension_store_search_query',
+        'h', 'url_for', 'url_with_query', 'extension_store_search_query', 'admin_plugin_settings',
         'render_admin_store_page', 'render_admin_plugins_page', 'render_admin_themes_page',
     ], true);
     $tokens = token_get_all((string)file_get_contents(dirname(__DIR__) . '/index.php'));
@@ -71,7 +71,7 @@ function active_plugin_slugs(bool $refresh = false): array { return $GLOBALS['ex
 function active_theme_slug(): string { return $GLOBALS['extension_active_theme'] ?? 'default'; }
 function plugin_display_metadata(string $slug, array $manifest): array { return $manifest; }
 function theme_display_metadata(string $slug, array $manifest): array { return $manifest; }
-function theme_settings_schema(string $slug): array { return []; }
+function theme_settings_schema(string $slug): array { return $GLOBALS['extension_theme_settings'][$slug] ?? []; }
 function extension_updates_for(string $type, array $items, bool $refresh = false): array
 {
     $GLOBALS['extension_update_inventory'] = array_keys($items);
@@ -83,7 +83,7 @@ function extension_store_catalog(bool $refresh = false): array
     $GLOBALS['extension_catalog_refresh'] = $refresh;
     return ['extensions' => $GLOBALS['extension_catalog'], 'error' => '', 'stale' => false];
 }
-function extension_installed_manifest(string $type, string $slug): ?array { return null; }
+function extension_installed_manifest(string $type, string $slug): ?array { return $GLOBALS['extension_installed'][$type . ':' . $slug] ?? null; }
 function normalize_version(string $version): string { return $version; }
 function extension_is_compatible(array $extension): bool { return true; }
 
@@ -331,6 +331,96 @@ $tests['store paginates filtered results and retains page state across navigatio
         same([], store_slugs($xpath), 'Empty search results must remain empty on an old page URL.');
         same(0, $xpath->query('//nav[contains(@class,"admin-pagination")]')->length, 'Empty search results must not offer stale pages.');
     }
+};
+
+$tests['installed settings shortcuts stay available alongside updates without linking unavailable pages'] = static function (): void {
+    $base = inventory(1, 'plugin')['plugin-00'] + ['requires' => '1.14.33'];
+    $GLOBALS['extension_plugins'] = [];
+    foreach (['ready', 'disabled', 'failed', 'unloaded', 'plain', 'language'] as $slug) {
+        $GLOBALS['extension_plugins'][$slug] = array_replace($base, [
+            'name' => $slug, 'author' => 'Author <img src=x onerror=alert(1)>',
+            'settings_action' => in_array($slug, ['plain', 'language'], true) ? '' : 'admin_' . $slug,
+            'locale' => $slug === 'language' ? 'en' : '',
+        ]);
+    }
+    $GLOBALS['extension_active_plugins'] = ['ready', 'failed', 'unloaded', 'plain', 'language'];
+    $GLOBALS['sblog_loaded_plugins'] = ['ready', 'plain', 'language'];
+    $GLOBALS['sblog_plugin_errors'] = ['failed' => 'Fixture failure'];
+    $GLOBALS['extension_themes'] = [
+        'configured-theme' => array_replace($base, ['name' => 'configured-theme']),
+        'plain-theme' => array_replace($base, ['name' => 'plain-theme']),
+    ];
+    $GLOBALS['extension_theme_settings'] = ['configured-theme' => [['fields' => [['key' => 'title']]]]];
+    $GLOBALS['extension_installed'] = [];
+    $GLOBALS['extension_catalog'] = [];
+    foreach (['plugin' => $GLOBALS['extension_plugins'], 'theme' => $GLOBALS['extension_themes']] as $type => $items) {
+        foreach ($items as $slug => $manifest) {
+            $GLOBALS['extension_installed'][$type . ':' . $slug] = $manifest;
+            $GLOBALS['extension_catalog'][$type . ':' . $slug] = $manifest + compact('type', 'slug');
+        }
+    }
+    $GLOBALS['extension_catalog']['plugin:not-installed'] = array_replace($base, ['type' => 'plugin', 'slug' => 'not-installed', 'name' => 'not-installed']);
+    foreach ([false, true] as $pretty) {
+        $GLOBALS['extension_pretty'] = $pretty;
+        $xpath = capture(__NAMESPACE__ . '\\render_admin_store_page');
+        same(0, $xpath->query('//img|//script')->length, 'Store author metadata must remain escaped.');
+        same(0, preg_match('/已安装\\s+1\\.0\\.0/u', $GLOBALS['extension_html']), 'Store entries must not repeat the installed version.');
+        $ready = $xpath->query('//article[.//h2[text()="ready"]]')[0];
+        $settings = $xpath->query('.//a[normalize-space(.)="设置"]', $ready);
+        same(1, $settings->length, 'Installed loaded plugins must expose a settings shortcut.');
+        same('admin_ready', query_of($settings[0])['a'] ?? null, 'Plugin shortcuts must reach their manifest action directly.');
+        $metadata = [];
+        foreach ($xpath->query('.//div[contains(@class,"extension-card__meta")]/span', $ready) as $span) { $metadata[] = trim($span->textContent); }
+        same(['1.0.0', 'Author <img src=x onerror=alert(1)>', '需要 SBlog 1.14.33+'], $metadata, 'Store metadata must put author and required core version after the extension version.');
+        same(0, $xpath->query('.//form[@data-extension-install]', $ready)->length, 'Current installations must not expose redundant install actions.');
+        foreach (['disabled', 'failed', 'unloaded', 'plain', 'plain-theme', 'not-installed'] as $slug) {
+            $card = $xpath->query('//article[.//h2[text()="' . $slug . '"]]')[0];
+            same(0, $xpath->query('.//a[normalize-space(.)="设置"]', $card)->length, 'Unavailable settings must not produce broken shortcuts for ' . $slug . '.');
+        }
+        $theme = $xpath->query('//article[.//h2[text()="configured-theme"]]')[0];
+        $themeSettings = $xpath->query('.//a[normalize-space(.)="设置"]', $theme);
+        same(1, $themeSettings->length, 'Installed inactive themes with native settings need a shortcut.');
+        same('configured-theme', query_of($themeSettings[0])['theme'] ?? null, 'Theme shortcuts must retain the selected theme.');
+        $language = $xpath->query('//article[.//h2[text()="language"]]')[0];
+        $languageSettings = $xpath->query('.//a[normalize-space(.)="设置"]', $language);
+        same(1, $languageSettings->length, 'Installed language packs must expose settings.');
+        same('general', query_of($languageSettings[0])['section'] ?? null, 'Language settings must open the general settings section.');
+        $GLOBALS['extension_catalog']['plugin:ready']['version'] = '2.0.0';
+        $xpath = capture(__NAMESPACE__ . '\\render_admin_store_page');
+        $ready = $xpath->query('//article[.//h2[text()="ready"]]')[0];
+        same(1, $xpath->query('.//a[normalize-space(.)="设置"]', $ready)->length, 'Available upgrades must retain the settings shortcut.');
+        same(1, $xpath->query('.//form[@data-extension-install]//input[@name="csrf"]', $ready)->length, 'Available upgrades must retain their protected install action.');
+        $GLOBALS['extension_catalog']['plugin:ready']['version'] = '1.0.0';
+    }
+};
+
+$tests['managers expose direct settings and retain protected actions with ordered metadata'] = static function (): void {
+    foreach (['plugin', 'theme'] as $type) {
+        $xpath = capture(__NAMESPACE__ . '\\render_admin_' . ($type === 'plugin' ? 'plugins' : 'themes') . '_page');
+        same(0, $xpath->query('//tbody//details')->length, 'Extension actions must be available without a More menu.');
+        foreach ($xpath->query('//tbody/tr') as $row) {
+            $metadata = $xpath->query('.//div[contains(@class,"extension-meta")]/span', $row);
+            same('1.0.0', trim($metadata[0]->textContent), 'Installed extension version must lead manager metadata.');
+            same(true, str_starts_with(trim($metadata[1]->textContent), 'Author'), 'Author must follow the installed extension version.');
+            same('需要 SBlog 1.14.33+', trim($metadata[2]->textContent), 'Required core version must follow author metadata.');
+            foreach ($xpath->query('.//form[@method="post"]', $row) as $form) {
+                same(1, $xpath->query('.//input[@name="csrf"]', $form)->length, 'Direct actions must preserve CSRF protection.');
+                same('1', $xpath->query('.//input[@name="return_page"]', $form)[0]?->getAttribute('value'), 'Direct actions must retain their return page.');
+            }
+        }
+        if ($type === 'plugin') {
+            same(1, $xpath->query('//tbody//a[contains(@href,"a=admin_ready")]')->length, 'Loaded plugin settings must be directly accessible.');
+            foreach (['disabled', 'failed', 'unloaded'] as $slug) {
+                same(0, $xpath->query('//tbody//a[contains(@href,"a=admin_' . $slug . '")]')->length, 'Disabled or failed plugin settings must not be linked.');
+            }
+            $disabled = $xpath->query('//tr[.//strong[text()="disabled"]]')[0];
+            same(1, $xpath->query('.//form[contains(@action,"uninstall_extension")]', $disabled)->length, 'Inactive plugins must retain uninstall actions.');
+        } else {
+            same(1, $xpath->query('//tbody//a[contains(@href,"theme=configured-theme")]')->length, 'Inactive theme settings must be directly accessible.');
+            same(count($GLOBALS['extension_themes']), $xpath->query('//tbody//a[contains(@href,"theme_preview=")]')->length, 'Every theme must retain a direct preview link.');
+        }
+    }
+    unset($GLOBALS['extension_installed'], $GLOBALS['extension_theme_settings'], $GLOBALS['extension_active_plugins'], $GLOBALS['sblog_loaded_plugins'], $GLOBALS['sblog_plugin_errors']);
 };
 
 try {
