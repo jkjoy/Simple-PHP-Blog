@@ -3,9 +3,11 @@ data
 .DS_Store
 /uploads
 /.claude
+# Third-party themes and plugins are maintained in jkjoy/SBlog-Extensions.
 /themes/*/
 /plugins/*/
 !/plugins/english-language/
 !/plugins/russian-language/
 /store/catalog.json
+# Keep local integration fixtures out of the core package; tracked core tests remain tracked.
 /tests/
