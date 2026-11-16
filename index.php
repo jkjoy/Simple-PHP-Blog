@@ -23,7 +23,7 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.35';
+const APP_VERSION = 'v1.14.36';
 const DATABASE_SCHEMA_VERSION = 1;
 const DATABASE_MAINTENANCE_VERSION = 1;
 const DATA_DIR = __DIR__ . '/data';
@@ -67,16 +67,10 @@ function is_installed(): bool
 
 function ensure_runtime_dirs(): void
 {
-    if (!is_dir(DATA_DIR)) {
-        mkdir(DATA_DIR, 0755, true);
-    }
-
-    if (!is_dir(CACHE_DIR)) {
-        mkdir(CACHE_DIR, 0755, true);
-    }
-
-    if (!is_dir(UPLOAD_DIR)) {
-        mkdir(UPLOAD_DIR, 0755, true);
+    foreach ([DATA_DIR, CACHE_DIR, UPLOAD_DIR, THEMES_DIR, PLUGINS_DIR] as $directory) {
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
     }
 
     $htaccess = UPLOAD_DIR . '/.htaccess';
@@ -87,14 +81,6 @@ function ensure_runtime_dirs(): void
         if (@file_put_contents($htaccess, $rules, LOCK_EX) === false) {
             error_log('Unable to write SBlog upload protection: ' . $htaccess);
         }
-    }
-
-    if (!is_dir(THEMES_DIR)) {
-        mkdir(THEMES_DIR, 0755, true);
-    }
-
-    if (!is_dir(PLUGINS_DIR)) {
-        mkdir(PLUGINS_DIR, 0755, true);
     }
 }
 
@@ -652,7 +638,7 @@ function site_timezone(): string
 {
     $default = default_settings()['site_timezone'];
     $timezone = setting('site_timezone', $default);
-    return in_array($timezone, timezone_identifiers_list(), true) ? $timezone : $default;
+    return $timezone === $default || in_array($timezone, timezone_identifiers_list(), true) ? $timezone : $default;
 }
 
 function save_settings(array $values): void
@@ -887,23 +873,22 @@ function sblog_i18n_register(string $locale, array $messages): void
         throw new InvalidArgumentException('无效的语言代码：' . $locale);
     }
 
-    $catalog = [];
     foreach ($messages as $key => $message) {
-        if (!is_string($key) || $key === '' || (!is_string($message) && !is_array($message))) {
+        if (is_string($message) && is_string($key) && $key !== '') {
+            continue;
+        }
+        if (!is_string($key) || $key === '' || !is_array($message)) {
             throw new InvalidArgumentException('语言目录只能包含有效的翻译键和值。');
         }
-        if (is_array($message)) {
-            foreach ($message as $form => $translation) {
-                if (!in_array($form, ['zero', 'one', 'two', 'few', 'many', 'other'], true) || !is_string($translation)) {
-                    throw new InvalidArgumentException('复数翻译必须使用有效形式和字符串值。');
-                }
+        foreach ($message as $form => $translation) {
+            if (!in_array($form, ['zero', 'one', 'two', 'few', 'many', 'other'], true) || !is_string($translation)) {
+                throw new InvalidArgumentException('复数翻译必须使用有效形式和字符串值。');
             }
         }
-        $catalog[$key] = $message;
     }
 
     $existing = $GLOBALS['sblog_i18n_catalogs'][$locale] ?? [];
-    $GLOBALS['sblog_i18n_catalogs'][$locale] = array_replace(is_array($existing) ? $existing : [], $catalog);
+    $GLOBALS['sblog_i18n_catalogs'][$locale] = is_array($existing) && $existing ? array_replace($existing, $messages) : $messages;
 }
 
 function sblog_i18n_set_locale(string $locale): void
@@ -970,20 +955,16 @@ function sblog_i18n_message(string $key): string|array|null
 {
     $catalogs = $GLOBALS['sblog_i18n_catalogs'] ?? [];
     $locale = sblog_i18n_locale();
-    $locales = [$locale];
-    if (str_contains($locale, '-')) {
-        $locales[] = explode('-', $locale, 2)[0];
-    }
-    $locales[] = 'zh-CN';
 
-    foreach (array_unique($locales) as $candidate) {
-        $catalog = is_array($catalogs[$candidate] ?? null) ? $catalogs[$candidate] : [];
-        if (isset($catalog[$key]) && (is_string($catalog[$key]) || is_array($catalog[$key]))) {
-            return $catalog[$key];
+    foreach ([$locale, explode('-', $locale, 2)[0], 'zh-CN'] as $candidate) {
+        $message = is_array($catalogs[$candidate] ?? null) ? ($catalogs[$candidate][$key] ?? null) : null;
+        if (is_string($message) || is_array($message)) {
+            return $message;
         }
     }
 
-    $defaults = sblog_default_translations();
+    static $defaults = null;
+    $defaults ??= sblog_default_translations();
     return $defaults[$key] ?? null;
 }
 
@@ -3237,74 +3218,40 @@ function use_pretty_url(): bool
 
 function url_for(string $route, array $params = []): string
 {
+    static $prettyPaths = [
+        'home' => '/', 'rss' => '/rss.xml', 'sitemap' => '/sitemap.xml', 'archives' => '/archives', 'tags' => '/tags',
+        'categories' => '/categories', 'links' => '/links', 'login' => '/login', 'forgot_password' => '/forgot-password',
+        'reset_password' => '/reset-password', 'logout' => '/logout', 'write' => '/write', 'admin' => '/admin',
+        'admin_posts' => '/admin/posts', 'admin_comments' => '/admin/comments', 'admin_categories' => '/admin/categories',
+        'admin_tags' => '/admin/tags', 'admin_links' => '/admin/links', 'admin_users' => '/admin/users',
+        'admin_media' => '/admin/media', 'admin_ai' => '/admin/ai', 'admin_mail' => '/admin/mail', 'admin_s3' => '/admin/s3',
+        'admin_themes' => '/admin/themes', 'admin_settings' => '/admin/settings', 'admin_plugins' => '/admin/plugins',
+        'admin_store' => '/admin/store',
+    ];
+    static $slugPaths = ['tag' => '/tag/', 'category' => '/category/', 'page' => '/', 'post' => '/archive/'];
+    // Routes that never have a pretty path; any route missing from all three lists resolves to the home script.
+    static $actionRoutes = [
+        'admin_theme_settings', 'save_settings', 'save_ai_settings', 'save_mail_settings', 'save_s3_settings',
+        'activate_theme', 'toggle_plugin', 'install_extension', 'uninstall_extension', 'clear_cache', 'ai_generate',
+        'save_category', 'delete_category', 'save_tag', 'delete_tag', 'save_link', 'delete_link', 'save_user',
+        'upload_attachment', 'media_picker', 'save_media', 'delete_media', 'delete_post', 'change_status', 'like_post',
+        'unlock_content', 'submit_comment', 'moderate_comments', 'mark_comments_read', 'install_update', 'check_update',
+    ];
     $pretty = use_pretty_url();
 
-    return match ($route) {
-        'home' => $pretty ? app_path('/') : script_url(),
-        'rss' => $pretty ? app_path('/rss.xml') : script_url() . '?a=rss',
-        'sitemap' => $pretty ? app_path('/sitemap.xml') : script_url() . '?a=sitemap',
-        'archives' => $pretty ? app_path('/archives') : script_url() . '?a=archives',
-        'tags' => $pretty ? app_path('/tags') : script_url() . '?a=tags',
-        'categories' => $pretty ? app_path('/categories') : script_url() . '?a=categories',
-        'links' => $pretty ? app_path('/links') : script_url() . '?a=links',
-        'tag' => $pretty ? app_path('/tag/' . rawurlencode((string)($params['slug'] ?? ''))) : script_url() . '?a=tag&slug=' . rawurlencode((string)($params['slug'] ?? '')),
-        'category' => $pretty ? app_path('/category/' . rawurlencode((string)($params['slug'] ?? ''))) : script_url() . '?a=category&slug=' . rawurlencode((string)($params['slug'] ?? '')),
-        'page' => $pretty ? app_path('/' . rawurlencode((string)($params['slug'] ?? ''))) : script_url() . '?a=page&slug=' . rawurlencode((string)($params['slug'] ?? '')),
-        'login' => $pretty ? app_path('/login') : script_url() . '?a=login',
-        'forgot_password' => $pretty ? app_path('/forgot-password') : script_url() . '?a=forgot_password',
-        'reset_password' => $pretty ? app_path('/reset-password') : script_url() . '?a=reset_password',
-        'logout' => $pretty ? app_path('/logout') : script_url() . '?a=logout',
-        'admin' => $pretty ? app_path('/admin') : script_url() . '?a=admin',
-        'admin_posts' => $pretty ? app_path('/admin/posts') : script_url() . '?a=admin_posts',
-        'admin_comments' => $pretty ? app_path('/admin/comments') : script_url() . '?a=admin_comments',
-        'admin_categories' => $pretty ? app_path('/admin/categories') : script_url() . '?a=admin_categories',
-        'admin_tags' => $pretty ? app_path('/admin/tags') : script_url() . '?a=admin_tags',
-        'admin_links' => $pretty ? app_path('/admin/links') : script_url() . '?a=admin_links',
-        'admin_users' => $pretty ? app_path('/admin/users') : script_url() . '?a=admin_users',
-        'admin_media' => $pretty ? app_path('/admin/media') : script_url() . '?a=admin_media',
-        'admin_ai' => $pretty ? app_path('/admin/ai') : script_url() . '?a=admin_ai',
-        'admin_mail' => $pretty ? app_path('/admin/mail') : script_url() . '?a=admin_mail',
-        'admin_s3' => $pretty ? app_path('/admin/s3') : script_url() . '?a=admin_s3',
-        'admin_themes' => $pretty ? app_path('/admin/themes') : script_url() . '?a=admin_themes',
-        'admin_theme_settings' => script_url() . '?a=admin_theme_settings',
-        'admin_settings' => $pretty ? app_path('/admin/settings') : script_url() . '?a=admin_settings',
-        'admin_plugins' => $pretty ? app_path('/admin/plugins') : script_url() . '?a=admin_plugins',
-        'admin_store' => $pretty ? app_path('/admin/store') : script_url() . '?a=admin_store',
-        'write' => $pretty ? app_path('/write') : script_url() . '?a=write',
-        'edit' => $pretty ? app_path('/edit/' . (int)($params['id'] ?? 0)) : script_url() . '?a=edit&id=' . (int)($params['id'] ?? 0),
-        'post' => $pretty ? app_path('/archive/' . rawurlencode((string)($params['slug'] ?? ''))) : script_url() . '?a=post&slug=' . rawurlencode((string)($params['slug'] ?? '')),
-        'save_settings' => script_url() . '?a=save_settings',
-        'save_ai_settings' => script_url() . '?a=save_ai_settings',
-        'save_mail_settings' => script_url() . '?a=save_mail_settings',
-        'save_s3_settings' => script_url() . '?a=save_s3_settings',
-        'activate_theme' => script_url() . '?a=activate_theme',
-        'toggle_plugin' => script_url() . '?a=toggle_plugin',
-        'install_extension' => script_url() . '?a=install_extension',
-        'uninstall_extension' => script_url() . '?a=uninstall_extension',
-        'clear_cache' => script_url() . '?a=clear_cache',
-        'ai_generate' => script_url() . '?a=ai_generate',
-        'save_category' => script_url() . '?a=save_category',
-        'delete_category' => script_url() . '?a=delete_category',
-        'save_tag' => script_url() . '?a=save_tag',
-        'delete_tag' => script_url() . '?a=delete_tag',
-        'save_link' => script_url() . '?a=save_link',
-        'delete_link' => script_url() . '?a=delete_link',
-        'save_user' => script_url() . '?a=save_user',
-        'upload_attachment' => script_url() . '?a=upload_attachment',
-        'media_picker' => script_url() . '?a=media_picker',
-        'save_media' => script_url() . '?a=save_media',
-        'delete_media' => script_url() . '?a=delete_media',
-        'delete_post' => script_url() . '?a=delete_post',
-        'change_status' => script_url() . '?a=change_status',
-        'like_post' => script_url() . '?a=like_post',
-        'unlock_content' => script_url() . '?a=unlock_content',
-        'submit_comment' => script_url() . '?a=submit_comment',
-        'moderate_comments' => script_url() . '?a=moderate_comments',
-        'mark_comments_read' => script_url() . '?a=mark_comments_read',
-        'install_update' => script_url() . '?a=install_update',
-        'check_update' => script_url() . '?a=check_update',
-        default => script_url(),
-    };
+    if (isset($slugPaths[$route])) {
+        $slug = rawurlencode((string)($params['slug'] ?? ''));
+        return $pretty ? app_path($slugPaths[$route] . $slug) : script_url() . '?a=' . $route . '&slug=' . $slug;
+    }
+    if ($route === 'edit') {
+        $id = (int)($params['id'] ?? 0);
+        return $pretty ? app_path('/edit/' . $id) : script_url() . '?a=edit&id=' . $id;
+    }
+    if (isset($prettyPaths[$route])) {
+        return $pretty ? app_path($prettyPaths[$route]) : script_url() . ($route === 'home' ? '' : '?a=' . $route);
+    }
+
+    return script_url() . (in_array($route, $actionRoutes, true) ? '?a=' . $route : '');
 }
 
 function url_with_query(string $url, array $params): string
@@ -3393,8 +3340,9 @@ function valid_site_url(string $url): bool
 
 function configured_site_root_url(): string
 {
+    static $roots = [];
     $configured = trim(setting('site_url'));
-    return valid_site_url($configured) ? rtrim($configured, '/') : '';
+    return $roots[$configured] ??= valid_site_url($configured) ? rtrim($configured, '/') : '';
 }
 
 function site_root_url(bool $trusted = false): string
@@ -3514,10 +3462,12 @@ function tag_descriptors(array $post): array
 
 function slugify(string $text): string
 {
-    $text = str_lower_u(trim($text));
-    $text = preg_replace('/[^\p{L}\p{N}]+/u', '-', $text) ?? '';
-    $text = trim($text, '-');
-    return $text !== '' ? $text : 'post';
+    static $slugs = [];
+    if (isset($slugs[$text])) {
+        return $slugs[$text];
+    }
+    $slug = trim(preg_replace('/[^\p{L}\p{N}]+/u', '-', str_lower_u(trim($text))) ?? '', '-');
+    return $slugs[$text] = $slug !== '' ? $slug : 'post';
 }
 
 function page_slug_conflict(string $slug, ?int $excludeId = null): string
@@ -3846,7 +3796,8 @@ function split_bare_url_suffix(string $url): array
 
 function render_inline(string $text): string
 {
-    $parts = preg_split('/(`[^`]+`)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+    // Each pattern below needs a literal marker; skipping the ones that cannot match keeps plain prose cheap.
+    $parts = str_contains($text, '`') ? preg_split('/(`[^`]+`)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE) : null;
     if (!is_array($parts)) {
         $parts = [$text];
     }
@@ -3864,68 +3815,75 @@ function render_inline(string $text): string
         }
 
         // Tokenize bare URLs so existing Markdown links and images cannot be linked twice.
-        $marker = "\x1A";
-        while (str_contains($part, $marker)) {
-            $marker .= "\x1A";
-        }
-
         $bareLinks = [];
-        $part = preg_replace_callback(
-            '~\[!\[.*?\]\([^\s)]+\)\]\([^\s)]+\)|!\[.*?\]\([^\s)]+\)|(?<!!)\[.+?\]\([^\s)]+\)|(?<![A-Z0-9_])(?<bare_url>https?://[A-Z0-9._:/?#\[\]@!$&\'()*+,;=%\~-]+)~iu',
-            static function (array $matches) use (&$bareLinks, $marker): string {
-                $matchedUrl = (string)($matches['bare_url'] ?? '');
-                if ($matchedUrl === '') {
-                    return $matches[0];
-                }
+        if (str_contains($part, '://')) {
+            $marker = "\x1A";
+            while (str_contains($part, $marker)) {
+                $marker .= "\x1A";
+            }
 
-                [$url, $suffix] = split_bare_url_suffix($matchedUrl);
-                $href = safe_link_url($url);
-                if ($href === '#') {
-                    return $matches[0];
-                }
+            $part = preg_replace_callback(
+                '~\[!\[.*?\]\([^\s)]+\)\]\([^\s)]+\)|!\[.*?\]\([^\s)]+\)|(?<!!)\[.+?\]\([^\s)]+\)|(?<![A-Z0-9_])(?<bare_url>https?://[A-Z0-9._:/?#\[\]@!$&\'()*+,;=%\~-]+)~iu',
+                static function (array $matches) use (&$bareLinks, $marker): string {
+                    $matchedUrl = (string)($matches['bare_url'] ?? '');
+                    if ($matchedUrl === '') {
+                        return $matches[0];
+                    }
 
-                $token = $marker . count($bareLinks) . $marker;
-                $bareLinks[$token] = '<a href="' . h($href) . '" target="_blank" rel="noopener noreferrer">' . h($url) . '</a>';
-                return $token . $suffix;
-            },
-            $part
-        ) ?? $part;
+                    [$url, $suffix] = split_bare_url_suffix($matchedUrl);
+                    $href = safe_link_url($url);
+                    if ($href === '#') {
+                        return $matches[0];
+                    }
+
+                    $token = $marker . count($bareLinks) . $marker;
+                    $bareLinks[$token] = '<a href="' . h($href) . '" target="_blank" rel="noopener noreferrer">' . h($url) . '</a>';
+                    return $token . $suffix;
+                },
+                $part
+            ) ?? $part;
+        }
 
         $escaped = h($part);
 
-        $escaped = preg_replace_callback(
-            '/!\[(.*?)]\(([^\s)]+)\)/u',
-            static function (array $matches): string {
-                $src = safe_link_url(html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-                if ($src === '#') {
-                    return $matches[0];
-                }
+        if (str_contains($escaped, '](')) {
+            $escaped = preg_replace_callback(
+                '/!\[(.*?)]\(([^\s)]+)\)/u',
+                static function (array $matches): string {
+                    $src = safe_link_url(html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                    if ($src === '#') {
+                        return $matches[0];
+                    }
 
-                return '<img src="' . h($src) . '" alt="' . $matches[1] . '" loading="lazy">';
-            },
-            $escaped
-        ) ?? $escaped;
+                    return '<img src="' . h($src) . '" alt="' . $matches[1] . '" loading="lazy">';
+                },
+                $escaped
+            ) ?? $escaped;
 
-        $escaped = preg_replace_callback(
-            '/(?<!!)\[(.+?)]\(([^\s)]+)\)/u',
-            static function (array $matches): string {
-                $href = safe_link_url(html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
-                if ($href === '#') {
-                    return $matches[0];
-                }
+            $escaped = preg_replace_callback(
+                '/(?<!!)\[(.+?)]\(([^\s)]+)\)/u',
+                static function (array $matches): string {
+                    $href = safe_link_url(html_entity_decode($matches[2], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                    if ($href === '#') {
+                        return $matches[0];
+                    }
 
-                $external = preg_match('#^https?://#i', $href) === 1;
-                $attrs = $external ? ' target="_blank" rel="noopener noreferrer"' : '';
-                return '<a href="' . h($href) . '"' . $attrs . '>' . $matches[1] . '</a>';
-            },
-            $escaped
-        ) ?? $escaped;
+                    $external = preg_match('#^https?://#i', $href) === 1;
+                    $attrs = $external ? ' target="_blank" rel="noopener noreferrer"' : '';
+                    return '<a href="' . h($href) . '"' . $attrs . '>' . $matches[1] . '</a>';
+                },
+                $escaped
+            ) ?? $escaped;
+        }
+        if (str_contains($escaped, '*')) {
+            $escaped = preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', $escaped) ?? $escaped;
+            $escaped = preg_replace('/\*(.+?)\*/u', '<em>$1</em>', $escaped) ?? $escaped;
+        }
+        if (str_contains($escaped, '~~')) {
+            $escaped = preg_replace('/~~(.+?)~~/u', '<del>$1</del>', $escaped) ?? $escaped;
+        }
 
-        $escaped = preg_replace('/\*\*(.+?)\*\*/u', '<strong>$1</strong>', $escaped) ?? $escaped;
-        $escaped = preg_replace('/\*(.+?)\*/u', '<em>$1</em>', $escaped) ?? $escaped;
-        $escaped = preg_replace('/~~(.+?)~~/u', '<del>$1</del>', $escaped) ?? $escaped;
-
-        $html .= strtr($escaped, $bareLinks);
+        $html .= $bareLinks ? strtr($escaped, $bareLinks) : $escaped;
     }
 
     return $html;
@@ -4093,7 +4051,7 @@ function markdown_to_html(string $markdown): string
     $lineCount = count($lines);
     for ($lineIndex = 0; $lineIndex < $lineCount; $lineIndex++) {
         $line = $lines[$lineIndex];
-        if (preg_match('/^```([\w-]+)?\s*$/', $line, $matches)) {
+        if (str_starts_with($line, '```') && preg_match('/^```([\w-]+)?\s*$/', $line, $matches)) {
             if ($inCode) {
                 $flushCode();
             } else {
@@ -4146,14 +4104,14 @@ function markdown_to_html(string $markdown): string
             }
         }
 
-        if (preg_match('/^\s*$/', $line)) {
+        if ($line === '' || preg_match('/^\s*$/', $line)) {
             $flushParagraph();
             $flushList();
             $flushQuote();
             continue;
         }
 
-        if (preg_match('/^>\s?(.*)$/u', $line, $matches)) {
+        if ($line[0] === '>' && preg_match('/^>\s?(.*)$/u', $line, $matches)) {
             $flushParagraph();
             $flushList();
             $quoteLines[] = $matches[1];
@@ -4162,14 +4120,14 @@ function markdown_to_html(string $markdown): string
 
         $flushQuote();
 
-        if (preg_match('/^---{2,}\s*$/', $line)) {
+        if ($line[0] === '-' && preg_match('/^---{2,}\s*$/', $line)) {
             $flushParagraph();
             $flushList();
             $html[] = '<hr>';
             continue;
         }
 
-        if (preg_match('/^(#{1,3})\s+(.+)$/u', $line, $matches)) {
+        if ($line[0] === '#' && preg_match('/^(#{1,3})\s+(.+)$/u', $line, $matches)) {
             $flushParagraph();
             $flushList();
             $level = strlen($matches[1]);
@@ -4306,50 +4264,14 @@ function record_content_password_attempt(int $postId): bool
 {
     ensure_runtime_dirs();
     prune_comment_rate_files();
-    $handle = @fopen(content_password_rate_file($postId), 'c+');
-    if ($handle === false || !flock($handle, LOCK_EX)) {
-        if (is_resource($handle)) {
-            fclose($handle);
-        }
-        return false;
-    }
-    $state = json_decode((string)stream_get_contents($handle), true);
-    $now = time();
-    if (!is_array($state) || $now - (int)($state['since'] ?? 0) >= 900) {
-        $state = ['count' => 0, 'since' => $now];
-    }
-    $allowed = (int)$state['count'] < 5;
-    if ($allowed) {
-        $state['count'] = (int)$state['count'] + 1;
-    }
-    $encoded = json_encode($state);
-    $stored = is_string($encoded) && rewind($handle) && ftruncate($handle, 0)
-        && fwrite($handle, $encoded) === strlen($encoded) && fflush($handle);
-    flock($handle, LOCK_UN);
-    fclose($handle);
-    return $allowed && $stored;
+    return authentication_rate_state(content_password_rate_file($postId), true, false, 5)['allowed'];
 }
 
 function clear_content_password_attempts(int $postId): void
 {
-    if ($postId < 1) {
-        return;
+    if ($postId > 0) {
+        authentication_rate_state(content_password_rate_file($postId), false, true);
     }
-    $handle = @fopen(content_password_rate_file($postId), 'c+');
-    if ($handle === false) {
-        return;
-    }
-    if (flock($handle, LOCK_EX)) {
-        $encoded = json_encode(['count' => 0, 'since' => time()]);
-        if (is_string($encoded) && rewind($handle) && ftruncate($handle, 0)) {
-            $written = fwrite($handle, $encoded);
-            if (is_int($written) && $written === strlen($encoded)) {
-                fflush($handle);
-            }
-        }
-        flock($handle, LOCK_UN);
-    }
-    fclose($handle);
 }
 
 function send_private_content_headers(array $post): void
@@ -4549,12 +4471,17 @@ function increment_content_views(array $post): void
         return;
     }
 
+    $visitor = client_ip_hash();
+    if (val('SELECT 1 FROM post_views WHERE post_id = ? AND ip_hash = ?', [(int)$post['id'], $visitor]) !== false) {
+        return;
+    }
+
     $database = db();
     $database->exec('BEGIN IMMEDIATE');
     try {
         $inserted = q(
             'INSERT OR IGNORE INTO post_views(post_id, ip_hash, created_at) VALUES(?,?,?)',
-            [(int)$post['id'], client_ip_hash(), time()]
+            [(int)$post['id'], $visitor, time()]
         )->rowCount();
         if ($inserted === 1) {
             q('UPDATE posts SET views = views + 1 WHERE id = ?', [(int)$post['id']]);
@@ -4643,21 +4570,6 @@ function validate_category_input(array $input, ?array $existing = null): array
 function fetch_archive_posts(): array
 {
     return all_rows('SELECT id, slug, title, published_at, tags, kind, is_pinned FROM posts WHERE kind = ? AND status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC', ['post', 'published', time()]);
-}
-
-function archive_groups(): array
-{
-    $groups = [];
-
-    foreach (fetch_archive_posts() as $post) {
-        $label = sblog_t('{year} 年 {month} 月', [
-            'year' => date('Y', (int)$post['published_at']),
-            'month' => date('m', (int)$post['published_at']),
-        ]);
-        $groups[$label][] = $post;
-    }
-
-    return $groups;
 }
 
 function theme_logo_url(): string
@@ -4769,22 +4681,30 @@ function public_comments_for_post(int $postId, int $limit = 100): array
     );
 }
 
+function comment_hook_html(string $hook, array $comment, array $context): string
+{
+    // Comment lists pass the same post for every comment; sanitize it once per post.
+    static $post = null;
+    static $publicPost = null;
+    if (isset($context['post']) && is_array($context['post'])) {
+        if ($context['post'] !== $post) {
+            $post = $context['post'];
+            $publicPost = public_content_context($post);
+        }
+        $context['post'] = $publicPost;
+    }
+    $filtered = plugin_filter($hook, '', array_merge($context, ['comment' => $comment]));
+    return is_string($filtered) ? $filtered : '';
+}
+
 function render_comment_meta(array $comment, array $context = []): string
 {
-    if (isset($context['post']) && is_array($context['post'])) {
-        $context['post'] = public_content_context($context['post']);
-    }
-    $filtered = plugin_filter('comment_meta_html', '', array_merge($context, ['comment' => $comment]));
-    return is_string($filtered) ? $filtered : '';
+    return comment_hook_html('comment_meta_html', $comment, $context);
 }
 
 function render_comment_identity(array $comment, array $context = []): string
 {
-    if (isset($context['post']) && is_array($context['post'])) {
-        $context['post'] = public_content_context($context['post']);
-    }
-    $filtered = plugin_filter('comment_identity_html', '', array_merge($context, ['comment' => $comment]));
-    return is_string($filtered) ? $filtered : '';
+    return comment_hook_html('comment_identity_html', $comment, $context);
 }
 
 function approved_comment_count(int $postId): int
@@ -6418,19 +6338,19 @@ function render_comments_section(array $post, array $form = [], array $errors = 
                   </span>
                   <time class="comment-item__time" datetime="<?= h(date(DATE_ATOM, (int)$comment['created_at'])) ?>"><?= h(pretty_date((int)$comment['created_at'], true)) ?></time>
                 </span>
-                <?php if ($accepting): ?>
-                  <button class="comment-reply-button" type="button" data-comment-reply data-comment-id="<?= h($comment['id']) ?>" data-comment-author="<?= h($comment['author_name']) ?>" aria-controls="comment-form" aria-pressed="<?= $replyTargetId === (int)$comment['id'] ? 'true' : 'false' ?>" aria-label="<?= h(sblog_t('回复 @{author}', ['author' => (string)$comment['author_name']])) ?>" title="<?= h(sblog_t('回复 @{author}', ['author' => (string)$comment['author_name']])) ?>">
+                <?php if ($accepting): $replyLabel = h(sblog_t('回复 @{author}', ['author' => (string)$comment['author_name']])); ?>
+                  <button class="comment-reply-button" type="button" data-comment-reply data-comment-id="<?= h($comment['id']) ?>" data-comment-author="<?= h($comment['author_name']) ?>" aria-controls="comment-form" aria-pressed="<?= $replyTargetId === (int)$comment['id'] ? 'true' : 'false' ?>" aria-label="<?= $replyLabel ?>" title="<?= $replyLabel ?>">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 17-5-5 5-5"></path><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>
                     <span><?= h(sblog_t('回复')) ?></span>
                   </button>
                 <?php endif; ?>
               </header>
               <div class="comment-item__body">
-                <?php if ($replyName !== ''): ?>
+                <?php if ($replyName !== ''): $replyTargetHtml = '<span class="sr-only">' . h(sblog_t('回复给 @{author}', ['author' => $replyName])) . '</span><span class="comment-item__reply-label" aria-hidden="true">@' . h($replyName) . '</span>'; ?>
                   <?php if ($replyAnchorVisible): ?>
-                    <a class="comment-item__reply-target" href="#comment-<?= h($replyParentId) ?>"><span class="sr-only"><?= h(sblog_t('回复给 @{author}', ['author' => $replyName])) ?></span><span class="comment-item__reply-label" aria-hidden="true">@<?= h($replyName) ?></span></a>
+                    <a class="comment-item__reply-target" href="#comment-<?= h($replyParentId) ?>"><?= $replyTargetHtml ?></a>
                   <?php else: ?>
-                    <span class="comment-item__reply-target"><span class="sr-only"><?= h(sblog_t('回复给 @{author}', ['author' => $replyName])) ?></span><span class="comment-item__reply-label" aria-hidden="true">@<?= h($replyName) ?></span></span>
+                    <span class="comment-item__reply-target"><?= $replyTargetHtml ?></span>
                   <?php endif; ?>
                 <?php endif; ?>
                 <span class="comment-item__content"><?= nl2br(h($comment['content']), false) ?></span>
@@ -6696,7 +6616,7 @@ function render_category_page(string $slug): void
     $category = one('SELECT * FROM categories WHERE slug = ?', [trim($slug)]);
     if (!$category) { simple_error_page(sblog_t('分类不存在'), sblog_t('没有找到这个文章分类。'), 404); }
     $posts = all_rows(
-        'SELECT * FROM posts WHERE kind = ? AND category_id = ? AND status = ? AND published_at <= ? ORDER BY is_pinned DESC, published_at DESC, id DESC',
+        'SELECT id, slug, title, published_at, is_pinned FROM posts WHERE kind = ? AND category_id = ? AND status = ? AND published_at <= ? ORDER BY is_pinned DESC, published_at DESC, id DESC',
         ['post', (int)$category['id'], 'published', time()]
     );
     ob_start(); ?>
