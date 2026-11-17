@@ -23,9 +23,9 @@ session_set_cookie_params([
 ]);
 session_start();
 
-const APP_VERSION = 'v1.14.36';
-const DATABASE_SCHEMA_VERSION = 1;
-const DATABASE_MAINTENANCE_VERSION = 1;
+const APP_VERSION = 'v1.14.37';
+const DATABASE_SCHEMA_VERSION = 2;
+const DATABASE_MAINTENANCE_VERSION = 2;
 const DATA_DIR = __DIR__ . '/data';
 const CACHE_DIR = __DIR__ . '/cache';
 const ADMIN_PRESENCE_FILE = CACHE_DIR . '/admin-presence.json';
@@ -500,6 +500,32 @@ function migrate_legacy_schema(PDO $pdo): void
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_comments_visitor_email_approval ON comments(author_email COLLATE NOCASE, status) WHERE user_id IS NULL");
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_media_created ON media(created_at DESC, id DESC)');
     $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_media_local_path ON media(local_path) WHERE local_path <> ''");
+
+    // posts.tags stays the source of truth. Triggers queue every changed post, so writers that bypass save_post() stay indexed.
+    $tagIndexExists = (bool)$pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'post_tags'")->fetchColumn();
+    foreach ([
+        "CREATE TABLE IF NOT EXISTS post_tags(
+            post_id INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            PRIMARY KEY(post_id, label)
+        ) WITHOUT ROWID",
+        "CREATE INDEX IF NOT EXISTS idx_post_tags_label ON post_tags(label, post_id)",
+        "CREATE TABLE IF NOT EXISTS post_tag_queue(post_id INTEGER PRIMARY KEY)",
+        "CREATE TRIGGER IF NOT EXISTS post_tag_queue_insert AFTER INSERT ON posts BEGIN
+            INSERT OR IGNORE INTO post_tag_queue(post_id) VALUES(new.id);
+        END",
+        "CREATE TRIGGER IF NOT EXISTS post_tag_queue_update AFTER UPDATE OF tags ON posts WHEN new.tags IS NOT old.tags BEGIN
+            INSERT OR IGNORE INTO post_tag_queue(post_id) VALUES(new.id);
+        END",
+        "CREATE TRIGGER IF NOT EXISTS post_tag_queue_delete AFTER DELETE ON posts BEGIN
+            DELETE FROM post_tags WHERE post_id = old.id;
+            DELETE FROM post_tag_queue WHERE post_id = old.id;
+        END",
+    ] as $sql) { $pdo->exec($sql); }
+    if (!$tagIndexExists) {
+        $pdo->exec('INSERT OR IGNORE INTO post_tag_queue(post_id) SELECT id FROM posts');
+    }
 
     import_legacy_local_media($pdo);
 
@@ -5243,30 +5269,60 @@ function fetch_feed_posts(int $limit = 20): array
     return array_map('public_content_context', $posts);
 }
 
+function sync_post_tags(): void
+{
+    if (val('SELECT 1 FROM post_tag_queue LIMIT 1') === false) {
+        return;
+    }
+
+    $database = db();
+    $ownsTransaction = !$database->inTransaction();
+    if ($ownsTransaction) { $database->exec('BEGIN IMMEDIATE'); }
+    try {
+        $insert = $database->prepare('INSERT INTO post_tags(post_id, label, position) VALUES(?,?,?)');
+        // Read the queue again under the write lock: a concurrent request may already have drained it.
+        foreach (all_rows('SELECT id, tags FROM posts WHERE id IN (SELECT post_id FROM post_tag_queue)') as $post) {
+            q('DELETE FROM post_tags WHERE post_id = ?', [(int)$post['id']]);
+            foreach (post_tags($post) as $position => $label) {
+                $insert->execute([(int)$post['id'], $label, $position]);
+            }
+        }
+        $database->exec('DELETE FROM post_tag_queue');
+        if ($ownsTransaction) { $database->exec('COMMIT'); }
+    } catch (Throwable $exception) {
+        if ($ownsTransaction) {
+            try { $database->exec('ROLLBACK'); } catch (Throwable) {}
+        }
+        throw $exception;
+    }
+}
+
 function tag_index_data(bool $publishedOnly = true): array
 {
-    $map = [];
-    $posts = $publishedOnly
-        ? all_rows('SELECT tags FROM posts WHERE kind = ? AND status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC', ['post', 'published', time()])
-        : all_rows('SELECT tags FROM posts WHERE kind = ? ORDER BY updated_at DESC, id DESC', ['post']);
+    sync_post_tags();
+    [$where, $params, $order] = $publishedOnly
+        ? ['p.kind = ? AND p.status = ? AND p.published_at <= ?', ['post', 'published', time()], 'p.published_at DESC, p.id DESC']
+        : ['p.kind = ?', ['post'], 'p.updated_at DESC, p.id DESC'];
+    $from = ' FROM post_tags t INNER JOIN posts p ON p.id = t.post_id WHERE ' . $where;
+    $counts = all_rows('SELECT t.label, COUNT(*) AS count' . $from . ' GROUP BY t.label', $params);
 
-    foreach ($posts as $post) {
-        foreach (post_tags($post) as $label) {
-            $slug = tag_slug_for_label($label);
-            if (!isset($map[$slug])) {
-                $map[$slug] = ['slug' => $slug, 'label' => $label, 'count' => 0];
+    $registered = tag_meta_cache()['labels'];
+    foreach ($counts as $row) {
+        if (($registered[(string)$row['label']] ?? '') === '') {
+            // Labels without a slug yet claim theirs in list order, newest post first.
+            foreach (all_rows('SELECT t.label' . $from . ' ORDER BY ' . $order . ', t.position', $params) as $occurrence) {
+                tag_slug_for_label((string)$occurrence['label']);
             }
-            $map[$slug]['count']++;
+            break;
         }
     }
 
-    $tags = array_values($map);
-    usort(
-        $tags,
-        static function (array $a, array $b): int {
-            return $b['count'] <=> $a['count'] ?: strcmp((string)$a['label'], (string)$b['label']);
-        }
-    );
+    $tags = [];
+    foreach ($counts as $row) {
+        $label = (string)$row['label'];
+        $tags[] = ['slug' => tag_slug_for_label($label), 'label' => $label, 'count' => (int)$row['count']];
+    }
+    usort($tags, static fn(array $a, array $b): int => $b['count'] <=> $a['count'] ?: strcmp($a['label'], $b['label']));
 
     return $tags;
 }
@@ -5278,26 +5334,20 @@ function fetch_posts_by_tag_slug(string $slug): array
         return [];
     }
 
-    $ids = [];
-    $now = time();
-    // Register legacy tags in the same order as the public tag index, before applying pinned ordering.
-    $posts = all_rows('SELECT id, tags FROM posts WHERE kind = ? AND status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC', ['post', 'published', $now]);
-
-    foreach ($posts as $post) {
-        foreach (tag_descriptors($post) as $tag) {
-            if ($tag['slug'] === $slug) {
-                $ids[] = (int)$post['id'];
-                break;
-            }
-        }
-    }
-
-    if ($ids === []) {
+    sync_post_tags();
+    // An unknown slug may belong to a label that has not claimed one yet; the public index assigns those.
+    $label = tag_meta_cache()['slugs'][$slug] ?? array_column(tag_index_data(), 'label', 'slug')[$slug] ?? null;
+    if ($label === null) {
         return [];
     }
-    // IDs come from SQLite and are cast to integers; this also avoids its bound-parameter limit.
-    $matches = all_rows('SELECT * FROM posts WHERE id IN (' . implode(',', $ids) . ') AND kind = ? AND status = ? AND published_at <= ? ORDER BY is_pinned DESC, published_at DESC, id DESC', ['post', 'published', $now]);
-    return array_map('public_content_context', $matches);
+
+    $posts = all_rows(
+        'SELECT p.* FROM posts p INNER JOIN post_tags t ON t.post_id = p.id
+         WHERE t.label = ? AND p.kind = ? AND p.status = ? AND p.published_at <= ?
+         ORDER BY p.is_pinned DESC, p.published_at DESC, p.id DESC',
+        [$label, 'post', 'published', time()]
+    );
+    return array_map('public_content_context', $posts);
 }
 
 function tag_label_by_slug(string $slug): ?string

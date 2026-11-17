@@ -95,6 +95,7 @@ store/         Extension-store catalog protocol documentation (not deployed to t
 - The `settings` table stores basic site settings.
 - Password recovery and email notifications require a valid, complete **Site URL** under **Site Settings → General**. Include the full path for subdirectory installations. If the URL is missing or invalid, the application will not generate email links from the request hostname.
 - Legacy field, index, and data repairs run once and record `database_maintenance_version`; subsequent requests only read that version. Increment `DATABASE_MAINTENANCE_VERSION` when adding compatibility repairs. Running `update.php` schedules a fresh check on the next request.
+- The `post_tags` table is a tag index derived from `posts.tags` for the tag index, tag pages, and the sitemap; `posts.tags` remains the single source of truth. Database triggers record new posts and tag changes in `post_tag_queue`, and the next tag read syncs them, so plugins that write to `posts` directly need no extra work and should not write to either table.
 - **Language** under **Site Settings → General** is stored as `site_language` and defaults to `zh-CN` (Simplified Chinese). Installed language packs add options through the `locale` and `language_name` fields in their `plugin.json` manifest.
 - `cache/settings.php` caches basic site settings to reduce database reads on regular pages.
 - The `ai_settings` table stores the AI endpoint, model, prompts, and API key. These values are not written to the cache file.
@@ -218,6 +219,6 @@ location ~ \.php$ {
 - The `ai_settings`, `mail_settings`, and `s3_settings` tables contain sensitive backend credentials. Modify them only through the admin panel.
 - To reinstall the application, delete `data/install.lock` first.
 - Update checks read database-version metadata from the GitHub Release body. When a migration is required, the admin panel warns before installation and keeps linking to `update.php` until the migration succeeds.
-- Add `<!-- sblog-release-meta: {"database_schema":1} -->` to every Release body, using that release's target schema. When a release includes a database migration, increment the database schema constants in the application as well.
+- Add `<!-- sblog-release-meta: {"database_schema":2} -->` to every Release body, using that release's target schema. When a release includes a database migration, increment the database schema constants in the application as well.
 - Release the first version with this mechanism as a bridge without a new database migration, because older updaters cannot read Release metadata.
 - One-click updates replace core application files only and preserve `data/`, `cache/`, `uploads/`, `themes/`, and `plugins/`. Themes and plugins are updated independently through the extension store.

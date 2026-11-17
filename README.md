@@ -103,6 +103,7 @@ store/         扩展商店索引协议说明（不部署到站点）
 - `s3_settings` 表保存 S3 Endpoint、Bucket、访问密钥和上传选项，不写入缓存文件。
 - 后台保存站点基础设置会刷新 `cache/settings.php`。
 - 历史字段、索引与数据兼容修复只在首次访问时执行一次，以 `database_maintenance_version` 记录完成状态；后续请求只读取此版本。增加兼容修复时需递增 `DATABASE_MAINTENANCE_VERSION`，执行 `update.php` 后会在下一次访问重新检查。
+- `post_tags` 表是文章标签索引，由 `posts.tags` 派生，供标签索引、标签页和 sitemap 查询；`posts.tags` 仍是唯一数据源。数据库触发器会把新增或标签有变动的文章记入 `post_tag_queue`，下一次读取标签时自动同步，因此直接写入 `posts` 表的插件无需额外处理，也不应直接写入这两张表。
 - 后台保存 AI、邮件通知或 S3 设置只更新对应独立数据表。
 
 ## 自定义主题
@@ -225,6 +226,6 @@ location ~ \.php$ {
 - `ai_settings`、`mail_settings` 和 `s3_settings` 中包含后端密钥类配置，请只通过后台修改
 - 如果要重装，先删除 `data/install.lock`
 - 检查更新会读取 GitHub Release 正文中的数据库版本元数据；需要迁移时，后台会在更新前提示，并在升级完成前持续显示 `update.php` 入口
-- 每次发布都在 Release 正文加入 `<!-- sblog-release-meta: {"database_schema":1} -->`（数字使用该版本的目标 schema）；包含数据库迁移时，还需要同步递增程序中的数据库 schema 常量
+- 每次发布都在 Release 正文加入 `<!-- sblog-release-meta: {"database_schema":2} -->`（数字使用该版本的目标 schema）；包含数据库迁移时，还需要同步递增程序中的数据库 schema 常量
 - 首次启用此机制的版本应作为不含新数据库迁移的桥接版本发布，因为更旧的更新器无法读取 Release 元数据
 - 一键更新只覆盖核心程序文件并保留 `data/`、`cache/`、`uploads/`、`themes/` 与 `plugins/`；主题和插件通过扩展商店独立更新

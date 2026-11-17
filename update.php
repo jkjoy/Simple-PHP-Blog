@@ -28,7 +28,7 @@ const UPDATE_CACHE_DIR = __DIR__ . '/cache';
 const UPDATE_CONFIG_FILE = UPDATE_DATA_DIR . '/config.php';
 const UPDATE_LOCK_FILE = UPDATE_DATA_DIR . '/install.lock';
 const UPDATE_SETTINGS_CACHE_FILE = UPDATE_CACHE_DIR . '/settings.php';
-const UPDATE_DATABASE_SCHEMA_VERSION = 1;
+const UPDATE_DATABASE_SCHEMA_VERSION = 2;
 
 function update_h(string|int $value): string
 {
@@ -354,6 +354,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$databaseIsNewer) {
                 $changes[] = '更新用户社交平台字段';
             }
 
+            $tagIndexExists = (bool)$db->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'post_tags' LIMIT 1")->fetchColumn();
+            foreach ([
+                "CREATE TABLE IF NOT EXISTS post_tags(
+                    post_id INTEGER NOT NULL,
+                    label TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    PRIMARY KEY(post_id, label)
+                ) WITHOUT ROWID",
+                "CREATE INDEX IF NOT EXISTS idx_post_tags_label ON post_tags(label, post_id)",
+                "CREATE TABLE IF NOT EXISTS post_tag_queue(post_id INTEGER PRIMARY KEY)",
+                "CREATE TRIGGER IF NOT EXISTS post_tag_queue_insert AFTER INSERT ON posts BEGIN
+                    INSERT OR IGNORE INTO post_tag_queue(post_id) VALUES(new.id);
+                END",
+                "CREATE TRIGGER IF NOT EXISTS post_tag_queue_update AFTER UPDATE OF tags ON posts WHEN new.tags IS NOT old.tags BEGIN
+                    INSERT OR IGNORE INTO post_tag_queue(post_id) VALUES(new.id);
+                END",
+                "CREATE TRIGGER IF NOT EXISTS post_tag_queue_delete AFTER DELETE ON posts BEGIN
+                    DELETE FROM post_tags WHERE post_id = old.id;
+                    DELETE FROM post_tag_queue WHERE post_id = old.id;
+                END",
+            ] as $sql) { $db->exec($sql); }
+            if (!$tagIndexExists) {
+                $db->exec('INSERT OR IGNORE INTO post_tag_queue(post_id) SELECT id FROM posts');
+                $changes[] = '新增文章标签索引表';
+            }
+
             if ($installedSchemaVersion < UPDATE_DATABASE_SCHEMA_VERSION) {
                 $db->prepare('INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)')
                     ->execute(['database_schema_version', (string)UPDATE_DATABASE_SCHEMA_VERSION]);
@@ -392,7 +418,7 @@ if (!isset($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token']) || $_
       <div class="panel__body">
         <?php if ($message !== ''): ?><div class="flash flash--success"><?= update_h($message) ?></div><?php endif; ?>
         <?php if ($error !== ''): ?><div class="flash flash--error"><?= update_h($error) ?></div><?php endif; ?>
-        <p>本次升级将补齐文章置顶、评论、通知、媒体、存储和用户社交平台所需的数据结构。操作可重复执行，不会覆盖文章内容。</p>
+        <p>本次升级将补齐文章置顶、评论、通知、媒体、存储、标签索引和用户社交平台所需的数据结构。操作可重复执行，不会覆盖文章内容。</p>
         <form method="post">
           <input type="hidden" name="csrf_token" value="<?= update_h((string)$_SESSION['csrf_token']) ?>">
           <div class="form-actions">

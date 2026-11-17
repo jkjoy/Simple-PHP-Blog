@@ -7,7 +7,7 @@ const INSTALL_CACHE_DIR = __DIR__ . '/cache';
 const INSTALL_DB_CONFIG_FILE = INSTALL_DATA_DIR . '/config.php';
 const INSTALL_LOCK_FILE = INSTALL_DATA_DIR . '/install.lock';
 const INSTALL_SETTINGS_CACHE_FILE = INSTALL_CACHE_DIR . '/settings.php';
-const INSTALL_DATABASE_SCHEMA_VERSION = 1;
+const INSTALL_DATABASE_SCHEMA_VERSION = 2;
 
 function i_h(string|int|float|bool|null $value): string
 {
@@ -816,6 +816,26 @@ $db->exec('CREATE INDEX IF NOT EXISTS idx_comments_user_recent ON comments(user_
 $db->exec("CREATE INDEX IF NOT EXISTS idx_comments_visitor_email_approval ON comments(author_email COLLATE NOCASE, status) WHERE user_id IS NULL");
 $db->exec('CREATE INDEX IF NOT EXISTS idx_media_created ON media(created_at DESC, id DESC)');
 $db->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_media_local_path ON media(local_path) WHERE local_path <> ''");
+foreach ([
+    "CREATE TABLE IF NOT EXISTS post_tags(
+        post_id INTEGER NOT NULL,
+        label TEXT NOT NULL,
+        position INTEGER NOT NULL,
+        PRIMARY KEY(post_id, label)
+    ) WITHOUT ROWID",
+    "CREATE INDEX IF NOT EXISTS idx_post_tags_label ON post_tags(label, post_id)",
+    "CREATE TABLE IF NOT EXISTS post_tag_queue(post_id INTEGER PRIMARY KEY)",
+    "CREATE TRIGGER IF NOT EXISTS post_tag_queue_insert AFTER INSERT ON posts BEGIN
+        INSERT OR IGNORE INTO post_tag_queue(post_id) VALUES(new.id);
+    END",
+    "CREATE TRIGGER IF NOT EXISTS post_tag_queue_update AFTER UPDATE OF tags ON posts WHEN new.tags IS NOT old.tags BEGIN
+        INSERT OR IGNORE INTO post_tag_queue(post_id) VALUES(new.id);
+    END",
+    "CREATE TRIGGER IF NOT EXISTS post_tag_queue_delete AFTER DELETE ON posts BEGIN
+        DELETE FROM post_tags WHERE post_id = old.id;
+        DELETE FROM post_tag_queue WHERE post_id = old.id;
+    END",
+] as $sql) { $db->exec($sql); }
 
 $now = time();
 $settings = i_default_settings();
